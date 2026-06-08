@@ -32,3 +32,9 @@ jobs:
 
       - name: Build project
         run: ./mvnw clean install -DskipTests
+
+      - name: Start infrastructure
+        run: docker compose up -d
+
+      - name: Show running containers
+        run: docker ps
