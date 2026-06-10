@@ -34,3 +34,10 @@ build/
 
 ### VS Code ###
 .vscode/
+
+# Environment variables
+.env
+
+# Các biến thể của env
+.env.*
+!.env.example
