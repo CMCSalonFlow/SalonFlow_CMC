@@ -1,4 +1,7 @@
 HELP.md
+# dotenv environment files
+.env
+.env.*
 target/
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
