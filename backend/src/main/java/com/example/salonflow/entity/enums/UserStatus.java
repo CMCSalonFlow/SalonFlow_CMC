@@ -1,4 +1,4 @@
-package com.example.salonflow.entity;
+package com.example.salonflow.entity.enums;
 
 public enum UserStatus {
     ACTIVE,
