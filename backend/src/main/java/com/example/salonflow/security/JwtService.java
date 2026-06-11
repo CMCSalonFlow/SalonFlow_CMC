@@ -1,4 +1,4 @@
-package com.example.salonflow.auth;
+package com.example.salonflow.security;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
