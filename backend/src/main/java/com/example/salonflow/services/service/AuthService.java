@@ -1,9 +1,11 @@
-package com.example.salonflow.auth;
+package com.example.salonflow.services.service;
 
 import com.example.salonflow.dto.AuthResponse;
 import com.example.salonflow.dto.RegisterRequest;
 import com.example.salonflow.entity.User;
 import com.example.salonflow.repository.UserRepository;
+import com.example.salonflow.security.JwtService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;

@@ -1,7 +1,9 @@
-package com.example.salonflow.auth;
+package com.example.salonflow.controller;
 
 import com.example.salonflow.dto.AuthResponse;
 import com.example.salonflow.dto.RegisterRequest;
+import com.example.salonflow.services.service.AuthService;
+
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
