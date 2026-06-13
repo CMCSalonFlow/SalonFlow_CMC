@@ -20,4 +20,7 @@ public class Permission extends BaseEntity {
     private String code;
 
     private String description;
+    public String getName() {
+        return this.code;
+    }
 }
