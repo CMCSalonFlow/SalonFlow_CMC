@@ -6,6 +6,9 @@ import com.example.salonflow.entity.RefreshToken;
 import com.example.salonflow.entity.Role;
 import com.example.salonflow.entity.User;
 import com.example.salonflow.entity.enums.UserStatus;
+import com.example.salonflow.exception.BusinessException;
+import com.example.salonflow.exception.InvalidTokenException;
+import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.RoleRepository;
 import com.example.salonflow.repository.UserRepository;
 import com.example.salonflow.services.service.AuthenticationService;
@@ -59,8 +62,8 @@ public class AuthenticationServiceImpl
                 validateRegisterRequest(request);
 
                 Role customerRole = roleRepository.findByName(DEFAULT_ROLE)
-                                .orElseThrow(() -> new RuntimeException(
-                                                "Role CUSTOMER not found"));
+                                .orElseThrow(() -> 
+                                        new ResourceNotFoundException("Role CUSTOMER không tồn tại"));
 
                 User user = User.builder()
                                 .username(request.getUsername())
@@ -98,15 +101,13 @@ public class AuthenticationServiceImpl
 
                 } catch (AuthenticationException e) {
 
-                        throw new RuntimeException(
-                                        "Email or password invalid");
+                        throw new BusinessException("Email hoặc mật khẩu không đúng");
                 }
 
                 User user = userRepository
                                 .findByEmail(request.getEmail())
-                                .orElseThrow(
-                                                () -> new RuntimeException(
-                                                                "User not found"));
+                                .orElseThrow(() ->
+                                        new ResourceNotFoundException("Người dùng không tồn tại"));
 
                 validateActiveUser(user);
 
@@ -151,23 +152,20 @@ public class AuthenticationServiceImpl
                 if (userRepository.existsByEmail(
                                 request.getEmail())) {
 
-                        throw new RuntimeException(
-                                        "Email already exists");
+                        throw new BusinessException("Email đã tồn tại");
                 }
 
                 if (userRepository.existsByUsername(
                                 request.getUsername())) {
 
-                        throw new RuntimeException(
-                                        "Username already exists");
+                        throw new BusinessException("Username đã tồn tại");
                 }
         }
 
         private void validateActiveUser(User user) {
 
                 if (user.getStatus() != UserStatus.ACTIVE) {
-                        throw new RuntimeException(
-                                        "User account is not active");
+                        throw new BusinessException("Tài khoản chưa được kích hoạt");
                 }
         }
 
@@ -234,19 +232,16 @@ public class AuthenticationServiceImpl
                 String savedOtp = otpService.getOtp(email);
 
                 if (savedOtp == null) {
-
-                        throw new RuntimeException(
-                                        "OTP expired");
+                        throw new InvalidTokenException("OTP đã hết hạn");
                 }
 
                 if (!savedOtp.equals(otp)) {
-
-                        throw new RuntimeException(
-                                        "Invalid OTP");
+                        throw new InvalidTokenException("OTP không hợp lệ");
                 }
 
                 User user = userRepository.findByEmail(email)
-                                .orElseThrow();
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Người dùng không tồn tại"));
 
                 user.setStatus(UserStatus.ACTIVE);
 
@@ -263,7 +258,8 @@ public class AuthenticationServiceImpl
                         String email) {
 
                 User user = userRepository.findByEmail(email)
-                                .orElseThrow();
+                                .orElseThrow(() ->
+                                        new ResourceNotFoundException("Email không tồn tại trong hệ thống"));
 
                 String token = jwtService.generateResetPasswordToken(
                                 user.getEmail());
@@ -272,25 +268,26 @@ public class AuthenticationServiceImpl
                                 + "/reset-password?token="
                                 + token;
 
-                emailService.sendResetPasswordEmail(
-                                email,
-                                link);
+                emailService.sendResetPasswordEmail(email, link);
         }
 
         @Override
-        public void resetPassword(
-                        String token,
-                        String newPassword) {
+        public void resetPassword(String token, String newPassword) {
 
-                String email = jwtService.extractEmailFromResetToken(
-                                token);
+                String email;
+
+                try {
+                        email = jwtService.extractEmailFromResetToken(token);
+                } catch (Exception e) {
+                        throw new InvalidTokenException("Token không hợp lệ hoặc đã hết hạn");
+                }
 
                 User user = userRepository.findByEmail(email)
-                                .orElseThrow();
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException("Người dùng không tồn tại"));
 
                 user.setPasswordHash(
-                                passwordEncoder.encode(
-                                                newPassword));
+                        passwordEncoder.encode(newPassword));
 
                 userRepository.save(user);
         }

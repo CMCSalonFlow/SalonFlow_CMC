@@ -37,9 +37,9 @@ public class EmailServiceImpl
                         "html",
                         """
                         <h2>SalonFlow</h2>
-                        <p>Your OTP:</p>
+                        <p>OTP của bạn:</p>
                         <h1>%s</h1>
-                        <p>Expired in 5 minutes.</p>
+                        <p>Hết hạn sau 5 phút.</p>
                         """.formatted(otp)
                 );
 
@@ -65,7 +65,7 @@ public class EmailServiceImpl
                         Reset Password
                         </a>
 
-                        <p>Expires in 30 minutes.</p>
+                        <p>Hết hạn sau 30 phút.</p>
                         """.formatted(resetLink)
                 );
 
@@ -75,7 +75,7 @@ public class EmailServiceImpl
     private void send(Map<String, Object> body) {
 
     if (apiKey == null || apiKey.isBlank()) {
-        throw new RuntimeException("Resend API key is missing");
+        throw new RuntimeException("Thiếu cấu hình Resend API key");
     }
 
     webClient.post()
