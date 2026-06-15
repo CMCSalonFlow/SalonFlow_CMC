@@ -2,33 +2,32 @@ package com.example.salonflow.security.oauth;
 
 import com.example.salonflow.dto.auth.AuthResponse;
 import com.example.salonflow.services.service.AuthenticationService;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.stereotype.Component;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 
 @Component
 @RequiredArgsConstructor
 public class OAuth2AuthenticationSuccessHandler
-        implements org.springframework.security.web.authentication.AuthenticationSuccessHandler {
+        implements AuthenticationSuccessHandler {
 
     private final ObjectProvider<AuthenticationService> authenticationService;
-    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public void onAuthenticationSuccess(
             HttpServletRequest request,
             HttpServletResponse response,
             Authentication authentication
-    ) throws IOException, ServletException {
+    ) throws IOException {
 
         OAuth2AuthenticationToken oauthToken =
                 (OAuth2AuthenticationToken) authentication;
@@ -36,11 +35,34 @@ public class OAuth2AuthenticationSuccessHandler
         AuthResponse authResponse =
                 authenticationService.getObject()
                         .loginWithOAuth2(
-                        oauthToken.getAuthorizedClientRegistrationId(),
-                        oauthToken.getPrincipal()
-                );
+                                oauthToken.getAuthorizedClientRegistrationId(),
+                                oauthToken.getPrincipal()
+                        );
 
-        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        objectMapper.writeValue(response.getWriter(), authResponse);
+        String redirectUrl =
+                "http://localhost:5173/oauth2/success"
+                        + "?userId=" + authResponse.getUserId()
+                        + "&username=" + URLEncoder.encode(
+                                authResponse.getUsername(),
+                                StandardCharsets.UTF_8
+                        )
+                        + "&email=" + URLEncoder.encode(
+                                authResponse.getEmail(),
+                                StandardCharsets.UTF_8
+                        )
+                        + "&accessToken=" + URLEncoder.encode(
+                                authResponse.getAccessToken(),
+                                StandardCharsets.UTF_8
+                        )
+                        + "&refreshToken=" + URLEncoder.encode(
+                                authResponse.getRefreshToken(),
+                                StandardCharsets.UTF_8
+                        )
+                        + "&roles=" + URLEncoder.encode(
+                                String.join(",", authResponse.getRoles()),
+                                StandardCharsets.UTF_8
+                        );
+
+        response.sendRedirect(redirectUrl);
     }
 }
