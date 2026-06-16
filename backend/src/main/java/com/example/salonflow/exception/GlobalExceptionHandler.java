@@ -53,7 +53,30 @@ public class GlobalExceptionHandler {
                         null
                 ));
     }
+        @ExceptionHandler(ResourceNotFoundException.class)
+        public ResponseEntity<Map<String, Object>> handleNotFound(
+                ResourceNotFoundException ex
+        ) {
 
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(errorBody(
+                        HttpStatus.NOT_FOUND,
+                        ex.getMessage(),
+                        null
+                ));
+        }
+        @ExceptionHandler(BusinessAccessDeniedException.class)
+        public ResponseEntity<Map<String, Object>> handleAccessDenied(
+                BusinessAccessDeniedException ex
+        ) {
+
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(errorBody(
+                        HttpStatus.FORBIDDEN,
+                        ex.getMessage(),
+                        null
+                ));
+        }
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, Object>> handleDataIntegrity() {
 

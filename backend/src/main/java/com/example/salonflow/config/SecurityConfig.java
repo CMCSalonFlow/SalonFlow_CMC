@@ -2,6 +2,8 @@ package com.example.salonflow.config;
 
 import com.example.salonflow.security.CustomUserDetailsService;
 import com.example.salonflow.security.JwtAuthenticationFilter;
+import com.example.salonflow.security.oauth.OAuth2AuthenticationFailureHandler;
+import com.example.salonflow.security.oauth.OAuth2AuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -14,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableMethodSecurity
@@ -24,6 +27,11 @@ public class SecurityConfig {
 
     private final CustomUserDetailsService userDetailsService;
 
+    private final OAuth2AuthenticationSuccessHandler oauth2SuccessHandler;
+
+    private final OAuth2AuthenticationFailureHandler oauth2FailureHandler;
+
+    private final CorsConfigurationSource corsConfigurationSource;
     @Bean
     public PasswordEncoder passwordEncoder() {
 
@@ -57,10 +65,15 @@ public class SecurityConfig {
     ) throws Exception {
 
         http
+                .cors(cors ->
+                        cors.configurationSource(
+                                corsConfigurationSource
+                        )
+                )
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS
+                                SessionCreationPolicy.IF_REQUIRED
                         )
                 )
                 .authorizeHttpRequests(auth ->
@@ -68,6 +81,11 @@ public class SecurityConfig {
 
                                 .requestMatchers(
                                         "/api/v1/auth/**"
+                                ).permitAll()
+
+                                .requestMatchers(
+                                        "/oauth2/**",
+                                        "/login/oauth2/**"
                                 ).permitAll()
 
                                 .requestMatchers(
@@ -80,6 +98,11 @@ public class SecurityConfig {
                 )
                 .authenticationProvider(
                         authenticationProvider()
+                )
+                .oauth2Login(oauth2 ->
+                        oauth2
+                                .successHandler(oauth2SuccessHandler)
+                                .failureHandler(oauth2FailureHandler)
                 )
                 .addFilterBefore(
                         jwtFilter,

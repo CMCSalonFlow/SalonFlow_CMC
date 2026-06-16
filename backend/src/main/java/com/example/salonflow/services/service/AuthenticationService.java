@@ -2,12 +2,18 @@ package com.example.salonflow.services.service;
 
 import com.example.salonflow.dto.auth.*;
 import com.example.salonflow.dto.common.MessageResponse;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 public interface AuthenticationService {
 
     AuthResponse login(LoginRequest request);
 
     RegisterResponse register(RegisterRequest request);
+
+    AuthResponse loginWithOAuth2(
+            String registrationId,
+            OAuth2User oauth2User
+    );
 
     RefreshTokenResponse refreshToken(
             RefreshTokenRequest request);

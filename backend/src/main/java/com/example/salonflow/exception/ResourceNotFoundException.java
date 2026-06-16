@@ -1,6 +1,6 @@
 package com.example.salonflow.exception;
 
-public class ResourceNotFoundException extends BaseException {
+public class ResourceNotFoundException extends RuntimeException {
 
     public ResourceNotFoundException(String message) {
         super(message);
