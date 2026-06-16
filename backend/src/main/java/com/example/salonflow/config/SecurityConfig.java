@@ -16,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.*;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableMethodSecurity
@@ -30,6 +31,7 @@ public class SecurityConfig {
 
     private final OAuth2AuthenticationFailureHandler oauth2FailureHandler;
 
+    private final CorsConfigurationSource corsConfigurationSource;
     @Bean
     public PasswordEncoder passwordEncoder() {
 
@@ -63,6 +65,11 @@ public class SecurityConfig {
     ) throws Exception {
 
         http
+                .cors(cors ->
+                        cors.configurationSource(
+                                corsConfigurationSource
+                        )
+                )
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(
