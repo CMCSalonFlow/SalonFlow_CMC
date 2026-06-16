@@ -12,8 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Stream; // Thêm import này để hết lỗi biên dịch
-
+import java.util.stream.Stream;
 @Service
 @RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
@@ -44,11 +43,9 @@ public class CustomUserDetailsService implements UserDetailsService {
                 })
                 .toList();
 
-        return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getEmail())
-                .password(user.getPasswordHash()) // Đảm bảo thuộc tính này đúng trong entity User của bạn
-                .authorities(authorities)
-                .disabled(user.getStatus() != UserStatus.ACTIVE) // Nếu trạng thái KHÁC ACTIVE thì sẽ bị disable
-                .build();
+                        return new CustomUserPrincipal(
+                        user,
+                        authorities
+                );
     }
 }
