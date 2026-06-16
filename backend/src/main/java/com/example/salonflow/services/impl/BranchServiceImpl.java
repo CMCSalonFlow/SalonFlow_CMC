@@ -11,7 +11,8 @@ import com.example.salonflow.repository.SalonRepository;
 import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.BranchService;
 import com.example.salonflow.services.service.UserService;
-
+import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.exception.BusinessAccessDeniedException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -30,7 +31,8 @@ public class BranchServiceImpl implements BranchService {
             CreateBranchRequest request
     ) {
 
-        User currentUser = userService.getCurrentUser();
+        User currentUser =
+                userService.getCurrentUser();
 
         Salon salon =
                 salonRepository
@@ -38,7 +40,10 @@ public class BranchServiceImpl implements BranchService {
                                 salonId,
                                 currentUser.getId()
                         )
-                        .orElseThrow();
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Salon with id " + salonId + " not found"
+                                ));
 
         Branch branch = Branch.builder()
                 .salon(salon)
@@ -58,6 +63,19 @@ public class BranchServiceImpl implements BranchService {
     public List<BranchResponse> getBySalon(
             Long salonId
     ) {
+
+        User currentUser =
+                userService.getCurrentUser();
+
+        salonRepository
+                .findByIdAndOwnerId(
+                        salonId,
+                        currentUser.getId()
+                )
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Salon with id " + salonId + " not found"
+                        ));
 
         return branchRepository
                 .findBySalonId(salonId)

@@ -4,6 +4,7 @@ import com.example.salonflow.dto.Salon.CreateSalonRequest;
 import com.example.salonflow.dto.Salon.SalonResponse;
 import com.example.salonflow.entity.Salon;
 import com.example.salonflow.entity.User;
+import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.SalonRepository;
 import com.example.salonflow.services.service.SalonService;
 import com.example.salonflow.services.service.UserService;
@@ -53,7 +54,7 @@ public class SalonServiceImpl implements SalonService {
                 .toList();
     }
 
-    @Override
+   @Override
     public SalonResponse getById(Long salonId) {
 
         User currentUser =
@@ -66,7 +67,9 @@ public class SalonServiceImpl implements SalonService {
                                 currentUser.getId()
                         )
                         .orElseThrow(() ->
-                                new RuntimeException("Salon not found"));
+                                new ResourceNotFoundException(
+                                        "Salon with id " + salonId + " not found"
+                                ));
 
         return map(salon);
     }
