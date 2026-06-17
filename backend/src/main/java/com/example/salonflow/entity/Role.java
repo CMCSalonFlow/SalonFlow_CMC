@@ -19,6 +19,9 @@ public class Role extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(unique = true, nullable = false)
+    private String code;
+    
     @Column(nullable = false, unique = true)
     private String name;
 

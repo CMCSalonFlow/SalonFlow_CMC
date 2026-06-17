@@ -1,22 +1,17 @@
 package com.example.salonflow.dto.user;
+
+import lombok.Data;
+
 import java.util.Set;
 
-import jakarta.validation.constraints.NotBlank;
-import lombok.*;
-
-@Getter
-@Setter
-public class CreateUserRequest {
-
+@Data
+public class UserCreateRequest {
     private String username;
-
     private String email;
-
     private String password;
-
     private String fullName;
-
     private String phone;
 
+    // optional: gán role lúc tạo user
     private Set<Long> roleIds;
 }

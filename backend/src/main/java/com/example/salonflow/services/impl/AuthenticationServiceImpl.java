@@ -53,26 +53,16 @@ public class AuthenticationServiceImpl
 
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
-        private void assignRole(
-                User user,
-                Role role
-        ) {
+        private void assignRole(User user, Role role) {
 
         UserRole userRole = UserRole.builder()
-                .id(
-                        new UserRoleId(
-                                user.getId(),
-                                role.getId()
-                        )
-                )
+                .id(new UserRoleId(user.getId(), role.getId()))
                 .user(user)
                 .role(role)
                 .assignedAt(LocalDateTime.now())
                 .build();
 
         userRoleRepository.save(userRole);
-
-        user.getUserRoles().add(userRole);
         }
         @Override
         public AuthResponse register(
@@ -82,11 +72,8 @@ public class AuthenticationServiceImpl
         validateRegisterRequest(request);
 
         Role customerRole =
-                roleRepository.findByName(DEFAULT_ROLE)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Role CUSTOMER not found"
-                                ));
+                roleRepository.findByCode(DEFAULT_ROLE)
+                        .orElseThrow(() -> new RuntimeException("Role CUSTOMER not found"));
 
         User user = User.builder()
                 .username(request.getUsername())
@@ -271,12 +258,9 @@ public class AuthenticationServiceImpl
                 OAuth2UserInfo userInfo
         ) {
 
-        Role customerRole =
-                roleRepository.findByName(DEFAULT_ROLE)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Role CUSTOMER not found"
-                                ));
+                Role customerRole =
+                        roleRepository.findByCode(DEFAULT_ROLE)
+                                .orElseThrow(() -> new RuntimeException("Role CUSTOMER not found"));
 
         User user = User.builder()
                 .username(generateUniqueUsername(userInfo))
@@ -392,7 +376,7 @@ public class AuthenticationServiceImpl
                         user.getUserRoles()
                                 .stream()
                                 .map(UserRole::getRole)
-                                .map(Role::getName)
+                                .map(Role::getCode)
                                 .toList()
                 )
                 .build();
@@ -411,7 +395,7 @@ public class AuthenticationServiceImpl
                         Stream<SimpleGrantedAuthority> roleAuthorities =
                                 Stream.of(
                                         new SimpleGrantedAuthority(
-                                                "ROLE_" + role.getName()
+                                                "ROLE_" + role.getCode()
                                         )
                                 );
 

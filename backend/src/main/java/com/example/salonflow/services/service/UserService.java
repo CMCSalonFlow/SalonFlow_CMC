@@ -1,31 +1,22 @@
 package com.example.salonflow.services.service;
 
-import com.example.salonflow.dto.User.CreateUserRequest;
-import com.example.salonflow.dto.User.UpdateUserRequest;
-import com.example.salonflow.dto.User.UserResponse;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.example.salonflow.dto.user.*;
+
+import java.util.List;
 
 public interface UserService {
 
-    UserResponse createUser(
-            CreateUserRequest request
-    );
+    UserResponse createUser(UserCreateRequest request);
 
-    UserResponse updateUser(
-            Long userId,
-            UpdateUserRequest request
-    );
+    UserResponse updateUser(Long userId, UserUpdateRequest request);
 
-    UserResponse getUserById(
-            Long userId
-    );
+    void deleteUser(Long userId);
 
-    Page<UserResponse> getAllUsers(
-            Pageable pageable
-    );
+    UserResponse getUserById(Long userId);
 
-    void deleteUser(
-            Long userId
-    );
+    List<UserResponse> getAllUsers();
+
+    void assignRolesToUser(Long userId, java.util.Set<Long> roleIds);
+
+    void removeRoleFromUser(Long userId, Long roleId);
 }

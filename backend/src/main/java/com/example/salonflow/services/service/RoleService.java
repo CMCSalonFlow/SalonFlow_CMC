@@ -1,29 +1,20 @@
 package com.example.salonflow.services.service;
 
-import com.example.salonflow.dto.user.CreateRoleRequest;
-import com.example.salonflow.dto.user.RoleResponse;
-import com.example.salonflow.dto.user.UpdateRoleRequest;
+import com.example.salonflow.dto.role.*;
 
 import java.util.List;
 
 public interface RoleService {
 
-    RoleResponse createRole(
-            CreateRoleRequest request
-    );
+    RoleResponse createRole(RoleCreateRequest request);
 
-    RoleResponse updateRole(
-            Long roleId,
-            UpdateRoleRequest request
-    );
+    RoleResponse updateRole(Long roleId, RoleUpdateRequest request);
 
-    RoleResponse getRoleById(
-            Long roleId
-    );
+    void deleteRole(Long roleId);
+
+    RoleResponse getRoleById(Long roleId);
 
     List<RoleResponse> getAllRoles();
 
-    void deleteRole(
-            Long roleId
-    );
+    void assignPermissions(Long roleId, java.util.Set<Long> permissionIds);
 }
