@@ -8,7 +8,7 @@ public interface AuthenticationService {
 
     AuthResponse login(LoginRequest request);
 
-    RegisterResponse register(RegisterRequest request);
+    AuthResponse register(RegisterRequest request);
 
     AuthResponse loginWithOAuth2(
             String registrationId,

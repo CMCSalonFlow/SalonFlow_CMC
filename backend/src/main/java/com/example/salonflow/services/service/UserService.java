@@ -1,21 +1,22 @@
 package com.example.salonflow.services.service;
 
-import com.example.salonflow.entity.User;
+import com.example.salonflow.dto.user.*;
 
 import java.util.List;
 
 public interface UserService {
 
-    User getCurrentUser();
+    UserResponse createUser(UserCreateRequest request);
 
-    User getById(Long id);
+    UserResponse updateUser(Long userId, UserUpdateRequest request);
 
-    User getByEmail(String email);
+    void deleteUser(Long userId);
 
-    List<User> getAllUsers();
+    UserResponse getUserById(Long userId);
 
-    boolean existsByEmail(String email);
+    List<UserResponse> getAllUsers();
 
-    boolean existsByUsername(String username);
+    void assignRolesToUser(Long userId, java.util.Set<Long> roleIds);
 
+    void removeRoleFromUser(Long userId, Long roleId);
 }

@@ -33,76 +33,160 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.salonflow.entity.Permission;
+import com.example.salonflow.entity.RolePermission;
+import com.example.salonflow.entity.UserRole;
+import com.example.salonflow.entity.UserRoleId;
+import com.example.salonflow.repository.UserRoleRepository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class AuthenticationServiceImpl
-                implements AuthenticationService {
+public class AuthenticationServiceImpl implements AuthenticationService {
 
-        private static final String DEFAULT_ROLE = "CUSTOMER";
+    private static final String DEFAULT_ROLE = "CUSTOMER";
 
-        private final AuthenticationManager authenticationManager;
-
-        private final UserRepository userRepository;
-        private final OAuthAccountRepository oauthAccountRepository;
+    private final AuthenticationManager authenticationManager;
+    private final UserRepository userRepository;
+    private final OAuthAccountRepository oauthAccountRepository;
     private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
 
-        private final PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final RefreshTokenService refreshTokenService;
 
-        private final JwtService jwtService;
-        private final RefreshTokenService refreshTokenService;
+    private final EmailService emailService;
+    private final OtpService otpService;
+    private final OtpGenerator otpGenerator;
 
-        private final EmailService emailService;
-        private final OtpService otpService;
-        private final OtpGenerator otpGenerator;
+    @Value("${frontend.url}")
+    private String frontendUrl;
 
-        @Value("${frontend.url}")
-        private String frontendUrl;
+    // =========================
+    // ROLE ASSIGN
+    // =========================
+    private void assignRole(User user, Role role) {
+        UserRole userRole = UserRole.builder()
+                .id(new UserRoleId(user.getId(), role.getId()))
+                .user(user)
+                .role(role)
+                .assignedAt(LocalDateTime.now())
+                .build();
 
-        @Override
-        public RegisterResponse register(
-                        RegisterRequest request) {
+        userRoleRepository.save(userRole);
+    }
 
-                validateRegisterRequest(request);
+    // =========================
+    // REGISTER
+    // =========================
+    @Override
+    public AuthResponse register(RegisterRequest request) {
 
-                Role customerRole = roleRepository.findByName(DEFAULT_ROLE)
-                                .orElseThrow(() -> 
-                                        new ResourceNotFoundException("Role CUSTOMER không tồn tại"));
+        validateRegisterRequest(request);
 
-                User user = User.builder()
-                                .username(request.getUsername())
-                                .email(request.getEmail())
-                                .passwordHash(
-                                                passwordEncoder.encode(
-                                                                request.getPassword()))
-                                .fullName(request.getFullName())
-                                .phone(request.getPhone())
-                                .status(UserStatus.INACTIVE)
-                                .build();
+        Role customerRole = roleRepository.findByCode(DEFAULT_ROLE)
+                .orElseThrow(() -> new ResourceNotFoundException("Role CUSTOMER not found"));
 
-                user.getRoles().add(customerRole);
+        User user = User.builder()
+                .username(request.getUsername())
+                .email(request.getEmail())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .phone(request.getPhone())
+                .status(UserStatus.INACTIVE)
+                .build();
 
-                user = userRepository.save(user);
+        user = userRepository.save(user);
 
-                sendVerificationOtp(user.getEmail());
+        assignRole(user, customerRole);
 
-                return RegisterResponse.builder()
-                        .email(user.getEmail())
-                        .message("OTP sent to your email")
-                        .build();
+        sendVerificationOtp(user.getEmail());
+
+        return AuthResponse.builder()
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .accessToken(null)
+                .refreshToken(null)
+                .tokenType("Bearer")
+                .roles(List.of(customerRole.getCode()))
+                .build();
+    }
+
+    // =========================
+    // LOGIN
+    // =========================
+    @Override
+    public AuthResponse login(LoginRequest request) {
+
+        try {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(),
+                            request.getPassword()
+                    )
+            );
+        } catch (AuthenticationException e) {
+            throw new BusinessException("Email hoặc mật khẩu không đúng");
         }
 
-    @Override
-    public AuthResponse loginWithOAuth2(
-            String registrationId,
-            OAuth2User oauth2User
-    ) {
+        User user = userRepository.findByEmailWithRoles(request.getEmail())
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
-        OAuth2UserInfo userInfo =
-                OAuth2UserInfo.from(registrationId, oauth2User);
+        validateActiveUser(user);
+
+        return buildAuthResponse(user);
+    }
+
+    // =========================
+    // REFRESH TOKEN
+    // =========================
+    @Override
+    public RefreshTokenResponse refreshToken(RefreshTokenRequest request) {
+
+        RefreshToken refreshToken = refreshTokenService.verifyExpiration(
+                request.getRefreshToken()
+        );
+
+        User user = refreshToken.getUser();
+
+        validateActiveUser(user);
+
+        UserDetails userDetails = buildUserDetails(user);
+
+        String accessToken = jwtService.generateToken(userDetails);
+
+        return RefreshTokenResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
+                .build();
+    }
+
+    // =========================
+    // LOGOUT
+    // =========================
+    @Override
+    public void logout(Long userId) {
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        refreshTokenService.deleteByUser(user);
+    }
+
+    // =========================
+    // OAUTH2 LOGIN
+    // =========================
+    @Override
+    public AuthResponse loginWithOAuth2(String registrationId, OAuth2User oauth2User) {
+
+        OAuth2UserInfo userInfo = OAuth2UserInfo.from(registrationId, oauth2User);
 
         validateOAuth2UserInfo(userInfo);
 
@@ -119,93 +203,176 @@ public class AuthenticationServiceImpl
         return buildAuthResponse(user);
     }
 
-        @Override
-        public AuthResponse login(
-                        LoginRequest request) {
+    // =========================
+    // AUTH RESPONSE BUILDER
+    // =========================
+    private AuthResponse buildAuthResponse(User user) {
 
-                try {
+        UserDetails userDetails = buildUserDetails(user);
 
-                        authenticationManager.authenticate(
-                                        new UsernamePasswordAuthenticationToken(
-                                                        request.getEmail(),
-                                                        request.getPassword()));
+        String accessToken = jwtService.generateToken(userDetails);
 
-                } catch (AuthenticationException e) {
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
 
-                        throw new BusinessException("Email hoặc mật khẩu không đúng");
-                }
+        return AuthResponse.builder()
+                .userId(user.getId())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken.getToken())
+                .tokenType("Bearer")
+                .roles(
+                        user.getUserRoles()
+                                .stream()
+                                .map(UserRole::getRole)
+                                .map(Role::getCode)
+                                .toList()
+                )
+                .build();
+    }
 
-                User user = userRepository
-                                .findByEmail(request.getEmail())
-                                .orElseThrow(() ->
-                                        new ResourceNotFoundException("Người dùng không tồn tại"));
+    // =========================
+    // USER DETAILS (JWT)
+    // =========================
+    private UserDetails buildUserDetails(User user) {
 
-                validateActiveUser(user);
+        List<SimpleGrantedAuthority> authorities =
+                user.getUserRoles()
+                        .stream()
+                        .map(UserRole::getRole)
+                        .flatMap(role -> {
 
-                return buildAuthResponse(user);
+                            Stream<SimpleGrantedAuthority> roleAuth =
+                                    Stream.of(
+                                            new SimpleGrantedAuthority(
+                                                    "ROLE_" + role.getCode()
+                                            )
+                                    );
+
+                            Stream<SimpleGrantedAuthority> permissionAuth =
+                                    role.getRolePermissions()
+                                            .stream()
+                                            .map(RolePermission::getPermission)
+                                            .map(Permission::getCode)
+                                            .map(String::toUpperCase)
+                                            .map(SimpleGrantedAuthority::new);
+
+                            return Stream.concat(roleAuth, permissionAuth);
+                        })
+                        .distinct()
+                        .toList();
+
+        return org.springframework.security.core.userdetails.User
+                .builder()
+                .username(user.getEmail())
+                .password(user.getPasswordHash())
+                .authorities(authorities)
+                .disabled(user.getStatus() != UserStatus.ACTIVE)
+                .build();
+    }
+
+    // =========================
+    // OTP - EMAIL VERIFICATION
+    // =========================
+    @Override
+    public void sendVerificationOtp(String email) {
+
+        String otp = otpGenerator.generate();
+
+        otpService.saveOtp(email, otp);
+
+        emailService.sendVerificationOtp(email, otp);
+    }
+
+    @Override
+    public MessageResponse verifyEmail(String email, String otp) {
+
+        String savedOtp = otpService.getOtp(email);
+
+        if (savedOtp == null) {
+            throw new InvalidTokenException("OTP đã hết hạn");
         }
 
-        @Override
-        public RefreshTokenResponse refreshToken(
-                        RefreshTokenRequest request) {
-
-                RefreshToken refreshToken = refreshTokenService.verifyExpiration(
-                                request.getRefreshToken());
-
-                User user = refreshToken.getUser();
-
-                validateActiveUser(user);
-
-                UserDetails userDetails = buildUserDetails(user);
-
-                String accessToken = jwtService.generateToken(userDetails);
-
-                return RefreshTokenResponse.builder()
-                                .accessToken(accessToken)
-                                .refreshToken(refreshToken.getToken())
-                                .build();
+        if (!savedOtp.equals(otp)) {
+            throw new InvalidTokenException("OTP không hợp lệ");
         }
 
-        @Override
-        public void logout(Long userId) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
-                User user = userRepository.findById(userId)
-                                .orElseThrow(
-                                                () -> new RuntimeException(
-                                                                "User not found"));
+        user.setStatus(UserStatus.ACTIVE);
 
-                refreshTokenService.deleteByUser(user);
+        otpService.deleteOtp(email);
+
+        userRepository.save(user);
+
+        return MessageResponse.builder()
+                .message("Email verified successfully")
+                .build();
+    }
+
+    // =========================
+    // FORGOT PASSWORD
+    // =========================
+    @Override
+    public void forgotPassword(String email) {
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Email không tồn tại trong hệ thống"));
+
+        String token = jwtService.generateResetPasswordToken(user.getEmail());
+
+        String link = frontendUrl + "/reset-password?token=" + token;
+
+        emailService.sendResetPasswordEmail(email, link);
+    }
+
+    // =========================
+    // RESET PASSWORD
+    // =========================
+    @Override
+    public void resetPassword(String token, String newPassword) {
+
+        String email;
+
+        try {
+            email = jwtService.extractEmailFromResetToken(token);
+        } catch (Exception e) {
+            throw new InvalidTokenException("Token không hợp lệ hoặc đã hết hạn");
         }
 
-        private void validateRegisterRequest(
-                        RegisterRequest request) {
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
 
-                if (userRepository.existsByEmail(
-                                request.getEmail())) {
+        user.setPasswordHash(passwordEncoder.encode(newPassword));
 
-                        throw new BusinessException("Email đã tồn tại");
-                }
+        userRepository.save(user);
+    }
 
-                if (userRepository.existsByUsername(
-                                request.getUsername())) {
+    // =========================
+    // VALIDATIONS
+    // =========================
+    private void validateRegisterRequest(RegisterRequest request) {
 
-                        throw new BusinessException("Username đã tồn tại");
-                }
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new BusinessException("Email đã tồn tại");
         }
 
-        private void validateActiveUser(User user) {
-
-                if (user.getStatus() != UserStatus.ACTIVE) {
-                        throw new BusinessException("Tài khoản chưa được kích hoạt");
-                }
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new BusinessException("Username đã tồn tại");
         }
+    }
 
-    private User createOrLinkOAuthAccount(
-            OAuth2UserInfo userInfo
-    ) {
+    private void validateActiveUser(User user) {
 
-        User user = userRepository
-                .findByEmail(userInfo.email())
+        if (user.getStatus() != UserStatus.ACTIVE) {
+            throw new BusinessException("Tài khoản chưa được kích hoạt");
+        }
+    }
+
+    private User createOrLinkOAuthAccount(OAuth2UserInfo userInfo) {
+
+        User user = userRepository.findByEmail(userInfo.email())
                 .orElseGet(() -> createOAuthUser(userInfo));
 
         OAuthAccount oauthAccount = OAuthAccount.builder()
@@ -223,39 +390,28 @@ public class AuthenticationServiceImpl
         return userRepository.save(user);
     }
 
-    private User createOAuthUser(
-            OAuth2UserInfo userInfo
-    ) {
+    private User createOAuthUser(OAuth2UserInfo userInfo) {
 
-        Role customerRole =
-                roleRepository.findByName(DEFAULT_ROLE)
-                        .orElseThrow(() ->
-                                new RuntimeException(
-                                        "Role CUSTOMER not found"
-                                ));
+        Role customerRole = roleRepository.findByCode(DEFAULT_ROLE)
+                .orElseThrow(() -> new RuntimeException("Role CUSTOMER not found"));
 
         User user = User.builder()
                 .username(generateUniqueUsername(userInfo))
                 .email(userInfo.email())
-                .passwordHash(
-                        passwordEncoder.encode(
-                                UUID.randomUUID().toString()
-                        )
-                )
+                .passwordHash(passwordEncoder.encode(UUID.randomUUID().toString()))
                 .fullName(userInfo.name())
                 .avatarUrl(userInfo.avatarUrl())
                 .status(UserStatus.ACTIVE)
                 .build();
 
-        user.getRoles().add(customerRole);
+        user = userRepository.save(user);
 
-        return userRepository.save(user);
+        assignRole(user, customerRole);
+
+        return userRepository.findByEmailWithRoles(user.getEmail()).orElseThrow();
     }
 
-    private void updateUserProfileFromOAuth(
-            User user,
-            OAuth2UserInfo userInfo
-    ) {
+    private void updateUserProfileFromOAuth(User user, OAuth2UserInfo userInfo) {
 
         if (user.getFullName() == null || user.getFullName().isBlank()) {
             user.setFullName(userInfo.name());
@@ -266,45 +422,25 @@ public class AuthenticationServiceImpl
         }
     }
 
-    private void validateOAuth2UserInfo(
-            OAuth2UserInfo userInfo
-    ) {
+    private void validateOAuth2UserInfo(OAuth2UserInfo userInfo) {
 
-        if (userInfo.providerUserId() == null
-                || userInfo.providerUserId().isBlank()) {
-            throw new RuntimeException(
-                    "OAuth2 provider user id is missing"
-            );
+        if (userInfo.providerUserId() == null || userInfo.providerUserId().isBlank()) {
+            throw new RuntimeException("OAuth2 provider user id is missing");
         }
 
-        if (userInfo.email() == null
-                || userInfo.email().isBlank()) {
-            throw new RuntimeException(
-                    "OAuth2 provider email is missing"
-            );
-        }
-
-        if (userInfo.provider()
-                == com.example.salonflow.entity.enums.OAuthProvider.GOOGLE
-                && !Boolean.TRUE.equals(userInfo.emailVerified())) {
-            throw new RuntimeException(
-                    "Google email is not verified"
-            );
+        if (userInfo.email() == null || userInfo.email().isBlank()) {
+            throw new RuntimeException("OAuth2 provider email is missing");
         }
     }
 
-    private String generateUniqueUsername(
-            OAuth2UserInfo userInfo
-    ) {
+    private String generateUniqueUsername(OAuth2UserInfo userInfo) {
 
-        String emailPrefix =
-                userInfo.email().split("@")[0]
-                        .replaceAll("[^A-Za-z0-9_]", "_");
+        String emailPrefix = userInfo.email().split("@")[0]
+                .replaceAll("[^A-Za-z0-9_]", "_");
 
-        String baseUsername =
-                emailPrefix.isBlank()
-                        ? userInfo.provider().name().toLowerCase()
-                        : emailPrefix;
+        String baseUsername = emailPrefix.isBlank()
+                ? userInfo.provider().name().toLowerCase()
+                : emailPrefix;
 
         String username = baseUsername;
         int suffix = 1;
@@ -316,128 +452,4 @@ public class AuthenticationServiceImpl
 
         return username;
     }
-
-        private AuthResponse buildAuthResponse(
-                        User user) {
-
-                UserDetails userDetails = buildUserDetails(user);
-
-                String accessToken = jwtService.generateToken(userDetails);
-
-                RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
-
-                return AuthResponse.builder()
-                                .userId(user.getId())
-                                .username(user.getUsername())
-                                .email(user.getEmail())
-                                .accessToken(accessToken)
-                                .refreshToken(refreshToken.getToken())
-                                .tokenType("Bearer")
-                                .roles(
-                                                user.getRoles()
-                                                                .stream()
-                                                                .map(Role::getName)
-                                                                .toList())
-                                .build();
-        }
-
-        private UserDetails buildUserDetails(User user) {
-
-                return org.springframework.security.core.userdetails.User
-                                .builder()
-                                .username(user.getEmail())
-                                .password(user.getPasswordHash())
-                                .authorities(
-                                                user.getRoles()
-                                                                .stream()
-                                                                .map(role -> new SimpleGrantedAuthority(
-                                                                                "ROLE_" + role.getName()))
-                                                                .toList())
-                                .disabled(user.getStatus() != UserStatus.ACTIVE)
-                                .build();
-        }
-
-        @Override
-        public void sendVerificationOtp(
-                        String email) {
-
-                String otp = otpGenerator.generate();
-
-                otpService.saveOtp(
-                                email,
-                                otp);
-
-                emailService.sendVerificationOtp(
-                                email,
-                                otp);
-        }
-
-        @Override
-        public MessageResponse verifyEmail(
-                        String email,
-                        String otp) {
-
-                String savedOtp = otpService.getOtp(email);
-
-                if (savedOtp == null) {
-                        throw new InvalidTokenException("OTP đã hết hạn");
-                }
-
-                if (!savedOtp.equals(otp)) {
-                        throw new InvalidTokenException("OTP không hợp lệ");
-                }
-
-                User user = userRepository.findByEmail(email)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException("Người dùng không tồn tại"));
-
-                user.setStatus(UserStatus.ACTIVE);
-
-                otpService.deleteOtp(email);
-
-                userRepository.save(user);
-                return MessageResponse.builder()
-                        .message("Email verified successfully")
-                        .build();
-        }
-
-        @Override
-        public void forgotPassword(
-                        String email) {
-
-                User user = userRepository.findByEmail(email)
-                                .orElseThrow(() ->
-                                        new ResourceNotFoundException("Email không tồn tại trong hệ thống"));
-
-                String token = jwtService.generateResetPasswordToken(
-                                user.getEmail());
-
-                String link = frontendUrl
-                                + "/reset-password?token="
-                                + token;
-
-                emailService.sendResetPasswordEmail(email, link);
-        }
-
-        @Override
-        public void resetPassword(String token, String newPassword) {
-
-                String email;
-
-                try {
-                        email = jwtService.extractEmailFromResetToken(token);
-                } catch (Exception e) {
-                        throw new InvalidTokenException("Token không hợp lệ hoặc đã hết hạn");
-                }
-
-                User user = userRepository.findByEmail(email)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException("Người dùng không tồn tại"));
-
-                user.setPasswordHash(
-                        passwordEncoder.encode(newPassword));
-
-                userRepository.save(user);
-        }
-
 }
