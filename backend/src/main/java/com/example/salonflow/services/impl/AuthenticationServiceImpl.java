@@ -24,8 +24,16 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.salonflow.entity.Permission;
+import com.example.salonflow.entity.RolePermission;
+import com.example.salonflow.entity.UserRole;
+import com.example.salonflow.entity.UserRoleId;
+import com.example.salonflow.repository.UserRoleRepository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -40,16 +48,36 @@ public class AuthenticationServiceImpl
     private final UserRepository userRepository;
     private final OAuthAccountRepository oauthAccountRepository;
     private final RoleRepository roleRepository;
-
+    private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
 
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
+        private void assignRole(
+                User user,
+                Role role
+        ) {
 
-    @Override
-    public AuthResponse register(
-            RegisterRequest request
-    ) {
+        UserRole userRole = UserRole.builder()
+                .id(
+                        new UserRoleId(
+                                user.getId(),
+                                role.getId()
+                        )
+                )
+                .user(user)
+                .role(role)
+                .assignedAt(LocalDateTime.now())
+                .build();
+
+        userRoleRepository.save(userRole);
+
+        user.getUserRoles().add(userRole);
+        }
+        @Override
+        public AuthResponse register(
+                RegisterRequest request
+        ) {
 
         validateRegisterRequest(request);
 
@@ -73,12 +101,19 @@ public class AuthenticationServiceImpl
                 .status(UserStatus.ACTIVE)
                 .build();
 
-        user.getRoles().add(customerRole);
-
         user = userRepository.save(user);
 
-        return buildAuthResponse(user);
-    }
+        assignRole(
+                user,
+                customerRole
+        );
+
+        return buildAuthResponse(
+                userRepository
+                        .findByEmailWithRoles(user.getEmail())
+                        .orElseThrow()
+        );
+        }
 
     @Override
     public AuthResponse loginWithOAuth2(
@@ -126,7 +161,7 @@ public class AuthenticationServiceImpl
         }
 
         User user = userRepository
-                .findByEmail(request.getEmail())
+                .findByEmailWithRoles(request.getEmail())
                 .orElseThrow(
                         () -> new RuntimeException(
                                 "User not found"
@@ -233,8 +268,8 @@ public class AuthenticationServiceImpl
     }
 
     private User createOAuthUser(
-            OAuth2UserInfo userInfo
-    ) {
+                OAuth2UserInfo userInfo
+        ) {
 
         Role customerRole =
                 roleRepository.findByName(DEFAULT_ROLE)
@@ -256,10 +291,17 @@ public class AuthenticationServiceImpl
                 .status(UserStatus.ACTIVE)
                 .build();
 
-        user.getRoles().add(customerRole);
+        user = userRepository.save(user);
 
-        return userRepository.save(user);
-    }
+        assignRole(
+                user,
+                customerRole
+        );
+
+        return userRepository
+                .findByEmailWithRoles(user.getEmail())
+                .orElseThrow();
+        }
 
     private void updateUserProfileFromOAuth(
             User user,
@@ -326,11 +368,12 @@ public class AuthenticationServiceImpl
         return username;
     }
 
-    private AuthResponse buildAuthResponse(
-            User user
-    ) {
+        private AuthResponse buildAuthResponse(
+                User user
+        ) {
 
-        UserDetails userDetails = buildUserDetails(user);
+        UserDetails userDetails =
+                buildUserDetails(user);
 
         String accessToken =
                 jwtService.generateToken(userDetails);
@@ -346,31 +389,57 @@ public class AuthenticationServiceImpl
                 .refreshToken(refreshToken.getToken())
                 .tokenType("Bearer")
                 .roles(
-                        user.getRoles()
+                        user.getUserRoles()
                                 .stream()
+                                .map(UserRole::getRole)
                                 .map(Role::getName)
                                 .toList()
                 )
                 .build();
-    }
+        }
+        
+    private UserDetails buildUserDetails(
+        User user
+) {
 
-    private UserDetails buildUserDetails(User user) {
+    List<SimpleGrantedAuthority> authorities =
+            user.getUserRoles()
+                    .stream()
+                    .map(UserRole::getRole)
+                    .flatMap(role -> {
 
-        return org.springframework.security.core.userdetails.User
-                .builder()
-                .username(user.getEmail())
-                .password(user.getPasswordHash())
-                .authorities(
-                        user.getRoles()
-                                .stream()
-                                .map(role ->
+                        Stream<SimpleGrantedAuthority> roleAuthorities =
+                                Stream.of(
                                         new SimpleGrantedAuthority(
                                                 "ROLE_" + role.getName()
                                         )
-                                )
-                                .toList()
-                )
-                .disabled(user.getStatus() != UserStatus.ACTIVE)
-                .build();
-    }
+                                );
+
+                        Stream<SimpleGrantedAuthority> permissionAuthorities =
+                                role.getRolePermissions()
+                                        .stream()
+                                        .map(RolePermission::getPermission)
+                                        .map(Permission::getCode)
+                                        .map(String::toUpperCase)
+                                        .map(SimpleGrantedAuthority::new);
+
+                        return Stream.concat(
+                                roleAuthorities,
+                                permissionAuthorities
+                        );
+                    })
+                    .distinct()
+                    .toList();
+
+    return org.springframework.security.core.userdetails.User
+            .builder()
+            .username(user.getEmail())
+            .password(user.getPasswordHash())
+            .authorities(authorities)
+            .disabled(
+                    user.getStatus()
+                            != UserStatus.ACTIVE
+            )
+            .build();
+}
 }

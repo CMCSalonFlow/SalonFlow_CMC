@@ -4,10 +4,9 @@ import com.example.salonflow.entity.enums.UserStatus;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.List;
+
 @Entity
 @Table(name = "users")
 @Getter
@@ -42,13 +41,9 @@ public class User extends BaseEntity {
     private UserStatus status;
 
     @Builder.Default
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "user_roles",
-            joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
-    )
-    private Set<Role> roles = new HashSet<>();
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private Set<UserRole> userRoles = new HashSet<>();
+
     @Builder.Default
     @OneToMany(mappedBy = "owner")
     private Set<Salon> salons = new HashSet<>();

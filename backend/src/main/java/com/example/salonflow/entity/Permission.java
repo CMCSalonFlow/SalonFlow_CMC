@@ -3,6 +3,9 @@ package com.example.salonflow.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.util.HashSet;
+import java.util.Set;
+
 @Entity
 @Table(name = "permissions")
 @Getter
@@ -20,7 +23,8 @@ public class Permission extends BaseEntity {
     private String code;
 
     private String description;
-    public String getName() {
-        return this.code;
-    }
+
+    @Builder.Default
+    @OneToMany(mappedBy = "permission")
+    private Set<RolePermission> rolePermissions = new HashSet<>();
 }
