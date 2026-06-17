@@ -121,7 +121,6 @@ public class GlobalExceptionHandler {
     }
 
         @ExceptionHandler({
-                ResourceNotFoundException.class,
                 InvalidTokenException.class,
                 BusinessException.class
         })
@@ -130,10 +129,6 @@ public class GlobalExceptionHandler {
         ) {
 
         HttpStatus status = HttpStatus.BAD_REQUEST;
-
-        if (ex instanceof ResourceNotFoundException) {
-                status = HttpStatus.NOT_FOUND;
-        }
 
         if (ex instanceof InvalidTokenException) {
                 status = HttpStatus.UNAUTHORIZED;
