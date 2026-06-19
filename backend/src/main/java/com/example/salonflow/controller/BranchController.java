@@ -1,59 +1,31 @@
-// package com.example.salonflow.controller;
+package com.example.salonflow.controller;
 
-// import com.example.salonflow.dto.Branch.CreateBranchRequest;
-// import com.example.salonflow.dto.Branch.UpdateBranchRequest;
-// import com.example.salonflow.dto.Branch.BranchResponse;
-// import com.example.salonflow.services.service.BranchService;
-// import jakarta.validation.Valid;
-// import lombok.RequiredArgsConstructor;
-// import org.springframework.web.bind.annotation.*;
+import com.example.salonflow.dto.Branch.CreateBranchRequest;
+import com.example.salonflow.dto.Branch.UpdateBranchRequest;
+import com.example.salonflow.dto.Branch.BranchResponse;
+import com.example.salonflow.dto.Branch.BranchSummaryResponse;
+import com.example.salonflow.services.service.BranchService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
-// import java.util.List;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
-// @RestController
-// @RequestMapping("/api/v1/branches")
-// @RequiredArgsConstructor
-// public class BranchController {
+import java.util.List;
 
-//     private final BranchService branchService;
+@RestController
+@RequestMapping("/api/v1/branches")
+@RequiredArgsConstructor
+public class BranchController {
 
-//     @PostMapping("/salon/{salonId}")
-//     public BranchResponse create(
-//             @PathVariable Long salonId,
-//             @Valid @RequestBody
-//             CreateBranchRequest request
-//     ) {
-//         return branchService.create(
-//                 salonId,
-//                 request
-//         );
-//     }
+    private final BranchService branchService;
 
-//     @GetMapping("/salon/{salonId}")
-//     public List<BranchResponse> getBySalon(
-//             @PathVariable Long salonId
-//     ) {
-//         return branchService.getBySalon(
-//                 salonId
-//         );
-//     }
+    @GetMapping("/my-branches")
+    public ResponseEntity<List<BranchSummaryResponse>>
+    getMyBranches() {
 
-//     @PutMapping("/{branchId}")
-//     public BranchResponse update(
-//             @PathVariable Long branchId,
-//             @Valid @RequestBody
-//             UpdateBranchRequest request
-//     ) {
-//         return branchService.update(
-//                 branchId,
-//                 request
-//         );
-//     }
-
-//     @DeleteMapping("/{branchId}")
-//     public void delete(
-//             @PathVariable Long branchId
-//     ) {
-//         branchService.delete(branchId);
-//     }
-// }
+        return ResponseEntity.ok(
+                branchService.getMyBranches()
+        );
+    }
+}

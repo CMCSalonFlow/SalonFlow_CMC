@@ -1,5 +1,6 @@
 package com.example.salonflow.config;
 
+import com.example.salonflow.security.BranchContextFilter;
 import com.example.salonflow.security.CustomUserDetailsService;
 import com.example.salonflow.security.JwtAuthenticationFilter;
 import com.example.salonflow.security.oauth.OAuth2AuthenticationFailureHandler;
@@ -24,6 +25,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtFilter;
+    private final BranchContextFilter branchContextFilter;
 
     private final CustomUserDetailsService userDetailsService;
 
@@ -103,11 +105,16 @@ public class SecurityConfig {
                         oauth2
                                 .successHandler(oauth2SuccessHandler)
                                 .failureHandler(oauth2FailureHandler)
-                )
+                )             
                 .addFilterBefore(
                         jwtFilter,
                         UsernamePasswordAuthenticationFilter.class
+                )
+                .addFilterAfter(
+                        branchContextFilter,
+                        JwtAuthenticationFilter.class
                 );
+                
 
         return http.build();
     }

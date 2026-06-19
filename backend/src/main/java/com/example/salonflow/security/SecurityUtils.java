@@ -35,4 +35,19 @@ public final class SecurityUtils {
 
         return principal.getEmail();
     }
+    public static Long getCurrentBranchId() {
+
+        Long branchId =
+                BranchContextHolder
+                        .getBranchId();
+
+        if (branchId == null) {
+
+                throw new IllegalStateException(
+                        "No branch selected"
+                );
+        }
+
+        return branchId;
+        }
 }

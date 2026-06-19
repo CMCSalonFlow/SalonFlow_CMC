@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface UserBranchRepository
@@ -20,4 +21,12 @@ public interface UserBranchRepository
             Long userId,
             Long branchId
     );
+    Optional<UserBranch> findByUser_IdAndBranch_Id(
+                Long userId,
+                Long branchId
+        );
+        void deleteByUser_IdAndBranch_Id(
+                Long userId,
+                Long branchId
+        );
 }
