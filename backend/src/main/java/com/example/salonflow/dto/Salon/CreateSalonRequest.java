@@ -1,9 +1,17 @@
 package com.example.salonflow.dto.Salon;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import lombok.Data;
+import lombok.*;
 
-@Data
+import java.util.List;
+
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class CreateSalonRequest {
 
     @NotBlank
@@ -11,11 +19,18 @@ public class CreateSalonRequest {
 
     private String description;
 
-    private String logoUrl;
+    @NotBlank
+    private String address;
 
     private String phone;
 
+    @Email
     private String email;
 
     private String website;
+
+    @Valid
+    private List<SalonHourRequest> hours;
+
+    private List<String> photos;
 }

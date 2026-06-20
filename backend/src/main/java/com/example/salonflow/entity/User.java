@@ -45,10 +45,6 @@ public class User extends BaseEntity {
     private Set<UserRole> userRoles = new HashSet<>();
 
     @Builder.Default
-    @OneToMany(mappedBy = "owner")
-    private Set<Salon> salons = new HashSet<>();
-
-    @Builder.Default
     @OneToMany(mappedBy = "user")
     private Set<UserBranch> userBranches = new HashSet<>();
 }

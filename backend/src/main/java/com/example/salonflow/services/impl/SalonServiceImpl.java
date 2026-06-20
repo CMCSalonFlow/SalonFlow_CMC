@@ -1,89 +1,249 @@
-// package com.example.salonflow.services.impl;
+package com.example.salonflow.services.impl;
 
-// import com.example.salonflow.dto.Salon.CreateSalonRequest;
-// import com.example.salonflow.dto.Salon.SalonResponse;
-// import com.example.salonflow.entity.Salon;
-// import com.example.salonflow.entity.User;
-// import com.example.salonflow.exception.ResourceNotFoundException;
-// import com.example.salonflow.repository.SalonRepository;
-// import com.example.salonflow.services.service.SalonService;
-// import com.example.salonflow.services.service.UserService;
-// import lombok.RequiredArgsConstructor;
-// import org.springframework.stereotype.Service;
+import com.example.salonflow.dto.Salon.*;
+import com.example.salonflow.entity.*;
+import com.example.salonflow.exception.BusinessException;
+import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.repository.*;
+import com.example.salonflow.services.service.SalonService;
+import com.example.salonflow.util.SecurityUtil;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-// import java.util.List;
+import java.util.ArrayList;
+import java.util.List;
 
-// @Service
-// @RequiredArgsConstructor
-// public class SalonServiceImpl implements SalonService {
+@Service
+@RequiredArgsConstructor
+@Transactional
+public class SalonServiceImpl implements SalonService {
 
-//     private final SalonRepository salonRepository;
-//     private final UserService userService;
+    private final SalonRepository salonRepository;
+    private final SalonHourRepository salonHourRepository;
+    private final SalonPhotoRepository salonPhotoRepository;
+    private final UserRepository userRepository;
 
-//     @Override
-//     public SalonResponse create(CreateSalonRequest request) {
+    @Override
+    public SalonResponse create(CreateSalonRequest request) {
 
-//         User currentUser =
-//                 userService.getCurrentUser();
+        User owner = getCurrentUser();
 
-//         Salon salon = Salon.builder()
-//                 .name(request.getName())
-//                 .description(request.getDescription())
-//                 .logoUrl(request.getLogoUrl())
-//                 .phone(request.getPhone())
-//                 .email(request.getEmail())
-//                 .website(request.getWebsite())
-//                 .owner(currentUser)
-//                 .build();
+        if (salonRepository.existsByOwner(owner)) {
+            throw new BusinessException("You already own a salon.");
+        }
 
-//         salonRepository.save(salon);
+        Salon salon = Salon.builder()
+                .owner(owner)
+                .name(request.getName())
+                .description(request.getDescription())
+                .address(request.getAddress())
+                .phone(request.getPhone())
+                .email(request.getEmail())
+                .website(request.getWebsite())
+                .build();
 
-//         return map(salon);
-//     }
+        salon = salonRepository.save(salon);
 
-//     @Override
-//     public List<SalonResponse> getMySalons() {
+        saveHours(salon, request.getHours());
 
-//         User currentUser =
-//                 userService.getCurrentUser();
+        savePhotos(salon, request.getPhotos());
 
-//         return salonRepository
-//                 .findByOwnerId(currentUser.getId())
-//                 .stream()
-//                 .map(this::map)
-//                 .toList();
-//     }
+        return mapToResponse(salon);
+    }
 
-//    @Override
-//     public SalonResponse getById(Long salonId) {
+    private void saveHours(
+            Salon salon,
+            List<SalonHourRequest> requests
+    ) {
 
-//         User currentUser =
-//                 userService.getCurrentUser();
+        if (requests == null || requests.isEmpty()) {
+            return;
+        }
 
-//         Salon salon =
-//                 salonRepository
-//                         .findByIdAndOwnerId(
-//                                 salonId,
-//                                 currentUser.getId()
-//                         )
-//                         .orElseThrow(() ->
-//                                 new ResourceNotFoundException(
-//                                         "Salon with id " + salonId + " not found"
-//                                 ));
+        List<SalonHour> hours = new ArrayList<>();
 
-//         return map(salon);
-//     }
+        for (SalonHourRequest request : requests) {
 
-//     private SalonResponse map(Salon salon) {
+            SalonHour hour = SalonHour.builder()
+                    .salon(salon)
+                    .dayOfWeek(request.getDayOfWeek())
+                    .openTime(request.getOpenTime())
+                    .closeTime(request.getCloseTime())
+                    .isClosed(Boolean.TRUE.equals(request.getIsClosed()))
+                    .build();
 
-//         return SalonResponse.builder()
-//                 .id(salon.getId())
-//                 .name(salon.getName())
-//                 .description(salon.getDescription())
-//                 .logoUrl(salon.getLogoUrl())
-//                 .phone(salon.getPhone())
-//                 .email(salon.getEmail())
-//                 .website(salon.getWebsite())
-//                 .build();
-//     }
-// }
+            hours.add(hour);
+        }
+
+        salonHourRepository.saveAll(hours);
+
+        salon.setHours(hours);
+    }
+
+    private void savePhotos(
+            Salon salon,
+            List<String> photoUrls
+    ) {
+
+        if (photoUrls == null || photoUrls.isEmpty()) {
+            return;
+        }
+
+        List<SalonPhoto> photos = new ArrayList<>();
+
+        boolean primary = true;
+
+        for (String url : photoUrls) {
+
+            SalonPhoto photo = SalonPhoto.builder()
+                    .salon(salon)
+                    .url(url)
+                    .isPrimary(primary)
+                    .build();
+
+            photos.add(photo);
+
+            primary = false;
+        }
+
+        salonPhotoRepository.saveAll(photos);
+
+        salon.setPhotos(photos);
+    }
+
+    private User getCurrentUser() {
+
+        String email = SecurityUtil.getCurrentUsername();
+
+        return userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found"));
+    }
+
+    private SalonResponse mapToResponse(Salon salon) {
+
+        List<SalonHourResponse> hourResponses = new ArrayList<>();
+
+        for (SalonHour hour : salonHourRepository.findBySalon(salon)) {
+
+            hourResponses.add(
+                    SalonHourResponse.builder()
+                            .dayOfWeek(hour.getDayOfWeek())
+                            .openTime(hour.getOpenTime())
+                            .closeTime(hour.getCloseTime())
+                            .isClosed(hour.getIsClosed())
+                            .build()
+            );
+        }
+
+        List<SalonPhotoResponse> photoResponses = new ArrayList<>();
+
+        for (SalonPhoto photo : salonPhotoRepository.findBySalon(salon)) {
+
+            photoResponses.add(
+                    SalonPhotoResponse.builder()
+                            .url(photo.getUrl())
+                            .isPrimary(photo.getIsPrimary())
+                            .build()
+            );
+        }
+
+        return SalonResponse.builder()
+                .id(salon.getId())
+                .name(salon.getName())
+                .description(salon.getDescription())
+                .address(salon.getAddress())
+                .phone(salon.getPhone())
+                .email(salon.getEmail())
+                .website(salon.getWebsite())
+                .logoUrl(salon.getLogoUrl())
+                .latitude(salon.getLatitude())
+                .longitude(salon.getLongitude())
+                .hours(hourResponses)
+                .photos(photoResponses)
+                .build();
+    }
+
+        @Override
+    @Transactional(readOnly = true)
+    public SalonResponse getMine() {
+
+        User owner = getCurrentUser();
+
+        Salon salon = salonRepository.findByOwner(owner)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Salon not found"));
+
+        return mapToResponse(salon);
+    }
+
+    @Override
+    public SalonResponse update(UpdateSalonRequest request) {
+
+        User owner = getCurrentUser();
+
+        Salon salon = salonRepository.findByOwner(owner)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Salon not found"));
+
+        salon.setName(request.getName());
+        salon.setDescription(request.getDescription());
+        salon.setAddress(request.getAddress());
+        salon.setPhone(request.getPhone());
+        salon.setEmail(request.getEmail());
+        salon.setWebsite(request.getWebsite());
+
+        salonRepository.save(salon);
+
+        salonHourRepository.deleteBySalon(salon);
+        salonPhotoRepository.deleteBySalon(salon);
+
+        salon.setHours(new ArrayList<>());
+        salon.setPhotos(new ArrayList<>());
+
+        saveHours(salon, request.getHours());
+        savePhotos(salon, request.getPhotos());
+
+        return mapToResponse(salon);
+    }
+
+    @Override
+    public void delete() {
+
+        User owner = getCurrentUser();
+
+        Salon salon = salonRepository.findByOwner(owner)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Salon not found"));
+
+        salonRepository.delete(salon);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SalonResponse> getAll() {
+
+        List<Salon> salons = salonRepository.findAll();
+
+        List<SalonResponse> responses = new ArrayList<>();
+
+        for (Salon salon : salons) {
+            responses.add(mapToResponse(salon));
+        }
+
+        return responses;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public SalonResponse getById(Long id) {
+
+        Salon salon = salonRepository.findById(id)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Salon not found"));
+
+        return mapToResponse(salon);
+    }
+
+}

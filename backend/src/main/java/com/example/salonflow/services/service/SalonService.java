@@ -1,15 +1,23 @@
-// package com.example.salonflow.services.service;
+package com.example.salonflow.services.service;
 
-// import com.example.salonflow.dto.Salon.CreateSalonRequest;
-// import com.example.salonflow.dto.Salon.SalonResponse;
+import com.example.salonflow.dto.Salon.CreateSalonRequest;
+import com.example.salonflow.dto.Salon.SalonResponse;
+import com.example.salonflow.dto.Salon.UpdateSalonRequest;
 
-// import java.util.List;
+import java.util.List;
 
-// public interface SalonService {
+public interface SalonService {
 
-//     SalonResponse create(CreateSalonRequest request);
+    SalonResponse create(CreateSalonRequest request);
 
-//     List<SalonResponse> getMySalons();
+    SalonResponse getMine();
 
-//     SalonResponse getById(Long salonId);
-// }
+    SalonResponse update(UpdateSalonRequest request);
+
+    void delete();
+
+    List<SalonResponse> getAll();
+
+    SalonResponse getById(Long id);
+
+}

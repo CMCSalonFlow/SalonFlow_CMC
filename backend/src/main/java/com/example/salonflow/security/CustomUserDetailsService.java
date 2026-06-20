@@ -43,7 +43,7 @@ public class CustomUserDetailsService
                             Stream<GrantedAuthority> roleAuthorities =
                                     Stream.of(
                                             new SimpleGrantedAuthority(
-                                                    "ROLE_" + role.getName().toUpperCase()
+                                                    "ROLE_" + role.getCode().toUpperCase()
                                             )
                                     );
 
