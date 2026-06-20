@@ -9,6 +9,7 @@ import com.example.salonflow.services.service.BranchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.salonflow.validation.BranchOwnershipValidator;
 
 import java.time.Instant;
 import java.util.List;
@@ -24,6 +25,8 @@ public class BranchServiceImpl implements BranchService {
     private final UserRepository userRepository;
 
     private final UserBranchRepository userBranchRepository;
+
+    private final BranchOwnershipValidator branchOwnershipValidator;
 
     @Override
     @Transactional(readOnly = true)
@@ -119,12 +122,9 @@ public class BranchServiceImpl implements BranchService {
     ) {
 
         Branch branch =
-                branchRepository
-                        .findById(branchId)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Branch not found"
-                                )
+                branchOwnershipValidator
+                        .validateOwnerBranch(
+                                branchId
                         );
 
         branch.setName(
@@ -159,13 +159,10 @@ public class BranchServiceImpl implements BranchService {
     ) {
 
         Branch branch =
-                branchRepository
-                        .findById(branchId)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Branch not found"
-                                )
-                        );
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
 
         branch.setIsActive(false);
 
@@ -204,13 +201,10 @@ public class BranchServiceImpl implements BranchService {
     ) {
 
         Branch branch =
-                branchRepository
-                        .findById(branchId)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Branch not found"
-                                )
-                        );
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
 
         return mapToResponse(branch);
     }
@@ -223,12 +217,9 @@ public class BranchServiceImpl implements BranchService {
     ) {
 
         Branch branch =
-                branchRepository
-                        .findById(branchId)
-                        .orElseThrow(() ->
-                                new ResourceNotFoundException(
-                                        "Branch not found"
-                                )
+                branchOwnershipValidator
+                        .validateOwnerBranch(
+                                branchId
                         );
 
         User user =
@@ -266,45 +257,53 @@ public class BranchServiceImpl implements BranchService {
         userBranchRepository.save(userBranch);
     }
 
-    @Override
-    @Transactional
-    public void removeUser(
-            Long branchId,
-            Long userId
-    ) {
+        @Override
+        @Transactional
+        public void removeUser(
+                Long branchId,
+                Long userId
+        ) {
+
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
 
         userBranchRepository
                 .deleteByUser_IdAndBranch_Id(
                         userId,
                         branchId
                 );
-    }
+        }
+        @Override
+        @Transactional(readOnly = true)
+        public List<UserInBranchResponse> getUsers(
+                Long branchId
+        ) {
 
-    @Override
-    @Transactional(readOnly = true)
-    public List<UserInBranchResponse> getUsers(
-            Long branchId
-    ) {
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
 
         return userBranchRepository
                 .findAllUsersByBranchId(branchId)
                 .stream()
                 .map(userBranch -> {
 
-                    User user =
-                            userBranch.getUser();
+                        User user =
+                                userBranch.getUser();
 
-                    return UserInBranchResponse
-                            .builder()
-                            .id(user.getId())
-                            .fullName(user.getFullName())
-                            .email(user.getEmail())
-                            .phone(user.getPhone())
-                            .build();
+                        return UserInBranchResponse
+                                .builder()
+                                .id(user.getId())
+                                .fullName(user.getFullName())
+                                .email(user.getEmail())
+                                .phone(user.getPhone())
+                                .build();
                 })
                 .toList();
-    }
-
+        }
     private BranchResponse mapToResponse(
             Branch branch
     ) {
