@@ -51,4 +51,9 @@ public class User extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "user")
     private Set<UserBranch> userBranches = new HashSet<>();
+        @OneToOne(
+            mappedBy = "user",
+            cascade = CascadeType.ALL
+    )
+    private CustomerProfile customerProfile;
 }
