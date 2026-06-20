@@ -8,7 +8,7 @@ import com.example.salonflow.services.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -37,17 +37,15 @@ public class UserServiceImpl implements UserService {
                 .phone(request.getPhone())
                 .status(UserStatus.ACTIVE)
                 .build();
-
         User saved = userRepository.save(user);
+            if (request.getRoleIds() != null) {
+                assignRolesToUser(saved.getId(), request.getRoleIds());
+            }
 
-        // assign roles nếu có
-        if (request.getRoleIds() != null) {
-            assignRolesToUser(saved.getId(), request.getRoleIds());
-        }
-
-        return mapToResponse(saved);
+            return getUserById(saved.getId());
     }
-
+    
+    @Transactional
     @Override
     public UserResponse updateUser(Long userId, UserUpdateRequest request) {
 
@@ -58,7 +56,18 @@ public class UserServiceImpl implements UserService {
         user.setPhone(request.getPhone());
         user.setAvatarUrl(request.getAvatarUrl());
 
-        return mapToResponse(userRepository.save(user));
+        userRepository.save(user);
+
+        if (request.getRoleIds() != null) {
+
+            // xóa role cũ
+            userRoleRepository.deleteByUser_Id(userId);
+
+            // gán role mới
+            assignRolesToUser(userId, request.getRoleIds());
+        }
+
+        return getUserById(userId);
     }
 
     @Override
@@ -113,11 +122,16 @@ public class UserServiceImpl implements UserService {
 
     private UserResponse mapToResponse(User user) {
 
-    Set<String> roles = user.getUserRoles()
-            .stream()
-            .map((UserRole ur) -> ur.getRole().getCode())
-            .collect(Collectors.toSet());
-            
+        Set<String> roles = user.getUserRoles()
+                .stream()
+                .map(ur -> ur.getRole().getCode())
+                .collect(Collectors.toSet());
+
+        Set<Long> roleIds = user.getUserRoles()
+                .stream()
+                .map(ur -> ur.getRole().getId())
+                .collect(Collectors.toSet());
+
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -127,6 +141,7 @@ public class UserServiceImpl implements UserService {
                 .avatarUrl(user.getAvatarUrl())
                 .status(user.getStatus().name())
                 .roles(roles)
+                .roleIds(roleIds)
                 .build();
     }
 }

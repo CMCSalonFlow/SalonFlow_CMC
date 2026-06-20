@@ -17,4 +17,6 @@ public class UserResponse {
     private String status;
 
     private Set<String> roles;
+    private Set<Long> roleIds;
+
 }

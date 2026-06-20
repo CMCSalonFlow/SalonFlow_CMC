@@ -12,6 +12,5 @@ public class UserCreateRequest {
     private String fullName;
     private String phone;
 
-    // optional: gán role lúc tạo user
     private Set<Long> roleIds;
 }
