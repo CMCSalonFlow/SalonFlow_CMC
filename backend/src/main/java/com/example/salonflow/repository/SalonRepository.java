@@ -17,4 +17,5 @@ public interface SalonRepository
             Long salonId,
             Long ownerId
     );
+    Optional<Salon> findFirstByOwnerId(Long ownerId);
 }
