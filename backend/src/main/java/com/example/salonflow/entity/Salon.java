@@ -3,7 +3,6 @@ package com.example.salonflow.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,7 +13,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Salon {
+public class Salon extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,10 +37,13 @@ public class Salon {
     @Column(name = "logo_url")
     private String logoUrl;
 
+    @Column(name = "phone")
     private String phone;
 
+    @Column(name = "email")
     private String email;
 
+    @Column(name = "website")
     private String website;
 
     @Column(columnDefinition = "TEXT")
@@ -50,12 +52,6 @@ public class Salon {
     private Double latitude;
 
     private Double longitude;
-
-    @Column(name = "created_at", updatable = false)
-    private OffsetDateTime createdAt;
-
-    @Column(name = "updated_at")
-    private OffsetDateTime updatedAt;
 
     @OneToMany(
             mappedBy = "salon",

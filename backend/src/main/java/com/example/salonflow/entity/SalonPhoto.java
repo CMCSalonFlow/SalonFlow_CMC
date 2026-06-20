@@ -3,8 +3,6 @@ package com.example.salonflow.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
-import java.time.OffsetDateTime;
-
 @Entity
 @Table(name = "salon_photos")
 @Getter
@@ -12,7 +10,7 @@ import java.time.OffsetDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SalonPhoto {
+public class SalonPhoto extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,7 +25,4 @@ public class SalonPhoto {
 
     @Column(name = "is_primary")
     private Boolean isPrimary;
-
-    @Column(name = "created_at", updatable = false)
-    private OffsetDateTime createdAt;
 }

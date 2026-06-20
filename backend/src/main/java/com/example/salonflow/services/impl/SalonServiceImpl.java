@@ -78,7 +78,7 @@ public class SalonServiceImpl implements SalonService {
 
         salonHourRepository.saveAll(hours);
 
-        salon.setHours(hours);
+        salon.getHours().addAll(hours);
     }
 
     private void savePhotos(
@@ -109,7 +109,7 @@ public class SalonServiceImpl implements SalonService {
 
         salonPhotoRepository.saveAll(photos);
 
-        salon.setPhotos(photos);
+        salon.getPhotos().addAll(photos);
     }
 
     private User getCurrentUser() {
@@ -199,8 +199,11 @@ public class SalonServiceImpl implements SalonService {
         salonHourRepository.deleteBySalon(salon);
         salonPhotoRepository.deleteBySalon(salon);
 
-        salon.setHours(new ArrayList<>());
-        salon.setPhotos(new ArrayList<>());
+        salonHourRepository.flush();
+        salonPhotoRepository.flush();
+
+        salon.getHours().clear();
+        salon.getPhotos().clear();
 
         saveHours(salon, request.getHours());
         savePhotos(salon, request.getPhotos());
