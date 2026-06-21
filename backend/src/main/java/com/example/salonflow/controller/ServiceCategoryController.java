@@ -14,6 +14,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/categories")
+@CrossOrigin(origins = "*")   // ← Thêm dòng này
 @RequiredArgsConstructor
 public class ServiceCategoryController {
 
@@ -26,6 +27,11 @@ public class ServiceCategoryController {
 
     @GetMapping
     public ResponseEntity<List<CategoryResponse>> getAll() {
+        return ResponseEntity.ok(service.getAll());
+    }
+
+    @GetMapping("/public")
+    public ResponseEntity<List<CategoryResponse>> getPublicCategories() {
         return ResponseEntity.ok(service.getAll());
     }
 
@@ -45,7 +51,6 @@ public class ServiceCategoryController {
         return ResponseEntity.noContent().build();
     }
 
-    // Endpoint hỗ trợ kéo thả
     @PatchMapping("/order")
     public ResponseEntity<Void> updateOrder(@RequestBody OrderUpdateRequest request) {
         service.updateOrder(request.getOrder());

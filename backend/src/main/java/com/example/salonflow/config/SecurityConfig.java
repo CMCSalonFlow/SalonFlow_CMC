@@ -84,6 +84,10 @@ public class SecurityConfig {
                                 ).permitAll()
 
                                 .requestMatchers(
+                                        "/api/v1/categories/public"
+                                ).permitAll()
+
+                                .requestMatchers(
                                         "/oauth2/**",
                                         "/login/oauth2/**"
                                 ).permitAll()
