@@ -6,7 +6,7 @@ import lombok.Data;
 public class UpdateCategoryRequest {
 
     private String name;
-    private String icon;
+    private Long iconMediaId;
     private String color;
     private String description;
 }

@@ -3,8 +3,10 @@ package com.example.salonflow.services.impl;
 import com.example.salonflow.dto.category.CategoryResponse;
 import com.example.salonflow.dto.category.CreateCategoryRequest;
 import com.example.salonflow.dto.category.UpdateCategoryRequest;
+import com.example.salonflow.entity.MediaFile;
 import com.example.salonflow.entity.ServiceCategory;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.repository.MediaFileRepository;
 import com.example.salonflow.repository.ServiceCategoryRepository;
 import com.example.salonflow.services.service.ServiceCategoryService;
 import lombok.RequiredArgsConstructor;
@@ -16,16 +18,26 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ServiceCategoryServiceImpl implements ServiceCategoryService {
 
+    private final MediaFileRepository mediaRepository;
     private final ServiceCategoryRepository repository;
 
     @Override
     public CategoryResponse create(CreateCategoryRequest request) {
+
         Integer maxOrder = repository.findMaxDisplayOrder();
         int newOrder = (maxOrder != null) ? maxOrder + 1 : 0;
 
+        MediaFile icon = null;
+
+        if (request.getIconMediaId() != null) {
+            icon = mediaRepository.findById(request.getIconMediaId())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException("Icon media not found"));
+        }
+
         ServiceCategory category = ServiceCategory.builder()
                 .name(request.getName())
-                .icon(request.getIcon())
+                .icon(icon)
                 .color(request.getColor())
                 .description(request.getDescription())
                 .displayOrder(newOrder)
@@ -54,11 +66,21 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
 
     @Override
     public CategoryResponse update(Long id, UpdateCategoryRequest request) {
+
         ServiceCategory category = repository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Category not found with id: " + id));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Category not found with id: " + id));
+
+        MediaFile icon = null;
+
+        if (request.getIconMediaId() != null) {
+            icon = mediaRepository.findById(request.getIconMediaId())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException("Icon media not found"));
+        }
 
         category.setName(request.getName());
-        category.setIcon(request.getIcon());
+        category.setIcon(icon);
         category.setColor(request.getColor());
         category.setDescription(request.getDescription());
 
@@ -97,12 +119,14 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
         repository.saveAll(categories);
     }
 
-    // Helper method
     private CategoryResponse toResponse(ServiceCategory category) {
+
         return CategoryResponse.builder()
                 .id(category.getId())
                 .name(category.getName())
-                .icon(category.getIcon())
+                .iconUrl(category.getIcon() != null
+                        ? category.getIcon().getUrl()
+                        : null)
                 .color(category.getColor())
                 .description(category.getDescription())
                 .displayOrder(category.getDisplayOrder())

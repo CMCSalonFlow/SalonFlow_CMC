@@ -15,7 +15,7 @@ import lombok.RequiredArgsConstructor;
 import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
+import org.springframework.transaction.annotation.Transactional;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.*;
@@ -30,7 +30,10 @@ public class MediaServiceImpl implements MediaService {
     private final MediaFileRepository repository;
     private final MinioProperties properties;
 
+
+    
     @Override
+    //@Transactional
     public UploadResponse upload(MultipartFile file) {
 
         ImageValidator.validate(file);
@@ -89,8 +92,13 @@ public class MediaServiceImpl implements MediaService {
                     .originalFileName(file.getOriginalFilename())
                     .build();
 
+                    System.out.println("1. BEFORE MINIO");
+                System.out.println("2. AFTER MINIO");
+                System.out.println("3. BEFORE SAVE");
+
             media = repository.save(media);
 
+            System.out.println("4. AFTER SAVE ID = " + media.getId());
             // 7. Response
             return UploadResponse.builder()
                     .id(media.getId())
@@ -99,8 +107,9 @@ public class MediaServiceImpl implements MediaService {
                     .build();
 
         } catch (Exception e) {
-            throw new BadRequestException("Upload failed: " + e.getMessage());
-        }
+                e.printStackTrace();
+                throw new BadRequestException("Upload failed: " + e.getMessage());
+                }
     }
 
     @Override

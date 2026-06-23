@@ -13,7 +13,6 @@ import java.time.Instant;
 @Getter
 @Setter
 @MappedSuperclass
-@EnableJpaAuditing
 @EntityListeners(AuditingEntityListener.class)
 public abstract class BaseEntity {
 
