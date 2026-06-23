@@ -1,5 +1,6 @@
 package com.example.salonflow.config;
 
+import com.example.salonflow.security.BranchContextFilter;
 import com.example.salonflow.security.CustomUserDetailsService;
 import com.example.salonflow.security.JwtAuthenticationFilter;
 import com.example.salonflow.security.RateLimitFilter;
@@ -26,6 +27,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter     jwtFilter;
+    private final BranchContextFilter branchContextFilter;
     private final RateLimitFilter             rateLimitFilter;      // ← MỚI
     private final SecurityHeadersFilter       securityHeadersFilter; // ← MỚI
     private final CustomUserDetailsService    userDetailsService;
@@ -91,7 +93,7 @@ public class SecurityConfig {
             .oauth2Login(oauth2 -> oauth2
                     .successHandler(oauth2SuccessHandler)
                     .failureHandler(oauth2FailureHandler)
-            )
+            )             
 
             // ── Thứ tự filter (quan trọng!) ───────────────────────
             //
@@ -114,7 +116,12 @@ public class SecurityConfig {
             .addFilterBefore(
                     jwtFilter,
                     UsernamePasswordAuthenticationFilter.class
+                )
+                .addFilterAfter(
+                        branchContextFilter,
+                        JwtAuthenticationFilter.class
             );
+                
 
         return http.build();
     }

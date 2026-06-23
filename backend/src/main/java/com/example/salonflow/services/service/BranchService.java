@@ -1,27 +1,46 @@
-// package com.example.salonflow.services.service;
+package com.example.salonflow.services.service;
 
+import java.util.List;
 
-// import com.example.salonflow.dto.Branch.CreateBranchRequest;
-// import com.example.salonflow.dto.Branch.UpdateBranchRequest;
-// import com.example.salonflow.dto.Branch.BranchResponse;
+import com.example.salonflow.dto.Branch.BranchResponse;
+import com.example.salonflow.dto.Branch.BranchSummaryResponse;
+import com.example.salonflow.dto.Branch.CreateBranchRequest;
+import com.example.salonflow.dto.Branch.UpdateBranchRequest;
+import com.example.salonflow.dto.Branch.UserInBranchResponse;
+public interface BranchService {
 
-// import java.util.List;
+    List<BranchSummaryResponse> getMyBranches();
 
-// public interface BranchService {
+    BranchResponse create(
+            CreateBranchRequest request
+    );
 
-//     BranchResponse create(
-//             Long salonId,
-//             CreateBranchRequest request
-//     );
+    BranchResponse update(
+            Long branchId,
+            UpdateBranchRequest request
+    );
 
-//     List<BranchResponse> getBySalon(
-//             Long salonId
-//     );
+    void delete(
+            Long branchId
+    );
 
-//     BranchResponse update(
-//             Long branchId,
-//             UpdateBranchRequest request
-//     );
+    List<BranchResponse> getAll();
 
-//     void delete(Long branchId);
-// }
+    BranchResponse getById(
+            Long branchId
+    );
+
+    void assignUser(
+            Long branchId,
+            Long userId
+    );
+
+    void removeUser(
+            Long branchId,
+            Long userId
+    );
+
+    List<UserInBranchResponse> getUsers(
+            Long branchId
+    );
+}

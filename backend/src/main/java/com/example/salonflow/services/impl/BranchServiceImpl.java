@@ -1,133 +1,322 @@
-// package com.example.salonflow.services.impl;
+package com.example.salonflow.services.impl;
 
-// import com.example.salonflow.dto.Branch.CreateBranchRequest;
-// import com.example.salonflow.dto.Branch.UpdateBranchRequest;
-// import com.example.salonflow.dto.Branch.BranchResponse;
-// import com.example.salonflow.entity.Branch;
-// import com.example.salonflow.entity.Salon;
-// import com.example.salonflow.entity.User;
-// import com.example.salonflow.repository.BranchRepository;
-// import com.example.salonflow.repository.SalonRepository;
-// import com.example.salonflow.security.SecurityUtils;
-// import com.example.salonflow.services.service.BranchService;
-// import com.example.salonflow.services.service.UserService;
-// import com.example.salonflow.exception.ResourceNotFoundException;
-// import com.example.salonflow.exception.BusinessAccessDeniedException;
-// import lombok.RequiredArgsConstructor;
-// import org.springframework.stereotype.Service;
+import com.example.salonflow.dto.Branch.*;
+import com.example.salonflow.entity.*;
+import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.repository.*;
+import com.example.salonflow.security.SecurityUtils;
+import com.example.salonflow.services.service.BranchService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.example.salonflow.validation.BranchOwnershipValidator;
 
-// import java.util.List;
+import java.time.Instant;
+import java.util.List;
 
-// @Service
-// @RequiredArgsConstructor
-// public class BranchServiceImpl implements BranchService {
+@Service
+@RequiredArgsConstructor
+public class BranchServiceImpl implements BranchService {
 
-//     private final BranchRepository branchRepository;
-//     private final SalonRepository salonRepository;
-//     private final UserService userService;
-//     @Override
-//     public BranchResponse create(
-//             Long salonId,
-//             CreateBranchRequest request
-//     ) {
+    private final BranchRepository branchRepository;
 
-//         User currentUser =
-//                 userService.getCurrentUser();
+    private final SalonRepository salonRepository;
 
-//         Salon salon =
-//                 salonRepository
-//                         .findByIdAndOwnerId(
-//                                 salonId,
-//                                 currentUser.getId()
-//                         )
-//                         .orElseThrow(() ->
-//                                 new ResourceNotFoundException(
-//                                         "Salon with id " + salonId + " not found"
-//                                 ));
+    private final UserRepository userRepository;
 
-//         Branch branch = Branch.builder()
-//                 .salon(salon)
-//                 .name(request.getName())
-//                 .phone(request.getPhone())
-//                 .email(request.getEmail())
-//                 .address(request.getAddress())
-//                 .isActive(true)
-//                 .build();
+    private final UserBranchRepository userBranchRepository;
 
-//         branchRepository.save(branch);
+    private final BranchOwnershipValidator branchOwnershipValidator;
 
-//         return map(branch);
-//     }
+    @Override
+    @Transactional(readOnly = true)
+    public List<BranchSummaryResponse> getMyBranches() {
 
-//     @Override
-//     public List<BranchResponse> getBySalon(
-//             Long salonId
-//     ) {
+        Long userId =
+                SecurityUtils.getCurrentUserId();
 
-//         User currentUser =
-//                 userService.getCurrentUser();
+        return userBranchRepository
+                .findByUser_Id(userId)
+                .stream()
+                .map(userBranch -> {
 
-//         salonRepository
-//                 .findByIdAndOwnerId(
-//                         salonId,
-//                         currentUser.getId()
-//                 )
-//                 .orElseThrow(() ->
-//                         new ResourceNotFoundException(
-//                                 "Salon with id " + salonId + " not found"
-//                         ));
+                    Branch branch =
+                            userBranch.getBranch();
 
-//         return branchRepository
-//                 .findBySalonId(salonId)
-//                 .stream()
-//                 .map(this::map)
-//                 .toList();
-//     }
+                    return BranchSummaryResponse
+                            .builder()
+                            .id(branch.getId())
+                            .name(branch.getName())
+                            .address(branch.getAddress())
+                            .isActive(branch.getIsActive())
+                            .build();
+                })
+                .toList();
+    }
 
-//     @Override
-//     public BranchResponse update(
-//             Long branchId,
-//             UpdateBranchRequest request
-//     ) {
+    @Override
+    @Transactional
+    public BranchResponse create(
+            CreateBranchRequest request
+    ) {
 
-//         Branch branch =
-//                 branchRepository
-//                         .findById(branchId)
-//                         .orElseThrow();
+        Long ownerId =
+                SecurityUtils.getCurrentUserId();
 
-//         branch.setName(request.getName());
-//         branch.setPhone(request.getPhone());
-//         branch.setEmail(request.getEmail());
-//         branch.setAddress(request.getAddress());
-//         branch.setIsActive(request.getIsActive());
+        Salon salon =
+                salonRepository
+                        .findFirstByOwnerId(ownerId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Salon not found"
+                                )
+                        );
 
-//         branchRepository.save(branch);
+        Branch branch =
+                Branch.builder()
+                        .name(request.getName())
+                        .phone(request.getPhone())
+                        .email(request.getEmail())
+                        .address(request.getAddress())
+                        .isActive(true)
+                        .salon(salon)
+                        .build();
 
-//         return map(branch);
-//     }
+        Branch saved =
+                branchRepository.save(branch);
 
-//     @Override
-//     public void delete(Long branchId) {
+        User owner =
+                userRepository
+                        .findById(ownerId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Owner not found"
+                                )
+                        );
 
-//         Branch branch =
-//                 branchRepository
-//                         .findById(branchId)
-//                         .orElseThrow();
+        UserBranch userBranch =
+                UserBranch.builder()
+                        .id(
+                                new UserBranchId(
+                                        owner.getId(),
+                                        saved.getId()
+                                )
+                        )
+                        .user(owner)
+                        .branch(saved)
+                        .assignedAt(
+                                Instant.now()
+                        )
+                        .build();
 
-//         branchRepository.delete(branch);
-//     }
+        userBranchRepository.save(userBranch);
 
-//     private BranchResponse map(
-//             Branch branch
-//     ) {
-//         return BranchResponse.builder()
-//                 .id(branch.getId())
-//                 .salonId(branch.getSalon().getId())
-//                 .name(branch.getName())
-//                 .phone(branch.getPhone())
-//                 .email(branch.getEmail())
-//                 .address(branch.getAddress())
-//                 .isActive(branch.getIsActive())
-//                 .build();
-//     }
-// }
+        return mapToResponse(saved);
+    }
+
+    @Override
+    @Transactional
+    public BranchResponse update(
+            Long branchId,
+            UpdateBranchRequest request
+    ) {
+
+        Branch branch =
+                branchOwnershipValidator
+                        .validateOwnerBranch(
+                                branchId
+                        );
+
+        branch.setName(
+                request.getName()
+        );
+
+        branch.setPhone(
+                request.getPhone()
+        );
+
+        branch.setEmail(
+                request.getEmail()
+        );
+
+        branch.setAddress(
+                request.getAddress()
+        );
+
+        branch.setIsActive(
+                request.getIsActive()
+        );
+
+        return mapToResponse(
+                branchRepository.save(branch)
+        );
+    }
+
+    @Override
+    @Transactional
+    public void delete(
+            Long branchId
+    ) {
+
+        Branch branch =
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
+
+        branch.setIsActive(false);
+
+        branchRepository.save(branch);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BranchResponse> getAll() {
+
+        Long ownerId =
+                SecurityUtils.getCurrentUserId();
+
+        Salon salon =
+                salonRepository
+                        .findFirstByOwnerId(ownerId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Salon not found"
+                                )
+                        );
+
+        return branchRepository
+                .findBySalonId(
+                        salon.getId()
+                )
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public BranchResponse getById(
+            Long branchId
+    ) {
+
+        Branch branch =
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
+
+        return mapToResponse(branch);
+    }
+
+    @Override
+    @Transactional
+    public void assignUser(
+            Long branchId,
+            Long userId
+    ) {
+
+        Branch branch =
+                branchOwnershipValidator
+                        .validateOwnerBranch(
+                                branchId
+                        );
+
+        User user =
+                userRepository
+                        .findById(userId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "User not found"
+                                )
+                        );
+
+        if (userBranchRepository
+                .existsByUser_IdAndBranch_Id(
+                        userId,
+                        branchId
+                )) {
+            return;
+        }
+
+        UserBranch userBranch =
+                UserBranch.builder()
+                        .id(
+                                new UserBranchId(
+                                        userId,
+                                        branchId
+                                )
+                        )
+                        .user(user)
+                        .branch(branch)
+                        .assignedAt(
+                                Instant.now()
+                        )
+                        .build();
+
+        userBranchRepository.save(userBranch);
+    }
+
+        @Override
+        @Transactional
+        public void removeUser(
+                Long branchId,
+                Long userId
+        ) {
+
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
+
+        userBranchRepository
+                .deleteByUser_IdAndBranch_Id(
+                        userId,
+                        branchId
+                );
+        }
+        @Override
+        @Transactional(readOnly = true)
+        public List<UserInBranchResponse> getUsers(
+                Long branchId
+        ) {
+
+        branchOwnershipValidator
+                .validateOwnerBranch(
+                        branchId
+                );
+
+        return userBranchRepository
+                .findAllUsersByBranchId(branchId)
+                .stream()
+                .map(userBranch -> {
+
+                        User user =
+                                userBranch.getUser();
+
+                        return UserInBranchResponse
+                                .builder()
+                                .id(user.getId())
+                                .fullName(user.getFullName())
+                                .email(user.getEmail())
+                                .phone(user.getPhone())
+                                .build();
+                })
+                .toList();
+        }
+    private BranchResponse mapToResponse(
+            Branch branch
+    ) {
+
+        return BranchResponse
+                .builder()
+                .id(branch.getId())
+                .name(branch.getName())
+                .salonId(branch.getSalon().getId())
+                .phone(branch.getPhone())
+                .email(branch.getEmail())
+                .address(branch.getAddress())
+                .isActive(branch.getIsActive())
+                .build();
+    }
+}

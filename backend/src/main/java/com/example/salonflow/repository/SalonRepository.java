@@ -12,4 +12,5 @@ public interface SalonRepository extends JpaRepository<Salon, Long> {
 
     boolean existsByOwner(User owner);
 
+    Optional<Salon> findFirstByOwnerId(Long ownerId);
 }
