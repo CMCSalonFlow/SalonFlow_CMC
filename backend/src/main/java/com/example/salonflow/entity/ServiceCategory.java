@@ -27,6 +27,7 @@ public class ServiceCategory extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Builder.Default
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
 }
