@@ -19,7 +19,9 @@ public class ServiceCategory extends BaseEntity {
     @Column(nullable = false, length = 100)
     private String name;
 
-    private String icon;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "icon_media_id")
+    private MediaFile icon;
 
     @Column(nullable = false, length = 7)
     private String color;
