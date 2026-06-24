@@ -16,7 +16,7 @@ public class BundleResponse {
 
     private Long id;
 
-    private Long salonId;
+    private Long branchId;
 
     private String name;
 

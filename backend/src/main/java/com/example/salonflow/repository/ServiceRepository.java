@@ -8,11 +8,11 @@ import java.util.Optional;
 
 public interface ServiceRepository extends JpaRepository<Service, Long> {
 
-    List<Service> findBySalonId(Long salonId);
+    List<Service> findByBranchId(Long branchId);
 
-    List<Service> findBySalonIdAndIsActiveTrue(Long salonId);
+    List<Service> findByBranchIdAndIsActiveTrue(Long branchId);
 
-    Optional<Service> findByIdAndSalonId(Long id, Long salonId);
+    Optional<Service> findByIdAndBranchId(Long id, Long branchId);
 
     List<Service> findByCategoryId(Long categoryId);
 }

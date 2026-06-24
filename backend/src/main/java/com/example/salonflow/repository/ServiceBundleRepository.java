@@ -10,9 +10,9 @@ import java.util.Optional;
 @Repository
 public interface ServiceBundleRepository extends JpaRepository<ServiceBundle, Long> {
 
-    List<ServiceBundle> findBySalonId(Long salonId);
+    List<ServiceBundle> findByBranchId(Long branchId);
 
-    List<ServiceBundle> findBySalonIdAndIsActiveTrue(Long salonId);
+    List<ServiceBundle> findByBranchIdAndIsActiveTrue(Long branchId);
 
-    Optional<ServiceBundle> findByIdAndSalonId(Long id, Long salonId);
+    Optional<ServiceBundle> findByIdAndBranchId(Long id, Long branchId);
 }

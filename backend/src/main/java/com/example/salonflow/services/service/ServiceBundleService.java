@@ -8,15 +8,15 @@ import java.util.List;
 
 public interface ServiceBundleService {
 
-    BundleResponse create(Long salonId, CreateBundleRequest request);
+    BundleResponse create(Long branchId, CreateBundleRequest request);
 
-    List<BundleResponse> getBySalon(Long salonId);
+    List<BundleResponse> getByBranch(Long branchId);
 
-    List<BundleResponse> getBySalonActiveOnly(Long salonId);
+    List<BundleResponse> getByBranchActiveOnly(Long branchId);
 
-    BundleResponse getById(Long salonId, Long bundleId);
+    BundleResponse getById(Long branchId, Long bundleId);
 
-    BundleResponse update(Long salonId, Long bundleId, UpdateBundleRequest request);
+    BundleResponse update(Long branchId, Long bundleId, UpdateBundleRequest request);
 
-    void delete(Long salonId, Long bundleId);
+    void delete(Long branchId, Long bundleId);
 }

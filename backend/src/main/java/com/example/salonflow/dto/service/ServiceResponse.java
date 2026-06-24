@@ -12,7 +12,7 @@ public class ServiceResponse {
 
     private Long id;
 
-    private Long salonId;
+    private Long branchId;
 
     private Long categoryId;
 

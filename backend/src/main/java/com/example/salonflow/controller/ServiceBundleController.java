@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/salons/{salonId}/bundles")
+@RequestMapping("/api/v1/branches/{branchId}/bundles")
 @RequiredArgsConstructor
 public class ServiceBundleController {
 
@@ -20,51 +20,51 @@ public class ServiceBundleController {
 
     @PostMapping
     public ResponseEntity<BundleResponse> create(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @Valid @RequestBody CreateBundleRequest request
     ) {
         return ResponseEntity.ok(
-                serviceBundleService.create(salonId, request));
+                serviceBundleService.create(branchId, request));
     }
 
     @GetMapping
-    public ResponseEntity<List<BundleResponse>> getBySalon(
-            @PathVariable Long salonId,
+    public ResponseEntity<List<BundleResponse>> getByBranch(
+            @PathVariable Long branchId,
             @RequestParam(required = false, defaultValue = "false") boolean activeOnly
     ) {
         if (activeOnly) {
             return ResponseEntity.ok(
-                    serviceBundleService.getBySalonActiveOnly(salonId));
+                    serviceBundleService.getByBranchActiveOnly(branchId));
         }
         return ResponseEntity.ok(
-                serviceBundleService.getBySalon(salonId));
+                serviceBundleService.getByBranch(branchId));
     }
 
     @GetMapping("/{bundleId}")
     public ResponseEntity<BundleResponse> getById(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @PathVariable Long bundleId
     ) {
         return ResponseEntity.ok(
-                serviceBundleService.getById(salonId, bundleId));
+                serviceBundleService.getById(branchId, bundleId));
     }
 
     @PutMapping("/{bundleId}")
     public ResponseEntity<BundleResponse> update(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @PathVariable Long bundleId,
             @Valid @RequestBody UpdateBundleRequest request
     ) {
         return ResponseEntity.ok(
-                serviceBundleService.update(salonId, bundleId, request));
+                serviceBundleService.update(branchId, bundleId, request));
     }
 
     @DeleteMapping("/{bundleId}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @PathVariable Long bundleId
     ) {
-        serviceBundleService.delete(salonId, bundleId);
+        serviceBundleService.delete(branchId, bundleId);
         return ResponseEntity.noContent().build();
     }
 }

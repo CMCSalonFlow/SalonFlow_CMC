@@ -4,7 +4,7 @@
 -- Bảng lưu thông tin các combo/gói dịch vụ
 CREATE TABLE service_bundles (
     id BIGSERIAL PRIMARY KEY,
-    salon_id BIGINT NOT NULL,
+    branch_id BIGINT NOT NULL,
     name VARCHAR(255) NOT NULL,
     description TEXT,
     price NUMERIC(12, 2) NOT NULL, -- Giá combo/gói ưu đãi
@@ -14,9 +14,9 @@ CREATE TABLE service_bundles (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT fk_service_bundles_salon
-        FOREIGN KEY(salon_id)
-        REFERENCES salons(id)
+    CONSTRAINT fk_service_bundles_branch
+        FOREIGN KEY(branch_id)
+        REFERENCES branches(id)
         ON DELETE CASCADE,
 
     -- Giá không được âm
@@ -30,7 +30,7 @@ CREATE TABLE service_bundles (
         CHECK (total_duration_minutes >= 0)
 );
 
-CREATE INDEX idx_service_bundles_salon ON service_bundles(salon_id);
+CREATE INDEX idx_service_bundles_branch ON service_bundles(branch_id);
 CREATE INDEX idx_service_bundles_is_active ON service_bundles(is_active);
 
 CREATE TRIGGER trg_service_bundles_updated_at

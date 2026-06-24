@@ -21,8 +21,8 @@ public class ServiceBundle extends BaseEntity {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "salon_id", nullable = false)
-    private Salon salon;
+    @JoinColumn(name = "branch_id", nullable = false)
+    private Branch branch;
 
     @Column(nullable = false)
     private String name;

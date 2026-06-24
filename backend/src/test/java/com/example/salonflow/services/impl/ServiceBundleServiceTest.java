@@ -1,12 +1,12 @@
 package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.bundle.*;
-import com.example.salonflow.entity.Salon;
+import com.example.salonflow.entity.Branch;
 import com.example.salonflow.entity.Service;
 import com.example.salonflow.entity.ServiceBundle;
 import com.example.salonflow.entity.ServiceBundleItemId;
 import com.example.salonflow.exception.BusinessException;
-import com.example.salonflow.repository.SalonRepository;
+import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ServiceBundleRepository;
 import com.example.salonflow.repository.ServiceRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -37,24 +37,24 @@ class ServiceBundleServiceTest {
     private ServiceRepository serviceRepository;
 
     @Mock
-    private SalonRepository salonRepository;
+    private BranchRepository branchRepository;
 
     @InjectMocks
     private ServiceBundleServiceImpl serviceBundleService;
 
-    private Salon salon;
+    private Branch branch;
     private Service service1;
     private Service service2;
-    private Service serviceOtherSalon;
+    private Service serviceOtherBranch;
     private Service serviceInactive;
 
     @BeforeEach
     void setUp() {
-        salon = Salon.builder().id(1L).name("Salon Test").build();
+        branch = Branch.builder().id(1L).name("Branch Test").build();
 
         service1 = Service.builder()
                 .id(11L)
-                .salon(salon)
+                .branch(branch)
                 .name("Haircut")
                 .price(BigDecimal.valueOf(100.00))
                 .durationMinutes(30)
@@ -64,7 +64,7 @@ class ServiceBundleServiceTest {
 
         service2 = Service.builder()
                 .id(12L)
-                .salon(salon)
+                .branch(branch)
                 .name("Shaving")
                 .price(BigDecimal.valueOf(50.00))
                 .durationMinutes(15)
@@ -72,10 +72,10 @@ class ServiceBundleServiceTest {
                 .images(new ArrayList<>())
                 .build();
 
-        Salon salonOther = Salon.builder().id(2L).name("Other Salon").build();
-        serviceOtherSalon = Service.builder()
+        Branch branchOther = Branch.builder().id(2L).name("Other Branch").build();
+        serviceOtherBranch = Service.builder()
                 .id(13L)
-                .salon(salonOther)
+                .branch(branchOther)
                 .name("Other Haircut")
                 .price(BigDecimal.valueOf(100.00))
                 .durationMinutes(30)
@@ -85,7 +85,7 @@ class ServiceBundleServiceTest {
 
         serviceInactive = Service.builder()
                 .id(14L)
-                .salon(salon)
+                .branch(branch)
                 .name("Inactive Massage")
                 .price(BigDecimal.valueOf(200.00))
                 .durationMinutes(60)
@@ -103,7 +103,7 @@ class ServiceBundleServiceTest {
                 .items(List.of(BundleItemRequest.builder().serviceId(11L).displayOrder(1).build()))
                 .build();
 
-        when(salonRepository.findById(1L)).thenReturn(Optional.of(salon));
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
 
         assertThatThrownBy(() -> serviceBundleService.create(1L, request))
                 .isInstanceOf(BusinessException.class)
@@ -111,8 +111,8 @@ class ServiceBundleServiceTest {
     }
 
     @Test
-    @DisplayName("🚫 Create combo containing service of another salon -> throw BusinessException")
-    void create_withServiceBelongsToAnotherSalon_shouldThrowBusinessException() {
+    @DisplayName("🚫 Create combo containing service of another branch -> throw BusinessException")
+    void create_withServiceBelongsToAnotherBranch_shouldThrowBusinessException() {
         CreateBundleRequest request = CreateBundleRequest.builder()
                 .name("Mixed Combo")
                 .price(BigDecimal.valueOf(120.00))
@@ -122,16 +122,16 @@ class ServiceBundleServiceTest {
                 ))
                 .build();
 
-        when(salonRepository.findById(1L)).thenReturn(Optional.of(salon));
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(serviceRepository.findById(11L)).thenReturn(Optional.of(service1));
-        when(serviceRepository.findById(13L)).thenReturn(Optional.of(serviceOtherSalon));
+        when(serviceRepository.findById(13L)).thenReturn(Optional.of(serviceOtherBranch));
 
-        ServiceBundle mockBundle = ServiceBundle.builder().id(100L).salon(salon).name("Mixed Combo").price(BigDecimal.valueOf(120.00)).build();
+        ServiceBundle mockBundle = ServiceBundle.builder().id(100L).branch(branch).name("Mixed Combo").price(BigDecimal.valueOf(120.00)).build();
         when(serviceBundleRepository.saveAndFlush(any(ServiceBundle.class))).thenReturn(mockBundle);
 
         assertThatThrownBy(() -> serviceBundleService.create(1L, request))
                 .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("does not belong to salon 1");
+                .hasMessageContaining("does not belong to branch 1");
     }
 
     @Test
@@ -146,11 +146,11 @@ class ServiceBundleServiceTest {
                 ))
                 .build();
 
-        when(salonRepository.findById(1L)).thenReturn(Optional.of(salon));
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(serviceRepository.findById(11L)).thenReturn(Optional.of(service1));
         when(serviceRepository.findById(14L)).thenReturn(Optional.of(serviceInactive));
 
-        ServiceBundle mockBundle = ServiceBundle.builder().id(100L).salon(salon).name("Inactive Combo").price(BigDecimal.valueOf(120.00)).build();
+        ServiceBundle mockBundle = ServiceBundle.builder().id(100L).branch(branch).name("Inactive Combo").price(BigDecimal.valueOf(120.00)).build();
         when(serviceBundleRepository.saveAndFlush(any(ServiceBundle.class))).thenReturn(mockBundle);
 
         assertThatThrownBy(() -> serviceBundleService.create(1L, request))
@@ -171,7 +171,7 @@ class ServiceBundleServiceTest {
                 ))
                 .build();
 
-        when(salonRepository.findById(1L)).thenReturn(Optional.of(salon));
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(serviceRepository.findById(11L)).thenReturn(Optional.of(service1));
         when(serviceRepository.findById(12L)).thenReturn(Optional.of(service2));
 
@@ -183,7 +183,7 @@ class ServiceBundleServiceTest {
 
         ServiceBundle reloadedBundle = ServiceBundle.builder()
                 .id(100L)
-                .salon(salon)
+                .branch(branch)
                 .name("Super Combo")
                 .description("Super combo description")
                 .price(BigDecimal.valueOf(120.00))
@@ -206,7 +206,7 @@ class ServiceBundleServiceTest {
                 .displayOrder(2)
                 .build());
 
-        when(serviceBundleRepository.findByIdAndSalonId(100L, 1L)).thenReturn(Optional.of(reloadedBundle));
+        when(serviceBundleRepository.findByIdAndBranchId(100L, 1L)).thenReturn(Optional.of(reloadedBundle));
 
         BundleResponse response = serviceBundleService.create(1L, request);
 

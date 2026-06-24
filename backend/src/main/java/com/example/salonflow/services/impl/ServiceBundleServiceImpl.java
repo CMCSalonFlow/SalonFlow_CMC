@@ -4,7 +4,7 @@ import com.example.salonflow.dto.bundle.*;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
-import com.example.salonflow.repository.SalonRepository;
+import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ServiceBundleRepository;
 import com.example.salonflow.repository.ServiceRepository;
 import com.example.salonflow.services.service.ServiceBundleService;
@@ -20,15 +20,15 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
 
     private final ServiceBundleRepository serviceBundleRepository;
     private final ServiceRepository serviceRepository;
-    private final SalonRepository salonRepository;
+    private final BranchRepository branchRepository;
 
     @Override
     @Transactional
-    public BundleResponse create(Long salonId, CreateBundleRequest request) {
-        // 1. Ensure Salon exists
-        Salon salon = salonRepository.findById(salonId)
+    public BundleResponse create(Long branchId, CreateBundleRequest request) {
+        // 1. Ensure Branch exists
+        Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Salon with id " + salonId + " not found"));
+                        "Branch with id " + branchId + " not found"));
 
         // 2. Validate at least 2 unique services
         long uniqueServiceCount = request.getItems().stream()
@@ -41,7 +41,7 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
 
         // 3. Save the ServiceBundle first to generate its ID
         ServiceBundle bundle = ServiceBundle.builder()
-                .salon(salon)
+                .branch(branch)
                 .name(request.getName())
                 .description(request.getDescription())
                 .price(request.getPrice())
@@ -56,9 +56,9 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Service with id " + itemReq.getServiceId() + " not found"));
 
-            if (!service.getSalon().getId().equals(salonId)) {
+            if (!service.getBranch().getId().equals(branchId)) {
                 throw new BusinessException("Service with id " + service.getId()
-                        + " does not belong to salon " + salonId);
+                        + " does not belong to branch " + branchId);
             }
             if (!Boolean.TRUE.equals(service.getIsActive())) {
                 throw new BusinessException("Service with id " + service.getId()
@@ -78,36 +78,36 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
         serviceBundleRepository.saveAndFlush(bundle);
 
         // 5. Reload to fetch trigger-computed values
-        ServiceBundle reloadedBundle = findOwnedBundle(salonId, bundle.getId());
+        ServiceBundle reloadedBundle = findOwnedBundle(branchId, bundle.getId());
         return toResponse(reloadedBundle);
     }
 
     @Override
-    public List<BundleResponse> getBySalon(Long salonId) {
-        ensureSalonExists(salonId);
-        return serviceBundleRepository.findBySalonId(salonId).stream()
+    public List<BundleResponse> getByBranch(Long branchId) {
+        ensureBranchExists(branchId);
+        return serviceBundleRepository.findByBranchId(branchId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Override
-    public List<BundleResponse> getBySalonActiveOnly(Long salonId) {
-        ensureSalonExists(salonId);
-        return serviceBundleRepository.findBySalonIdAndIsActiveTrue(salonId).stream()
+    public List<BundleResponse> getByBranchActiveOnly(Long branchId) {
+        ensureBranchExists(branchId);
+        return serviceBundleRepository.findByBranchIdAndIsActiveTrue(branchId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Override
-    public BundleResponse getById(Long salonId, Long bundleId) {
-        ServiceBundle bundle = findOwnedBundle(salonId, bundleId);
+    public BundleResponse getById(Long branchId, Long bundleId) {
+        ServiceBundle bundle = findOwnedBundle(branchId, bundleId);
         return toResponse(bundle);
     }
 
     @Override
     @Transactional
-    public BundleResponse update(Long salonId, Long bundleId, UpdateBundleRequest request) {
-        ServiceBundle bundle = findOwnedBundle(salonId, bundleId);
+    public BundleResponse update(Long branchId, Long bundleId, UpdateBundleRequest request) {
+        ServiceBundle bundle = findOwnedBundle(branchId, bundleId);
 
         // 1. Validate at least 2 unique services
         long uniqueServiceCount = request.getItems().stream()
@@ -137,9 +137,9 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Service with id " + itemReq.getServiceId() + " not found"));
 
-            if (!service.getSalon().getId().equals(salonId)) {
+            if (!service.getBranch().getId().equals(branchId)) {
                 throw new BusinessException("Service with id " + service.getId()
-                        + " does not belong to salon " + salonId);
+                        + " does not belong to branch " + branchId);
             }
             if (!Boolean.TRUE.equals(service.getIsActive())) {
                 throw new BusinessException("Service with id " + service.getId()
@@ -159,31 +159,31 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
         serviceBundleRepository.saveAndFlush(bundle);
 
         // 5. Reload to fetch trigger-computed values
-        ServiceBundle reloadedBundle = findOwnedBundle(salonId, bundle.getId());
+        ServiceBundle reloadedBundle = findOwnedBundle(branchId, bundle.getId());
         return toResponse(reloadedBundle);
     }
 
     @Override
     @Transactional
-    public void delete(Long salonId, Long bundleId) {
-        ServiceBundle bundle = findOwnedBundle(salonId, bundleId);
+    public void delete(Long branchId, Long bundleId) {
+        ServiceBundle bundle = findOwnedBundle(branchId, bundleId);
         serviceBundleRepository.delete(bundle);
     }
 
     // ── Helpers ────────────────────────────────────────────────
 
-    private void ensureSalonExists(Long salonId) {
-        if (!salonRepository.existsById(salonId)) {
+    private void ensureBranchExists(Long branchId) {
+        if (!branchRepository.existsById(branchId)) {
             throw new ResourceNotFoundException(
-                    "Salon with id " + salonId + " not found");
+                    "Branch with id " + branchId + " not found");
         }
     }
 
-    private ServiceBundle findOwnedBundle(Long salonId, Long bundleId) {
-        return serviceBundleRepository.findByIdAndSalonId(bundleId, salonId)
+    private ServiceBundle findOwnedBundle(Long branchId, Long bundleId) {
+        return serviceBundleRepository.findByIdAndBranchId(bundleId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Service bundle with id " + bundleId
-                                + " not found in salon " + salonId));
+                                + " not found in branch " + branchId));
     }
 
     private BundleResponse toResponse(ServiceBundle bundle) {
@@ -204,7 +204,7 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
 
         return BundleResponse.builder()
                 .id(bundle.getId())
-                .salonId(bundle.getSalon().getId())
+                .branchId(bundle.getBranch().getId())
                 .name(bundle.getName())
                 .description(bundle.getDescription())
                 .price(bundle.getPrice())
