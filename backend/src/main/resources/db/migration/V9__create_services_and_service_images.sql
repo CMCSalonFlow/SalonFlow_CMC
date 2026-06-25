@@ -8,7 +8,7 @@
 CREATE TABLE services (
     id BIGSERIAL PRIMARY KEY,
 
-    salon_id BIGINT NOT NULL,
+    branch_id BIGINT NOT NULL,
 
     category_id BIGINT,
 
@@ -25,9 +25,9 @@ CREATE TABLE services (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT fk_services_salon
-        FOREIGN KEY(salon_id)
-        REFERENCES salons(id)
+    CONSTRAINT fk_services_branch
+        FOREIGN KEY(branch_id)
+        REFERENCES branches(id)
         ON DELETE CASCADE,
 
     -- Category bị xóa thì service KHÔNG bị xóa theo,
@@ -50,8 +50,8 @@ CREATE TABLE services (
         )
 );
 
-CREATE INDEX idx_services_salon
-ON services(salon_id);
+CREATE INDEX idx_services_branch
+ON services(branch_id);
 
 CREATE INDEX idx_services_category
 ON services(category_id);
