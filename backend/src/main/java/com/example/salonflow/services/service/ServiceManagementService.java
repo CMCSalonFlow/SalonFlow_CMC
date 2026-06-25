@@ -14,19 +14,19 @@ import java.util.List;
 public interface ServiceManagementService {
 
     ServiceResponse create(
-            Long salonId,
+            Long branchId,
             CreateServiceRequest request
     );
 
-    List<ServiceResponse> getBySalon(Long salonId);
+    List<ServiceResponse> getByBranch(Long branchId);
 
-    ServiceResponse getById(Long salonId, Long serviceId);
+    ServiceResponse getById(Long branchId, Long serviceId);
 
     ServiceResponse update(
-            Long salonId,
+            Long branchId,
             Long serviceId,
             UpdateServiceRequest request
     );
 
-    void delete(Long salonId, Long serviceId);
+    void delete(Long branchId, Long serviceId);
 }

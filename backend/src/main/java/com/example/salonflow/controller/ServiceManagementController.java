@@ -16,7 +16,7 @@ import java.util.List;
  * Route: /api/v1/salons/{salonId}/services
  */
 @RestController
-@RequestMapping("/api/v1/salons/{salonId}/services")
+@RequestMapping("/api/v1/branches/{branchId}/services")
 @RequiredArgsConstructor
 public class ServiceManagementController {
 
@@ -24,46 +24,46 @@ public class ServiceManagementController {
 
     @PostMapping
     public ResponseEntity<ServiceResponse> create(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @Valid @RequestBody CreateServiceRequest request
     ) {
         return ResponseEntity.ok(
-                serviceManagementService.create(salonId, request));
+                serviceManagementService.create(branchId, request));
     }
 
     @GetMapping
-    public ResponseEntity<List<ServiceResponse>> getBySalon(
-            @PathVariable Long salonId
+    public ResponseEntity<List<ServiceResponse>> getByBranch(
+            @PathVariable Long branchId
     ) {
         return ResponseEntity.ok(
-                serviceManagementService.getBySalon(salonId));
+                serviceManagementService.getByBranch(branchId));
     }
 
     @GetMapping("/{serviceId}")
     public ResponseEntity<ServiceResponse> getById(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @PathVariable Long serviceId
     ) {
         return ResponseEntity.ok(
-                serviceManagementService.getById(salonId, serviceId));
+                serviceManagementService.getById(branchId, serviceId));
     }
 
     @PutMapping("/{serviceId}")
     public ResponseEntity<ServiceResponse> update(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @PathVariable Long serviceId,
             @Valid @RequestBody UpdateServiceRequest request
     ) {
         return ResponseEntity.ok(
-                serviceManagementService.update(salonId, serviceId, request));
+                serviceManagementService.update(branchId, serviceId, request));
     }
 
     @DeleteMapping("/{serviceId}")
     public ResponseEntity<Void> delete(
-            @PathVariable Long salonId,
+            @PathVariable Long branchId,
             @PathVariable Long serviceId
     ) {
-        serviceManagementService.delete(salonId, serviceId);
+        serviceManagementService.delete(branchId, serviceId);
         return ResponseEntity.noContent().build();
     }
 }

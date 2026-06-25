@@ -3,12 +3,12 @@ package com.example.salonflow.services.impl;
 import com.example.salonflow.dto.service.CreateServiceRequest;
 import com.example.salonflow.dto.service.ServiceResponse;
 import com.example.salonflow.dto.service.UpdateServiceRequest;
-import com.example.salonflow.entity.Salon;
+import com.example.salonflow.entity.Branch;
 import com.example.salonflow.entity.Service;
 import com.example.salonflow.entity.ServiceCategory;
 import com.example.salonflow.entity.ServiceImage;
 import com.example.salonflow.exception.ResourceNotFoundException;
-import com.example.salonflow.repository.SalonRepository;
+import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ServiceCategoryRepository;
 import com.example.salonflow.repository.ServiceRepository;
 import com.example.salonflow.services.service.ServiceManagementService;
@@ -29,24 +29,24 @@ import java.util.List;
 public class ServiceManagementServiceImpl implements ServiceManagementService {
 
     private final ServiceRepository serviceRepository;
-    private final SalonRepository salonRepository;
+    private final BranchRepository branchRepository;
     private final ServiceCategoryRepository categoryRepository;
 
     @Override
     @Transactional
     public ServiceResponse create(
-            Long salonId,
+            Long branchId,
             CreateServiceRequest request
     ) {
 
-        Salon salon = salonRepository.findById(salonId)
+        Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Salon with id " + salonId + " not found"));
+                        "Branch with id " + branchId + " not found"));
 
         ServiceCategory category = resolveCategory(request.getCategoryId());
 
         Service service = Service.builder()
-                .salon(salon)
+                .branch(branch)
                 .category(category)
                 .name(request.getName())
                 .price(request.getPrice())
@@ -63,20 +63,20 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
     }
 
     @Override
-    public List<ServiceResponse> getBySalon(Long salonId) {
+    public List<ServiceResponse> getByBranch(Long branchId) {
 
-        ensureSalonExists(salonId);
+        ensureBranchExists(branchId);
 
-        return serviceRepository.findBySalonId(salonId)
+        return serviceRepository.findByBranchId(branchId)
                 .stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Override
-    public ServiceResponse getById(Long salonId, Long serviceId) {
+    public ServiceResponse getById(Long branchId, Long serviceId) {
 
-        Service service = findOwnedService(salonId, serviceId);
+        Service service = findOwnedService(branchId, serviceId);
 
         return toResponse(service);
     }
@@ -84,12 +84,12 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
     @Override
     @Transactional
     public ServiceResponse update(
-            Long salonId,
+            Long branchId,
             Long serviceId,
             UpdateServiceRequest request
     ) {
 
-        Service service = findOwnedService(salonId, serviceId);
+        Service service = findOwnedService(branchId, serviceId);
 
         ServiceCategory category = resolveCategory(request.getCategoryId());
 
@@ -115,27 +115,27 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
 
     @Override
     @Transactional
-    public void delete(Long salonId, Long serviceId) {
+    public void delete(Long branchId, Long serviceId) {
 
-        Service service = findOwnedService(salonId, serviceId);
+        Service service = findOwnedService(branchId, serviceId);
 
         serviceRepository.delete(service);
     }
 
     // ── Helpers ────────────────────────────────────────────────
 
-    private void ensureSalonExists(Long salonId) {
-        if (!salonRepository.existsById(salonId)) {
+    private void ensureBranchExists(Long branchId) {
+        if (!branchRepository.existsById(branchId)) {
             throw new ResourceNotFoundException(
-                    "Salon with id " + salonId + " not found");
+                    "Branch with id " + branchId + " not found");
         }
     }
 
-    private Service findOwnedService(Long salonId, Long serviceId) {
-        return serviceRepository.findByIdAndSalonId(serviceId, salonId)
+    private Service findOwnedService(Long branchId, Long serviceId) {
+        return serviceRepository.findByIdAndBranchId(serviceId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Service with id " + serviceId
-                                + " not found in salon " + salonId));
+                                + " not found in branch " + branchId));
     }
 
     private ServiceCategory resolveCategory(Long categoryId) {
@@ -176,7 +176,7 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
 
         return ServiceResponse.builder()
                 .id(service.getId())
-                .salonId(service.getSalon().getId())
+                .branchId(service.getBranch().getId())
                 .categoryId(service.getCategory() != null
                         ? service.getCategory().getId() : null)
                 .categoryName(service.getCategory() != null
