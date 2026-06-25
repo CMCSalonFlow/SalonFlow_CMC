@@ -18,8 +18,8 @@ public class StaffResponse {
     // ID của nhân viên
     private Long id;
 
-    // ID của Salon chứa nhân viên này
-    private Long salonId;
+    // ID của Chi nhánh (Branch) chứa nhân viên này
+    private Long branchId;
 
     // Tên nhân viên
     private String name;

@@ -11,9 +11,9 @@ import java.util.Optional;
  */
 public interface StaffRepository extends JpaRepository<Staff, Long> {
 
-    // Tìm tất cả nhân viên thuộc một salon cụ thể
-    List<Staff> findBySalonId(Long salonId);
+    // Tìm tất cả nhân viên thuộc một chi nhánh (Branch) cụ thể
+    List<Staff> findByBranchId(Long branchId);
 
-    // Tìm nhân viên theo ID và ID của salon để kiểm soát tính hợp lệ của dữ liệu
-    Optional<Staff> findByIdAndSalonId(Long id, Long salonId);
+    // Tìm nhân viên theo ID và ID chi nhánh để kiểm soát tính hợp lệ của dữ liệu
+    Optional<Staff> findByIdAndBranchId(Long id, Long branchId);
 }

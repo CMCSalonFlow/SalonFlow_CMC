@@ -11,18 +11,18 @@ import java.util.List;
  */
 public interface StaffService {
 
-    // Thêm mới nhân viên vào salon
-    StaffResponse create(Long salonId, CreateStaffRequest request);
+    // Thêm mới nhân viên vào chi nhánh (Branch)
+    StaffResponse create(Long branchId, CreateStaffRequest request);
 
-    // Lấy danh sách toàn bộ nhân viên thuộc một salon
-    List<StaffResponse> getBySalon(Long salonId);
+    // Lấy danh sách toàn bộ nhân viên thuộc một chi nhánh (Branch)
+    List<StaffResponse> getByBranch(Long branchId);
 
     // Lấy chi tiết thông tin một nhân viên theo ID
-    StaffResponse getById(Long salonId, Long staffId);
+    StaffResponse getById(Long branchId, Long staffId);
 
     // Cập nhật thông tin chi tiết của nhân viên
-    StaffResponse update(Long salonId, Long staffId, UpdateStaffRequest request);
+    StaffResponse update(Long branchId, Long staffId, UpdateStaffRequest request);
 
-    // Xóa nhân viên khỏi salon
-    void delete(Long salonId, Long staffId);
+    // Xóa nhân viên khỏi chi nhánh (Branch)
+    void delete(Long branchId, Long staffId);
 }

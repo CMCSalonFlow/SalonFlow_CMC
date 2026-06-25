@@ -4,7 +4,7 @@
 -- Lưu thông tin chi tiết của nhân viên trong salon
 CREATE TABLE staff (
     id BIGSERIAL PRIMARY KEY,
-    salon_id BIGINT NOT NULL,
+    branch_id BIGINT NOT NULL,
     name VARCHAR(255) NOT NULL,
     avatar_url VARCHAR(500),
     bio TEXT,
@@ -12,14 +12,13 @@ CREATE TABLE staff (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT fk_staff_salon
-        FOREIGN KEY (salon_id)
-        REFERENCES salons(id)
+    CONSTRAINT fk_staff_branch
+        FOREIGN KEY (branch_id)
+        REFERENCES branches(id)
         ON DELETE CASCADE
 );
 
--- Chỉ mục để tối ưu hóa truy vấn nhân viên theo salon
-CREATE INDEX idx_staff_salon ON staff(salon_id);
+CREATE INDEX idx_staff_branch ON staff(branch_id);
 
 -- Trigger cập nhật thời gian thay đổi dữ liệu tự động
 CREATE TRIGGER trg_staff_updated_at

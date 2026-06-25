@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Thực thể đại diện cho nhân viên (Staff) của salon.
+ * Thực thể đại diện cho nhân viên (Staff) của chi nhánh (Branch).
  */
 @Entity
 @Table(name = "staff")
@@ -22,10 +22,10 @@ public class Staff extends BaseEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Liên kết với Salon sở hữu nhân viên này
+    // Liên kết với Chi nhánh (Branch) sở hữu nhân viên này
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "salon_id", nullable = false)
-    private Salon salon;
+    @JoinColumn(name = "branch_id", nullable = false)
+    private Branch branch;
 
     // Tên của nhân viên
     @Column(nullable = false)

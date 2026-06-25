@@ -4,10 +4,10 @@ import com.example.salonflow.dto.service.ServiceResponse;
 import com.example.salonflow.dto.staff.CreateStaffRequest;
 import com.example.salonflow.dto.staff.StaffResponse;
 import com.example.salonflow.dto.staff.UpdateStaffRequest;
-import com.example.salonflow.entity.Salon;
+import com.example.salonflow.entity.Branch;
 import com.example.salonflow.entity.Staff;
 import com.example.salonflow.exception.ResourceNotFoundException;
-import com.example.salonflow.repository.SalonRepository;
+import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ServiceRepository;
 import com.example.salonflow.repository.StaffRepository;
 import com.example.salonflow.services.service.StaffService;
@@ -26,15 +26,15 @@ import java.util.List;
 public class StaffServiceImpl implements StaffService {
 
     private final StaffRepository staffRepository;
-    private final SalonRepository salonRepository;
+    private final BranchRepository branchRepository;
     private final ServiceRepository serviceRepository;
 
     @Override
     @Transactional
-    public StaffResponse create(Long salonId, CreateStaffRequest request) {
-        // Kiểm tra sự tồn tại của salon
-        Salon salon = salonRepository.findById(salonId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy salon với id: " + salonId));
+    public StaffResponse create(Long branchId, CreateStaffRequest request) {
+        // Kiểm tra sự tồn tại của chi nhánh (Branch)
+        Branch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
 
         // Lấy danh sách thực thể dịch vụ từ danh sách ID truyền lên
         List<com.example.salonflow.entity.Service> services = new ArrayList<>();
@@ -42,9 +42,9 @@ public class StaffServiceImpl implements StaffService {
             services = serviceRepository.findAllById(request.getServiceIds());
         }
 
-        // Xây dựng đối tượng nhân viên mới
+        // Xây dựng đối tượng nhân viên mới liên kết với chi nhánh
         Staff staff = Staff.builder()
-                .salon(salon)
+                .branch(branch)
                 .name(request.getName())
                 .avatarUrl(request.getAvatarUrl())
                 .bio(request.getBio())
@@ -58,36 +58,36 @@ public class StaffServiceImpl implements StaffService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<StaffResponse> getBySalon(Long salonId) {
-        // Kiểm tra xem salon có tồn tại không
-        if (!salonRepository.existsById(salonId)) {
-            throw new ResourceNotFoundException("Không tìm thấy salon với id: " + salonId);
+    public List<StaffResponse> getByBranch(Long branchId) {
+        // Kiểm tra xem chi nhánh có tồn tại không
+        if (!branchRepository.existsById(branchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
         }
 
-        // Tìm danh sách nhân viên và ánh xạ sang DTO trả về
-        return staffRepository.findBySalonId(salonId).stream()
+        // Tìm danh sách nhân viên của chi nhánh và ánh xạ sang DTO trả về
+        return staffRepository.findByBranchId(branchId).stream()
                 .map(this::toResponse)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public StaffResponse getById(Long salonId, Long staffId) {
-        // Lấy thông tin nhân viên theo id và salonId để đảm bảo nhân viên thuộc salon đó
-        Staff staff = staffRepository.findByIdAndSalonId(staffId, salonId)
+    public StaffResponse getById(Long branchId, Long staffId) {
+        // Lấy thông tin nhân viên theo id và branchId để đảm bảo nhân viên thuộc chi nhánh đó
+        Staff staff = staffRepository.findByIdAndBranchId(staffId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhân viên với id: " + staffId + " tại salon: " + salonId));
+                        "Không tìm thấy nhân viên với id: " + staffId + " tại chi nhánh: " + branchId));
 
         return toResponse(staff);
     }
 
     @Override
     @Transactional
-    public StaffResponse update(Long salonId, Long staffId, UpdateStaffRequest request) {
+    public StaffResponse update(Long branchId, Long staffId, UpdateStaffRequest request) {
         // Lấy nhân viên cần cập nhật
-        Staff staff = staffRepository.findByIdAndSalonId(staffId, salonId)
+        Staff staff = staffRepository.findByIdAndBranchId(staffId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhân viên với id: " + staffId + " tại salon: " + salonId));
+                        "Không tìm thấy nhân viên với id: " + staffId + " tại chi nhánh: " + branchId));
 
         // Cập nhật các thông tin cơ bản
         staff.setName(request.getName());
@@ -108,11 +108,11 @@ public class StaffServiceImpl implements StaffService {
 
     @Override
     @Transactional
-    public void delete(Long salonId, Long staffId) {
+    public void delete(Long branchId, Long staffId) {
         // Lấy nhân viên để xóa
-        Staff staff = staffRepository.findByIdAndSalonId(staffId, salonId)
+        Staff staff = staffRepository.findByIdAndBranchId(staffId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Không tìm thấy nhân viên với id: " + staffId + " tại salon: " + salonId));
+                        "Không tìm thấy nhân viên với id: " + staffId + " tại chi nhánh: " + branchId));
 
         staffRepository.delete(staff);
     }
@@ -151,7 +151,7 @@ public class StaffServiceImpl implements StaffService {
 
         return StaffResponse.builder()
                 .id(staff.getId())
-                .salonId(staff.getSalon().getId())
+                .branchId(staff.getBranch().getId())
                 .name(staff.getName())
                 .avatarUrl(staff.getAvatarUrl())
                 .bio(staff.getBio())
