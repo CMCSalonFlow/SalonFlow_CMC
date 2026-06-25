@@ -9,6 +9,8 @@ import lombok.*;
 @Builder
 public class SalonPhotoResponse {
 
+    private Long mediaId;
+
     private String url;
 
     private Boolean isPrimary;

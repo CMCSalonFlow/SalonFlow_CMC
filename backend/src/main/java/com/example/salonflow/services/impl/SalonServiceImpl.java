@@ -23,6 +23,7 @@ public class SalonServiceImpl implements SalonService {
     private final SalonHourRepository salonHourRepository;
     private final SalonPhotoRepository salonPhotoRepository;
     private final UserRepository userRepository;
+    private final MediaFileRepository mediaFileRepository;
 
     @Override
     public SalonResponse create(CreateSalonRequest request) {
@@ -31,6 +32,17 @@ public class SalonServiceImpl implements SalonService {
 
         if (salonRepository.existsByOwner(owner)) {
             throw new BusinessException("You already own a salon.");
+        }
+        MediaFile logo = null;
+
+        if (request.getLogoMediaId() != null) {
+
+            logo = mediaFileRepository
+                    .findById(request.getLogoMediaId())
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Logo media not found"
+                            ));
         }
 
         Salon salon = Salon.builder()
@@ -41,16 +53,16 @@ public class SalonServiceImpl implements SalonService {
                 .phone(request.getPhone())
                 .email(request.getEmail())
                 .website(request.getWebsite())
+                .logo(logo)
                 .build();
 
-        salon = salonRepository.save(salon);
+                salon = salonRepository.save(salon);
 
-        saveHours(salon, request.getHours());
+                saveHours(salon, request.getHours());
 
-        savePhotos(salon, request.getPhotos());
 
-        return mapToResponse(salon);
-    }
+                return mapToResponse(salon);
+            }
 
     private void saveHours(
             Salon salon,
@@ -83,24 +95,33 @@ public class SalonServiceImpl implements SalonService {
 
     private void savePhotos(
             Salon salon,
-            List<String> photoUrls
+            List<Long> mediaIds
     ) {
 
-        if (photoUrls == null || photoUrls.isEmpty()) {
+        if (mediaIds == null || mediaIds.isEmpty()) {
             return;
         }
 
-        List<SalonPhoto> photos = new ArrayList<>();
-
         boolean primary = true;
 
-        for (String url : photoUrls) {
+        List<SalonPhoto> photos = new ArrayList<>();
 
-            SalonPhoto photo = SalonPhoto.builder()
-                    .salon(salon)
-                    .url(url)
-                    .isPrimary(primary)
-                    .build();
+        for (Long mediaId : mediaIds) {
+
+            MediaFile media =
+                    mediaFileRepository.findById(mediaId)
+                            .orElseThrow(
+                                    () -> new ResourceNotFoundException(
+                                            "Media not found"
+                                    )
+                            );
+
+            SalonPhoto photo =
+                    SalonPhoto.builder()
+                            .salon(salon)
+                            .media(media)
+                            .isPrimary(primary)
+                            .build();
 
             photos.add(photo);
 
@@ -141,13 +162,20 @@ public class SalonServiceImpl implements SalonService {
 
         for (SalonPhoto photo : salonPhotoRepository.findBySalon(salon)) {
 
-            photoResponses.add(
-                    SalonPhotoResponse.builder()
-                            .url(photo.getUrl())
-                            .isPrimary(photo.getIsPrimary())
-                            .build()
-            );
-        }
+        photoResponses.add(
+                SalonPhotoResponse.builder()
+                        .mediaId(
+                                photo.getMedia().getId()
+                        )
+                        .url(
+                                photo.getMedia().getUrl()
+                        )
+                        .isPrimary(
+                                photo.getIsPrimary()
+                        )
+                        .build()
+        );
+    }
 
         return SalonResponse.builder()
                 .id(salon.getId())
@@ -157,7 +185,8 @@ public class SalonServiceImpl implements SalonService {
                 .phone(salon.getPhone())
                 .email(salon.getEmail())
                 .website(salon.getWebsite())
-                .logoUrl(salon.getLogoUrl())
+                .logoUrl(
+           salon.getLogo() != null? salon.getLogo().getUrl(): null)
                 .latitude(salon.getLatitude())
                 .longitude(salon.getLongitude())
                 .hours(hourResponses)
@@ -194,6 +223,23 @@ public class SalonServiceImpl implements SalonService {
         salon.setEmail(request.getEmail());
         salon.setWebsite(request.getWebsite());
 
+        if (request.getLogoMediaId() != null) {
+
+        MediaFile logo =
+                mediaFileRepository.findById(
+                        request.getLogoMediaId()
+                ).orElseThrow(
+                        () -> new ResourceNotFoundException(
+                                "Logo not found"
+                        )
+                );
+
+        salon.setLogo(logo);
+
+    } else {
+
+        salon.setLogo(null);
+    }
         salonRepository.save(salon);
 
         salonHourRepository.deleteBySalon(salon);
@@ -206,7 +252,10 @@ public class SalonServiceImpl implements SalonService {
         salon.getPhotos().clear();
 
         saveHours(salon, request.getHours());
-        savePhotos(salon, request.getPhotos());
+        savePhotos(
+                salon,
+                request.getPhotoMediaIds()
+        );
 
         return mapToResponse(salon);
     }

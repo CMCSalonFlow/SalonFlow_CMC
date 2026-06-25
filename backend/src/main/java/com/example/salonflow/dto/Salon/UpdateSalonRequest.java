@@ -32,5 +32,7 @@ public class UpdateSalonRequest {
     @Valid
     private List<SalonHourRequest> hours;
 
-    private List<String> photos;
+    private Long logoMediaId;
+
+    private List<Long> photoMediaIds;
 }

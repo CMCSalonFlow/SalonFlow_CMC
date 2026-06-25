@@ -20,8 +20,9 @@ public class SalonPhoto extends BaseEntity {
     @JoinColumn(name = "salon_id")
     private Salon salon;
 
-    @Column(columnDefinition = "TEXT")
-    private String url;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "media_id")
+    private MediaFile media;
 
     @Column(name = "is_primary")
     private Boolean isPrimary;

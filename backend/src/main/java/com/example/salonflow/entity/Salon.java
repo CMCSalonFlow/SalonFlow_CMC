@@ -34,8 +34,9 @@ public class Salon extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-    @Column(name = "logo_url")
-    private String logoUrl;
+        @ManyToOne(fetch = FetchType.LAZY)
+        @JoinColumn(name = "logo_media_id")
+        private MediaFile logo;
 
     @Column(name = "phone")
     private String phone;
