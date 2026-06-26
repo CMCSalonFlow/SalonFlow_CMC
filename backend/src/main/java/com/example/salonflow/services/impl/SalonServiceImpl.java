@@ -59,8 +59,13 @@ public class SalonServiceImpl implements SalonService {
                 salon = salonRepository.save(salon);
 
                 saveHours(salon, request.getHours());
+                savePhotos(salon, request.getPhotoMediaIds()); 
 
+                System.out.println("OWNER ID = " + owner.getId());
 
+                System.out.println(
+                salonRepository.findByOwner(owner)
+                );
                 return mapToResponse(salon);
             }
 
@@ -144,56 +149,44 @@ public class SalonServiceImpl implements SalonService {
 
     private SalonResponse mapToResponse(Salon salon) {
 
-        List<SalonHourResponse> hourResponses = new ArrayList<>();
-
-        for (SalonHour hour : salonHourRepository.findBySalon(salon)) {
-
-            hourResponses.add(
-                    SalonHourResponse.builder()
+    List<SalonHourResponse> hourResponses =
+            salon.getHours().stream()
+                    .map(hour -> SalonHourResponse.builder()
                             .dayOfWeek(hour.getDayOfWeek())
                             .openTime(hour.getOpenTime())
                             .closeTime(hour.getCloseTime())
                             .isClosed(hour.getIsClosed())
                             .build()
-            );
-        }
+                    ).toList();
 
-        List<SalonPhotoResponse> photoResponses = new ArrayList<>();
+    List<SalonPhotoResponse> photoResponses =
+            salon.getPhotos().stream()
+                    .map(photo -> {
+                        MediaFile media = photo.getMedia();
 
-        for (SalonPhoto photo : salonPhotoRepository.findBySalon(salon)) {
+                        return SalonPhotoResponse.builder()
+                                .mediaId(media != null ? media.getId() : null)
+                                .url(media != null ? media.getUrl() : null)
+                                .isPrimary(photo.getIsPrimary())
+                                .build();
+                    })
+                    .toList();
 
-        photoResponses.add(
-                SalonPhotoResponse.builder()
-                        .mediaId(
-                                photo.getMedia().getId()
-                        )
-                        .url(
-                                photo.getMedia().getUrl()
-                        )
-                        .isPrimary(
-                                photo.getIsPrimary()
-                        )
-                        .build()
-        );
-    }
-
-        return SalonResponse.builder()
-                .id(salon.getId())
-                .name(salon.getName())
-                .description(salon.getDescription())
-                .address(salon.getAddress())
-                .phone(salon.getPhone())
-                .email(salon.getEmail())
-                .website(salon.getWebsite())
-                .logoUrl(
-           salon.getLogo() != null? salon.getLogo().getUrl(): null)
-                .latitude(salon.getLatitude())
-                .longitude(salon.getLongitude())
-                .hours(hourResponses)
-                .photos(photoResponses)
-                .build();
-    }
-
+    return SalonResponse.builder()
+            .id(salon.getId())
+            .name(salon.getName())
+            .description(salon.getDescription())
+            .address(salon.getAddress())
+            .phone(salon.getPhone())
+            .email(salon.getEmail())
+            .website(salon.getWebsite())
+            .logoUrl(salon.getLogo() != null ? salon.getLogo().getUrl() : null)
+            .latitude(salon.getLatitude())
+            .longitude(salon.getLongitude())
+            .hours(hourResponses)
+            .photos(photoResponses)
+            .build();
+}
         @Override
     @Transactional(readOnly = true)
     public SalonResponse getMine() {
