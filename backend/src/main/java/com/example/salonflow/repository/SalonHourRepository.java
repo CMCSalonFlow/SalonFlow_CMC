@@ -10,6 +10,8 @@ public interface SalonHourRepository extends JpaRepository<SalonHour, Long> {
 
     List<SalonHour> findBySalon(Salon salon);
 
+    java.util.Optional<SalonHour> findBySalonIdAndDayOfWeek(Long salonId, Integer dayOfWeek);
+
     void deleteBySalon(Salon salon);
 
 }
