@@ -20,7 +20,7 @@ public class StaffOffDay extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "staff_id", nullable = false)
-    private User staff;
+    private Staff staff;           
 
     @Column(name = "date_from", nullable = false)
     private LocalDate dateFrom;
@@ -33,4 +33,5 @@ public class StaffOffDay extends BaseEntity {
 
     @Column(name = "created_by", length = 100)
     private String createdBy;
+
 }

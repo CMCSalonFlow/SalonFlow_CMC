@@ -19,6 +19,7 @@ public class StaffOffDayController {
 
     private final StaffOffDayService staffOffDayService;
 
+    // Tạo ngày nghỉ
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OWNER')")
     @PatchMapping("/{staffId}/off-days")
     public ResponseEntity<StaffOffDayResponse> createOffDay(
@@ -29,6 +30,7 @@ public class StaffOffDayController {
         return ResponseEntity.ok(response);
     }
 
+    // Lấy danh sách ngày nghỉ của nhân viên
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OWNER')")
     @GetMapping("/{staffId}/off-days")
     public ResponseEntity<List<StaffOffDayResponse>> getOffDays(@PathVariable Long staffId) {
@@ -36,6 +38,7 @@ public class StaffOffDayController {
         return ResponseEntity.ok(offDays);
     }
 
+    // Cập nhật ngày nghỉ
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OWNER')")
     @PutMapping("/off-days/{offDayId}")
     public ResponseEntity<StaffOffDayResponse> updateOffDay(
@@ -46,6 +49,7 @@ public class StaffOffDayController {
         return ResponseEntity.ok(response);
     }
 
+    // Xóa ngày nghỉ
     @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER', 'OWNER')")
     @DeleteMapping("/off-days/{offDayId}")
     public ResponseEntity<Void> deleteOffDay(@PathVariable Long offDayId) {
@@ -53,7 +57,7 @@ public class StaffOffDayController {
         return ResponseEntity.noContent().build();
     }
 
-    // API public hơn một chút (có thể staff tự xem lịch nghỉ của mình sau)
+    // Kiểm tra nhân viên có nghỉ không (dùng cho lịch đặt chỗ)
     @GetMapping("/{staffId}/off-check")
     public ResponseEntity<Boolean> checkOffDay(
             @PathVariable Long staffId,

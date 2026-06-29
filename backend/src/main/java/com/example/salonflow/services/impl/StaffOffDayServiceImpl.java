@@ -2,12 +2,15 @@ package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.offday.StaffOffDayRequest;
 import com.example.salonflow.dto.offday.StaffOffDayResponse;
+import com.example.salonflow.entity.Booking;
+import com.example.salonflow.entity.Staff;
 import com.example.salonflow.entity.StaffOffDay;
-import com.example.salonflow.entity.User;
+import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.BadRequestException;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.StaffOffDayRepository;
-import com.example.salonflow.repository.UserRepository;
+import com.example.salonflow.repository.StaffRepository;
 import com.example.salonflow.services.service.StaffOffDayService;
 import com.example.salonflow.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
@@ -24,14 +27,14 @@ import java.util.stream.Collectors;
 public class StaffOffDayServiceImpl implements StaffOffDayService {
 
     private final StaffOffDayRepository offDayRepository;
-    private final UserRepository userRepository;
+    private final StaffRepository staffRepository;
+    private final BookingRepository bookingRepository;
 
     @Override
     public StaffOffDayResponse createOffDay(Long staffId, StaffOffDayRequest request) {
-        User staff = userRepository.findById(staffId)
+        Staff staff = staffRepository.findById(staffId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với ID: " + staffId));
 
-        // Kiểm tra trùng lặp khoảng thời gian
         boolean exists = offDayRepository.existsByStaffIdAndDateFromLessThanEqualAndDateToGreaterThanEqual(
                 staffId, request.getDateFrom(), request.getDateTo());
 
@@ -49,10 +52,27 @@ public class StaffOffDayServiceImpl implements StaffOffDayService {
 
         StaffOffDay saved = offDayRepository.save(offDay);
 
-        // TODO: Khi hoàn thiện module Booking thì mở ra
-        // cancelConflictingBookings(staffId, request.getDateFrom(), request.getDateTo());
+        // Tự động hủy booking
+        cancelConflictingBookings(staffId, request.getDateFrom(), request.getDateTo());
 
         return convertToResponse(saved);
+    }
+
+    private void cancelConflictingBookings(Long staffId, LocalDate fromDate, LocalDate toDate) {
+        List<Booking> conflictingBookings = bookingRepository.findConflictingBookingsWithOffDay(
+                staffId, fromDate, toDate);
+
+        for (Booking booking : conflictingBookings) {
+            if (booking.getStatus() != BookingStatus.CANCELLED) {
+                booking.setStatus(BookingStatus.CANCELLED);
+                booking.setNotes("Đã bị hủy tự động vì nhân viên nghỉ từ " 
+                        + fromDate + " đến " + toDate);
+            }
+        }
+
+        if (!conflictingBookings.isEmpty()) {
+            bookingRepository.saveAll(conflictingBookings);
+        }
     }
 
     @Override
@@ -60,7 +80,6 @@ public class StaffOffDayServiceImpl implements StaffOffDayService {
         StaffOffDay offDay = offDayRepository.findById(offDayId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch nghỉ"));
 
-        // Kiểm tra overlap với các lịch nghỉ khác (không tính chính nó)
         List<StaffOffDay> overlapping = offDayRepository.findOverlappingOffDays(
                 offDay.getStaff().getId(), request.getDateFrom(), request.getDateTo(), offDayId);
 
@@ -106,21 +125,14 @@ public class StaffOffDayServiceImpl implements StaffOffDayService {
                 staffId, startDate, endDate);
     }
 
-    /**
-     * TODO: Implement sau khi hoàn thiện module Booking
-     */
-    private void cancelConflictingBookings(Long staffId, LocalDate fromDate, LocalDate toDate) {
-        // Sẽ implement khi có BookingRepository
-        System.out.println("[TODO] Hủy booking conflict cho staff " + staffId 
-                + " từ " + fromDate + " đến " + toDate);
-    }
-
     private StaffOffDayResponse convertToResponse(StaffOffDay offDay) {
+        Staff staff = offDay.getStaff();
+        String staffName = "Nhân viên #" + staff.getId();
+
         return StaffOffDayResponse.builder()
                 .id(offDay.getId())
-                .staffId(offDay.getStaff().getId())
-                .staffName(offDay.getStaff().getFullName() != null ? 
-                          offDay.getStaff().getFullName() : offDay.getStaff().getUsername())
+                .staffId(staff.getId())
+                .staffName(staffName)
                 .dateFrom(offDay.getDateFrom())
                 .dateTo(offDay.getDateTo())
                 .reason(offDay.getReason())

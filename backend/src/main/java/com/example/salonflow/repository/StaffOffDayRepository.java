@@ -16,11 +16,9 @@ public interface StaffOffDayRepository extends JpaRepository<StaffOffDay, Long> 
 
     List<StaffOffDay> findByStaffIdOrderByDateFromDesc(Long staffId);
 
-    // Kiểm tra xem nhân viên có off trong khoảng thời gian không
     boolean existsByStaffIdAndDateFromLessThanEqualAndDateToGreaterThanEqual(
             Long staffId, LocalDate dateFrom, LocalDate dateTo);
 
-    // Tìm tất cả off day trong khoảng thời gian (dùng cho calendar)
     @Query("SELECT s FROM StaffOffDay s WHERE s.staff.id = :staffId " +
            "AND s.dateFrom <= :endDate AND s.dateTo >= :startDate")
     List<StaffOffDay> findOffDaysInRange(
@@ -28,7 +26,6 @@ public interface StaffOffDayRepository extends JpaRepository<StaffOffDay, Long> 
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
-    // Tìm các off day chồng chéo với khoảng thời gian mới
     @Query("SELECT s FROM StaffOffDay s WHERE s.staff.id = :staffId " +
            "AND s.id <> :excludeId " +
            "AND s.dateFrom <= :dateTo AND s.dateTo >= :dateFrom")
