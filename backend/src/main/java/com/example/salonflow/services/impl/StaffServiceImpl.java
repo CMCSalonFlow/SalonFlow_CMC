@@ -96,6 +96,7 @@ public class StaffServiceImpl implements StaffService {
         // Xây dựng đối tượng nhân viên mới liên kết với chi nhánh
         Staff staff = Staff.builder()
                 .branch(branch)
+                .userId(request.getUserId())
                 .userBranch(userBranch)
                 .name(request.getName())
                 .avatarUrl(request.getAvatarUrl())
@@ -184,6 +185,7 @@ public class StaffServiceImpl implements StaffService {
             }
         }
         staff.setUserBranch(userBranch);
+        staff.setUserId(request.getUserId());
 
         // Cập nhật lại liên kết danh sách dịch vụ cho phép thực hiện
         List<com.example.salonflow.entity.Service> services = new ArrayList<>();

@@ -35,6 +35,21 @@ public class BranchServiceImpl implements BranchService {
         Long userId =
                 SecurityUtils.getCurrentUserId();
 
+        // 1. Nếu user là Owner của Salon, trả về toàn bộ chi nhánh của Salon đó
+        java.util.Optional<com.example.salonflow.entity.Salon> salonOpt = salonRepository.findFirstByOwnerId(userId);
+        if (salonOpt.isPresent()) {
+            return branchRepository.findBySalonId(salonOpt.get().getId())
+                    .stream()
+                    .map(branch -> BranchSummaryResponse.builder()
+                            .id(branch.getId())
+                            .name(branch.getName())
+                            .address(branch.getAddress())
+                            .isActive(branch.getIsActive())
+                            .build())
+                    .toList();
+        }
+
+        // 2. Nếu không phải Owner (ví dụ: Staff), trả về các chi nhánh được gán trong user_branches
         return userBranchRepository
                 .findByUser_Id(userId)
                 .stream()
