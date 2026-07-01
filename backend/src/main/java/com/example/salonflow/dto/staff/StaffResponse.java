@@ -35,4 +35,7 @@ public class StaffResponse {
 
     // Danh sách các dịch vụ nhân viên này được phép thực hiện
     private List<ServiceResponse> services;
+
+    // ID của tài khoản người dùng liên kết
+    private Long userId;
 }

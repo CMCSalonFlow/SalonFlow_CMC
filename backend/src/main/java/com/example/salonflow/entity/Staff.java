@@ -27,6 +27,14 @@ public class Staff extends BaseEntity {
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 
+    // Liên kết tài khoản người dùng tại chi nhánh (UserBranch) của nhân viên
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumns({
+        @JoinColumn(name = "user_id", referencedColumnName = "user_id"),
+        @JoinColumn(name = "branch_id", referencedColumnName = "branch_id", insertable = false, updatable = false)
+    })
+    private UserBranch userBranch;
+
     // Tên của nhân viên
     @Column(nullable = false)
     private String name;
