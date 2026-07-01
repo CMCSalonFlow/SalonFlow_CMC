@@ -50,7 +50,7 @@ public class BranchServiceImpl implements BranchService {
         }
 
         // 2. Nếu không phải Owner (ví dụ: Staff), trả về các chi nhánh được gán trong user_branches
-        return userBranchRepository
+        List<BranchSummaryResponse> assignedBranches = userBranchRepository
                 .findByUser_Id(userId)
                 .stream()
                 .map(userBranch -> {
@@ -67,7 +67,24 @@ public class BranchServiceImpl implements BranchService {
                             .build();
                 })
                 .toList();
+
+        if (!assignedBranches.isEmpty()) {
+            return assignedBranches;
+        }
+
+        // 3. Nếu là Khách hàng (Customer) hoặc không có chi nhánh nào được gán, trả về tất cả chi nhánh active trong hệ thống
+        return branchRepository.findAll()
+                .stream()
+                .filter(Branch::getIsActive)
+                .map(branch -> BranchSummaryResponse.builder()
+                        .id(branch.getId())
+                        .name(branch.getName())
+                        .address(branch.getAddress())
+                        .isActive(branch.getIsActive())
+                        .build())
+                .toList();
     }
+
 
     @Override
     @Transactional
