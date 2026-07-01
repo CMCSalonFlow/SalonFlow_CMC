@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.Collection;
 import java.util.List;
@@ -34,4 +35,14 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("endTime") LocalTime endTime,
             @Param("statuses") Collection<BookingStatus> statuses
     );
+
+    // Tìm booking bị conflict với ngày nghỉ 
+    @Query("SELECT b FROM Booking b WHERE b.assignedStaff.id = :staffId " +
+           "AND b.status <> 'CANCELLED' " +
+           "AND b.bookingDate >= :startDate " +
+           "AND b.bookingDate <= :endDate")
+    List<Booking> findConflictingBookingsWithOffDay(
+            @Param("staffId") Long staffId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 }
