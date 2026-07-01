@@ -30,7 +30,6 @@ public class UpdateStaffRequest {
 
     // Danh sách ID các dịch vụ được phép thực hiện
     private List<Long> serviceIds;
-
-    // ID của tài khoản người dùng liên kết
-    private Long userId;
 }
+
+

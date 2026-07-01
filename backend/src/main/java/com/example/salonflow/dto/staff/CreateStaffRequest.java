@@ -31,6 +31,11 @@ public class CreateStaffRequest {
     // Danh sách ID các dịch vụ được phép thực hiện
     private List<Long> serviceIds;
 
-    // ID của tài khoản người dùng liên kết
-    private Long userId;
+    @NotBlank(message = "Email đăng nhập không được để trống")
+    @jakarta.validation.constraints.Email(message = "Email không đúng định dạng")
+    private String email;
+
+    private String phone;
 }
+
+

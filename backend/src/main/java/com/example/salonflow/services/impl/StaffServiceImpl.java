@@ -7,6 +7,9 @@ import com.example.salonflow.dto.staff.UpdateStaffRequest;
 import com.example.salonflow.entity.Branch;
 import com.example.salonflow.entity.Staff;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.exception.BusinessException;
+import com.example.salonflow.entity.enums.UserStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ServiceRepository;
 import com.example.salonflow.repository.StaffRepository;
@@ -31,7 +34,8 @@ import java.util.List;
 
 /**
  * Lớp triển khai các nghiệp vụ quản lý nhân viên (StaffService).
- * Sử dụng tên đầy đủ cho chú thích @Service của Spring để tránh xung đột với thực thể Service của dự án.
+ * Sử dụng tên đầy đủ cho chú thích @Service của Spring để tránh xung đột với
+ * thực thể Service của dự án.
  */
 @org.springframework.stereotype.Service
 @RequiredArgsConstructor
@@ -44,6 +48,8 @@ public class StaffServiceImpl implements StaffService {
     private final UserBranchRepository userBranchRepository;
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
+    private final PasswordEncoder passwordEncoder;
+
 
     @Override
     @Transactional
@@ -52,51 +58,54 @@ public class StaffServiceImpl implements StaffService {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
 
+        // Kiểm tra xem email đã tồn tại trong bảng users chưa
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new BusinessException("Email đăng nhập này đã được sử dụng bởi một tài khoản khác trong hệ thống.");
+        }
+
         // Lấy danh sách thực thể dịch vụ từ danh sách ID truyền lên
         List<com.example.salonflow.entity.Service> services = new ArrayList<>();
         if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
             services = serviceRepository.findAllById(request.getServiceIds());
         }
 
-        UserBranch userBranch = null;
-        if (request.getUserId() != null) {
-            User user = userRepository.findById(request.getUserId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản người dùng với id: " + request.getUserId()));
+        // Tạo mới User với mật khẩu mặc định "Staff@123"
+        String defaultPassword = "Staff@123";
+        User user = User.builder()
+                .username(request.getEmail())
+                .email(request.getEmail())
+                .passwordHash(passwordEncoder.encode(defaultPassword))
+                .fullName(request.getName())
+                .phone(request.getPhone())
+                .status(UserStatus.ACTIVE)
+                .build();
+        user = userRepository.save(user);
 
-            // Gán người dùng vào chi nhánh (user_branches) nếu chưa tồn tại
-            UserBranchId userBranchId = new UserBranchId(user.getId(), branch.getId());
-            userBranch = userBranchRepository.findById(userBranchId).orElse(null);
+        // Gán role STAFF
+        Role staffRole = roleRepository.findByCode("STAFF")
+                .orElseThrow(() -> new ResourceNotFoundException("Role STAFF not found"));
+        UserRole userRole = UserRole.builder()
+                .id(new UserRoleId(user.getId(), staffRole.getId()))
+                .user(user)
+                .role(staffRole)
+                .assignedAt(LocalDateTime.now())
+                .build();
+        userRoleRepository.save(userRole);
 
-            if (userBranch == null) {
-                userBranch = UserBranch.builder()
-                        .id(userBranchId)
-                        .user(user)
-                        .branch(branch)
-                        .assignedAt(Instant.now())
-                        .build();
-                userBranch = userBranchRepository.save(userBranch);
-            }
-
-            // Gán role STAFF nếu người dùng chưa có
-            Role staffRole = roleRepository.findByCode("STAFF")
-                    .orElseThrow(() -> new ResourceNotFoundException("Role STAFF not found"));
-            boolean hasStaffRole = user.getUserRoles().stream()
-                    .anyMatch(ur -> ur.getRole().getCode().equals("STAFF"));
-            if (!hasStaffRole) {
-                UserRole userRole = UserRole.builder()
-                        .id(new UserRoleId(user.getId(), staffRole.getId()))
-                        .user(user)
-                        .role(staffRole)
-                        .assignedAt(LocalDateTime.now())
-                        .build();
-                userRoleRepository.save(userRole);
-            }
-        }
+        // Gán vào chi nhánh (user_branches)
+        UserBranchId userBranchId = new UserBranchId(user.getId(), branch.getId());
+        UserBranch userBranch = UserBranch.builder()
+                .id(userBranchId)
+                .user(user)
+                .branch(branch)
+                .assignedAt(Instant.now())
+                .build();
+        userBranch = userBranchRepository.save(userBranch);
 
         // Xây dựng đối tượng nhân viên mới liên kết với chi nhánh
         Staff staff = Staff.builder()
                 .branch(branch)
-                .userId(request.getUserId())
+                .userId(user.getId())
                 .userBranch(userBranch)
                 .name(request.getName())
                 .avatarUrl(request.getAvatarUrl())
@@ -126,7 +135,8 @@ public class StaffServiceImpl implements StaffService {
     @Override
     @Transactional(readOnly = true)
     public StaffResponse getById(Long branchId, Long staffId) {
-        // Lấy thông tin nhân viên theo id và branchId để đảm bảo nhân viên thuộc chi nhánh đó
+        // Lấy thông tin nhân viên theo id và branchId để đảm bảo nhân viên thuộc chi
+        // nhánh đó
         Staff staff = staffRepository.findByIdAndBranchId(staffId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Không tìm thấy nhân viên với id: " + staffId + " tại chi nhánh: " + branchId));
@@ -148,44 +158,14 @@ public class StaffServiceImpl implements StaffService {
         staff.setBio(request.getBio());
         staff.setSpecialties(request.getSpecialties());
 
-        // Cập nhật liên kết tài khoản người dùng
-        UserBranch userBranch = null;
-        if (request.getUserId() != null) {
-            User user = userRepository.findById(request.getUserId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản người dùng với id: " + request.getUserId()));
-
-            // Gán người dùng vào chi nhánh (user_branches) nếu chưa tồn tại
-            UserBranchId userBranchId = new UserBranchId(user.getId(), branchId);
-            userBranch = userBranchRepository.findById(userBranchId).orElse(null);
-
-            if (userBranch == null) {
-                Branch branch = staff.getBranch();
-                userBranch = UserBranch.builder()
-                        .id(userBranchId)
-                        .user(user)
-                        .branch(branch)
-                        .assignedAt(Instant.now())
-                        .build();
-                userBranch = userBranchRepository.save(userBranch);
-            }
-
-            // Gán role STAFF nếu người dùng chưa có
-            Role staffRole = roleRepository.findByCode("STAFF")
-                    .orElseThrow(() -> new ResourceNotFoundException("Role STAFF not found"));
-            boolean hasStaffRole = user.getUserRoles().stream()
-                    .anyMatch(ur -> ur.getRole().getCode().equals("STAFF"));
-            if (!hasStaffRole) {
-                UserRole userRole = UserRole.builder()
-                        .id(new UserRoleId(user.getId(), staffRole.getId()))
-                        .user(user)
-                        .role(staffRole)
-                        .assignedAt(LocalDateTime.now())
-                        .build();
-                userRoleRepository.save(userRole);
-            }
+        // Cập nhật tên của User liên kết để đồng bộ
+        if (staff.getUserId() != null) {
+            User user = userRepository.findById(staff.getUserId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy tài khoản người dùng liên kết với id: " + staff.getUserId()));
+            user.setFullName(request.getName());
+            userRepository.save(user);
         }
-        staff.setUserBranch(userBranch);
-        staff.setUserId(request.getUserId());
 
         // Cập nhật lại liên kết danh sách dịch vụ cho phép thực hiện
         List<com.example.salonflow.entity.Service> services = new ArrayList<>();
@@ -194,8 +174,8 @@ public class StaffServiceImpl implements StaffService {
         }
         staff.setServices(services);
 
-        staff = staffRepository.save(staff);
-        return toResponse(staff);
+        Staff savedStaff = staffRepository.save(staff);
+        return toResponse(savedStaff);
     }
 
     @Override
@@ -241,6 +221,16 @@ public class StaffServiceImpl implements StaffService {
             }
         }
 
+        String email = null;
+        String phone = null;
+        if (staff.getUserId() != null) {
+            User user = userRepository.findById(staff.getUserId()).orElse(null);
+            if (user != null) {
+                email = user.getEmail();
+                phone = user.getPhone();
+            }
+        }
+
         return StaffResponse.builder()
                 .id(staff.getId())
                 .branchId(staff.getBranch().getId())
@@ -249,7 +239,9 @@ public class StaffServiceImpl implements StaffService {
                 .bio(staff.getBio())
                 .specialties(staff.getSpecialties())
                 .services(serviceResponses)
-                .userId(staff.getUserBranch() != null ? staff.getUserBranch().getId().getUserId() : null)
+                .userId(staff.getUserId())
+                .email(email)
+                .phone(phone)
                 .build();
     }
 }

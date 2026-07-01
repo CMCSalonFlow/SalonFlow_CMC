@@ -38,4 +38,9 @@ public class StaffResponse {
 
     // ID của tài khoản người dùng liên kết
     private Long userId;
+
+    private String email;
+
+    private String phone;
 }
+
