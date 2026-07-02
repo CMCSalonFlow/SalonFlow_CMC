@@ -127,12 +127,11 @@ public class StaffOffDayServiceImpl implements StaffOffDayService {
 
     private StaffOffDayResponse convertToResponse(StaffOffDay offDay) {
         Staff staff = offDay.getStaff();
-        String staffName = "Nhân viên #" + staff.getId();
 
         return StaffOffDayResponse.builder()
                 .id(offDay.getId())
                 .staffId(staff.getId())
-                .staffName(staffName)
+                .staffName(staff.getName())
                 .dateFrom(offDay.getDateFrom())
                 .dateTo(offDay.getDateTo())
                 .reason(offDay.getReason())
