@@ -16,6 +16,11 @@ import java.time.LocalTime;
  *   2. Nếu lock thành công → tạo Booking với status=PENDING
  *   3. User xác nhận → status=CONFIRMED
  *   4. Hủy hoặc hết TTL → status=CANCELLED, unlock Redis
+ *
+ * ⚠️ THAY ĐỔI so với bản gốc: thêm field recurringBooking để
+ * hỗ trợ recurring booking (đặt lịch định kỳ). Nếu booking này
+ * sinh ra từ 1 chuỗi lặp, recurringBooking sẽ trỏ tới
+ * RecurringBooking tương ứng; nếu là booking đơn lẻ thì NULL.
  */
 @Entity
 @Table(name = "bookings")
@@ -45,6 +50,14 @@ public class Booking extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
+
+    /**
+     * THÊM MỚI: liên kết tới RecurringBooking nếu booking này
+     * là 1 phần của chuỗi lặp định kỳ. NULL nếu là booking đơn lẻ.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recurring_booking_id")
+    private RecurringBooking recurringBooking;
 
     @Column(name = "booking_date", nullable = false)
     private LocalDate bookingDate;
