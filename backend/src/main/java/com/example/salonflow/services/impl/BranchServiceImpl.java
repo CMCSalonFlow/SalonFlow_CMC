@@ -10,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.salonflow.validation.BranchOwnershipValidator;
+import com.example.salonflow.search.service.BranchSearchService;
 
 import java.time.Instant;
 import java.util.List;
@@ -23,6 +24,8 @@ public class BranchServiceImpl implements BranchService {
     private final SalonRepository salonRepository;
 
     private final UserRepository userRepository;
+
+    private final BranchSearchService branchSearchService;
 
     private final UserBranchRepository userBranchRepository;
 
@@ -44,6 +47,8 @@ public class BranchServiceImpl implements BranchService {
                             .id(branch.getId())
                             .name(branch.getName())
                             .address(branch.getAddress())
+                            .latitude(branch.getLatitude())
+                            .longitude(branch.getLongitude())
                             .isActive(branch.getIsActive())
                             .build())
                     .toList();
@@ -63,6 +68,8 @@ public class BranchServiceImpl implements BranchService {
                             .id(branch.getId())
                             .name(branch.getName())
                             .address(branch.getAddress())
+                            .latitude(branch.getLatitude())
+                            .longitude(branch.getLongitude())
                             .isActive(branch.getIsActive())
                             .build();
                 })
@@ -80,6 +87,8 @@ public class BranchServiceImpl implements BranchService {
                         .id(branch.getId())
                         .name(branch.getName())
                         .address(branch.getAddress())
+                        .latitude(branch.getLatitude())
+                        .longitude(branch.getLongitude())
                         .isActive(branch.getIsActive())
                         .build())
                 .toList();
@@ -110,13 +119,15 @@ public class BranchServiceImpl implements BranchService {
                         .phone(request.getPhone())
                         .email(request.getEmail())
                         .address(request.getAddress())
+                        .latitude(request.getLatitude())
+                        .longitude(request.getLongitude())
                         .isActive(true)
                         .salon(salon)
                         .build();
 
-        Branch saved =
-                branchRepository.save(branch);
+        Branch saved = branchRepository.save(branch);
 
+        branchSearchService.indexBranch(saved.getId());
         User owner =
                 userRepository
                         .findById(ownerId)
@@ -175,13 +186,22 @@ public class BranchServiceImpl implements BranchService {
                 request.getAddress()
         );
 
+        branch.setLatitude(
+                request.getLatitude()
+        );
+
+        branch.setLongitude(
+                request.getLongitude()
+        );
+
         branch.setIsActive(
                 request.getIsActive()
         );
+        Branch updated = branchRepository.save(branch);
 
-        return mapToResponse(
-                branchRepository.save(branch)
-        );
+        branchSearchService.indexBranch(updated.getId());
+
+        return mapToResponse(updated);
     }
 
     @Override
@@ -195,10 +215,11 @@ public class BranchServiceImpl implements BranchService {
                 .validateOwnerBranch(
                         branchId
                 );
-
         branch.setIsActive(false);
 
-        branchRepository.save(branch);
+        Branch updated = branchRepository.save(branch);
+
+        branchSearchService.indexBranch(updated.getId());
     }
 
     @Override
@@ -348,6 +369,8 @@ public class BranchServiceImpl implements BranchService {
                 .phone(branch.getPhone())
                 .email(branch.getEmail())
                 .address(branch.getAddress())
+                .latitude(branch.getLatitude())
+                .longitude(branch.getLongitude())
                 .isActive(branch.getIsActive())
                 .build();
     }

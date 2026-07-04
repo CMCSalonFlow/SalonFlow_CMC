@@ -47,13 +47,6 @@ public class Salon extends BaseEntity {
     @Column(name = "website")
     private String website;
 
-    @Column(columnDefinition = "TEXT")
-    private String address;
-
-    private Double latitude;
-
-    private Double longitude;
-
     @OneToMany(
             mappedBy = "salon",
             cascade = CascadeType.ALL,

@@ -52,7 +52,7 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
         // 4. Create and add items
         List<ServiceBundleItem> items = new ArrayList<>();
         for (BundleItemRequest itemReq : request.getItems()) {
-            Service service = serviceRepository.findById(itemReq.getServiceId())
+            SalonService service = serviceRepository.findById(itemReq.getServiceId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Service with id " + itemReq.getServiceId() + " not found"));
 
@@ -133,7 +133,7 @@ public class ServiceBundleServiceImpl implements ServiceBundleService {
         // 4. Attach new items
         List<ServiceBundleItem> newItems = new ArrayList<>();
         for (BundleItemRequest itemReq : request.getItems()) {
-            Service service = serviceRepository.findById(itemReq.getServiceId())
+            SalonService service = serviceRepository.findById(itemReq.getServiceId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Service with id " + itemReq.getServiceId() + " not found"));
 

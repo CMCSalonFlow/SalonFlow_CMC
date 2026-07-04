@@ -49,7 +49,6 @@ public class SalonServiceImpl implements SalonService {
                 .owner(owner)
                 .name(request.getName())
                 .description(request.getDescription())
-                .address(request.getAddress())
                 .phone(request.getPhone())
                 .email(request.getEmail())
                 .website(request.getWebsite())
@@ -176,13 +175,10 @@ public class SalonServiceImpl implements SalonService {
             .id(salon.getId())
             .name(salon.getName())
             .description(salon.getDescription())
-            .address(salon.getAddress())
             .phone(salon.getPhone())
             .email(salon.getEmail())
             .website(salon.getWebsite())
             .logoUrl(salon.getLogo() != null ? salon.getLogo().getUrl() : null)
-            .latitude(salon.getLatitude())
-            .longitude(salon.getLongitude())
             .hours(hourResponses)
             .photos(photoResponses)
             .build();
@@ -211,7 +207,6 @@ public class SalonServiceImpl implements SalonService {
 
         salon.setName(request.getName());
         salon.setDescription(request.getDescription());
-        salon.setAddress(request.getAddress());
         salon.setPhone(request.getPhone());
         salon.setEmail(request.getEmail());
         salon.setWebsite(request.getWebsite());

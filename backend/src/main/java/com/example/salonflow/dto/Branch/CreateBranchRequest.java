@@ -15,4 +15,8 @@ public class CreateBranchRequest {
 
     @NotBlank
     private String address;
+
+    private Double latitude;
+
+    private Double longitude;
 }

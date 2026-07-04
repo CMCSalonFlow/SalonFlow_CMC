@@ -63,5 +63,5 @@ public class Staff extends BaseEntity {
             inverseJoinColumns = @JoinColumn(name = "service_id")
     )
     @Builder.Default
-    private List<Service> services = new ArrayList<>();
+    private List<SalonService> services = new ArrayList<>();
 }

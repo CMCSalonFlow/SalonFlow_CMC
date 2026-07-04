@@ -65,7 +65,7 @@ class BookingServiceTest {
     private User customer;
     private Staff staff1;
     private Staff staff2;
-    private Service service1;
+    private SalonService service1;
     private SalonHour salonHour;
 
     @BeforeEach
@@ -74,7 +74,7 @@ class BookingServiceTest {
         branch = Branch.builder().id(1L).salon(salon).name("Chi nhánh 1").build();
         customer = User.builder().id(2L).fullName("Nguyễn Khách Hàng").phone("0987654321").build();
 
-        service1 = Service.builder()
+        service1 = SalonService.builder()
                 .id(11L)
                 .branch(branch)
                 .name("Cắt tóc nam")

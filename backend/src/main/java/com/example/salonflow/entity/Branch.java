@@ -27,6 +27,10 @@ public class Branch extends BaseEntity {
 
     private String address;
 
+    private Double latitude;
+
+    private Double longitude;
+
     @Column(name = "is_active")
     private Boolean isActive;
 

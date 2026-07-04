@@ -19,9 +19,6 @@ public class CreateSalonRequest {
 
     private String description;
 
-    @NotBlank
-    private String address;
-
     private String phone;
 
     @Email

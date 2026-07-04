@@ -2,7 +2,7 @@ package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.bundle.*;
 import com.example.salonflow.entity.Branch;
-import com.example.salonflow.entity.Service;
+import com.example.salonflow.entity.SalonService;
 import com.example.salonflow.entity.ServiceBundle;
 import com.example.salonflow.entity.ServiceBundleItemId;
 import com.example.salonflow.exception.BusinessException;
@@ -43,16 +43,16 @@ class ServiceBundleServiceTest {
     private ServiceBundleServiceImpl serviceBundleService;
 
     private Branch branch;
-    private Service service1;
-    private Service service2;
-    private Service serviceOtherBranch;
-    private Service serviceInactive;
+    private SalonService service1;
+    private SalonService service2;
+    private SalonService serviceOtherBranch;
+    private SalonService serviceInactive;
 
     @BeforeEach
     void setUp() {
         branch = Branch.builder().id(1L).name("Branch Test").build();
 
-        service1 = Service.builder()
+        service1 = SalonService.builder()
                 .id(11L)
                 .branch(branch)
                 .name("Haircut")
@@ -62,7 +62,7 @@ class ServiceBundleServiceTest {
                 .images(new ArrayList<>())
                 .build();
 
-        service2 = Service.builder()
+        service2 = SalonService.builder()
                 .id(12L)
                 .branch(branch)
                 .name("Shaving")
@@ -73,7 +73,7 @@ class ServiceBundleServiceTest {
                 .build();
 
         Branch branchOther = Branch.builder().id(2L).name("Other Branch").build();
-        serviceOtherBranch = Service.builder()
+        serviceOtherBranch = SalonService.builder()
                 .id(13L)
                 .branch(branchOther)
                 .name("Other Haircut")
@@ -83,7 +83,7 @@ class ServiceBundleServiceTest {
                 .images(new ArrayList<>())
                 .build();
 
-        serviceInactive = Service.builder()
+        serviceInactive = SalonService.builder()
                 .id(14L)
                 .branch(branch)
                 .name("Inactive Massage")

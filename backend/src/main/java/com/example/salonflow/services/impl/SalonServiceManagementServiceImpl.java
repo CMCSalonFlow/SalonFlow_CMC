@@ -4,16 +4,18 @@ import com.example.salonflow.dto.service.CreateServiceRequest;
 import com.example.salonflow.dto.service.ServiceResponse;
 import com.example.salonflow.dto.service.UpdateServiceRequest;
 import com.example.salonflow.entity.Branch;
-import com.example.salonflow.entity.Service;
+import com.example.salonflow.entity.SalonService;
 import com.example.salonflow.entity.ServiceCategory;
 import com.example.salonflow.entity.ServiceImage;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ServiceCategoryRepository;
 import com.example.salonflow.repository.ServiceRepository;
+import com.example.salonflow.search.service.BranchSearchService;
 import com.example.salonflow.services.service.ServiceManagementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.salonflow.search.service.BranchSearchService;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -26,11 +28,13 @@ import java.util.List;
  */
 @org.springframework.stereotype.Service
 @RequiredArgsConstructor
-public class ServiceManagementServiceImpl implements ServiceManagementService {
+public class SalonServiceManagementServiceImpl implements ServiceManagementService {
 
     private final ServiceRepository serviceRepository;
     private final BranchRepository branchRepository;
     private final ServiceCategoryRepository categoryRepository;
+
+    private final BranchSearchService branchSearchService;
 
     @Override
     @Transactional
@@ -45,7 +49,7 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
 
         ServiceCategory category = resolveCategory(request.getCategoryId());
 
-        Service service = Service.builder()
+        SalonService service = SalonService.builder()
                 .branch(branch)
                 .category(category)
                 .name(request.getName())
@@ -58,6 +62,8 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
         attachImages(service, request.getImages());
 
         service = serviceRepository.save(service);
+        
+        branchSearchService.indexBranch(branchId);
 
         return toResponse(service);
     }
@@ -76,7 +82,7 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
     @Override
     public ServiceResponse getById(Long branchId, Long serviceId) {
 
-        Service service = findOwnedService(branchId, serviceId);
+        SalonService service = findOwnedService(branchId, serviceId);
 
         return toResponse(service);
     }
@@ -89,7 +95,7 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
             UpdateServiceRequest request
     ) {
 
-        Service service = findOwnedService(branchId, serviceId);
+        SalonService service = findOwnedService(branchId, serviceId);
 
         ServiceCategory category = resolveCategory(request.getCategoryId());
 
@@ -110,6 +116,8 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
 
         service = serviceRepository.save(service);
 
+        branchSearchService.indexBranch(branchId);
+
         return toResponse(service);
     }
 
@@ -117,9 +125,10 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
     @Transactional
     public void delete(Long branchId, Long serviceId) {
 
-        Service service = findOwnedService(branchId, serviceId);
+        SalonService service = findOwnedService(branchId, serviceId);
 
         serviceRepository.delete(service);
+        branchSearchService.indexBranch(branchId);
     }
 
     // ── Helpers ────────────────────────────────────────────────
@@ -131,7 +140,7 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
         }
     }
 
-    private Service findOwnedService(Long branchId, Long serviceId) {
+    private SalonService findOwnedService(Long branchId, Long serviceId) {
         return serviceRepository.findByIdAndBranchId(serviceId, branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Service with id " + serviceId
@@ -147,7 +156,7 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
                         "Category with id " + categoryId + " not found"));
     }
 
-    private void attachImages(Service service, List<String> imageUrls) {
+    private void attachImages(SalonService service, List<String> imageUrls) {
         if (imageUrls == null || imageUrls.isEmpty()) {
             return;
         }
@@ -163,7 +172,7 @@ public class ServiceManagementServiceImpl implements ServiceManagementService {
         service.getImages().addAll(images);
     }
 
-    private ServiceResponse toResponse(Service service) {
+    private ServiceResponse toResponse(SalonService service) {
 
         List<String> imageUrls = service.getImages().stream()
                 .sorted((a, b) -> {

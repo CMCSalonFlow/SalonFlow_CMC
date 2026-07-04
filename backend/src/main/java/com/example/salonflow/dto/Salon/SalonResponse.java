@@ -17,8 +17,6 @@ public class SalonResponse {
 
     private String description;
 
-    private String address;
-
     private String phone;
 
     private String email;
@@ -26,10 +24,6 @@ public class SalonResponse {
     private String website;
 
     private String logoUrl;
-
-    private Double latitude;
-
-    private Double longitude;
 
     private List<SalonHourResponse> hours;
 
