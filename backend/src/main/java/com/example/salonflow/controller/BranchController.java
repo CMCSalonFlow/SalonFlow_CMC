@@ -1,6 +1,9 @@
 package com.example.salonflow.controller;
 
 import com.example.salonflow.dto.Branch.*;
+import com.example.salonflow.search.dto.BranchSearchRequest;
+import com.example.salonflow.search.dto.BranchSearchResponse;
+import com.example.salonflow.search.service.BranchSearchQueryService;
 import com.example.salonflow.services.service.BranchService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +18,8 @@ import java.util.List;
 public class BranchController {
 
     private final BranchService branchService;
+
+    private final BranchSearchQueryService branchSearchQueryService;
 
     @GetMapping("/my-branches")
     public ResponseEntity<List<BranchSummaryResponse>>
@@ -124,5 +129,33 @@ public class BranchController {
         return ResponseEntity.ok(
                 branchService.getUsers(branchId)
         );
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<BranchSearchResponse> search(
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String service,
+            @RequestParam(name = "service_id", required = false) Long serviceId,
+            @RequestParam(name = "lat", required = false) Double latitude,
+            @RequestParam(name = "lng", required = false) Double longitude,
+            @RequestParam(name = "price_min", required = false) java.math.BigDecimal priceMin,
+            @RequestParam(name = "price_max", required = false) java.math.BigDecimal priceMax,
+            @RequestParam(name = "rating_min", required = false) Double ratingMin,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") Integer size
+    ) {
+        BranchSearchRequest request = new BranchSearchRequest();
+        request.setQ(q);
+        request.setService(service);
+        request.setServiceId(serviceId);
+        request.setLatitude(latitude);
+        request.setLongitude(longitude);
+        request.setPriceMin(priceMin);
+        request.setPriceMax(priceMax);
+        request.setRatingMin(ratingMin);
+        request.setCursor(cursor);
+        request.setSize(size);
+
+        return ResponseEntity.ok(branchSearchQueryService.search(request));
     }
 }

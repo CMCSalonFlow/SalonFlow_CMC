@@ -1,95 +1,155 @@
 package com.example.salonflow.search.document;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.elasticsearch.annotations.Field;
 import org.springframework.data.elasticsearch.annotations.FieldType;
-import org.springframework.data.elasticsearch.annotations.InnerField;
-import org.springframework.data.elasticsearch.annotations.MultiField;
+import org.springframework.data.elasticsearch.annotations.GeoPointField;
 import org.springframework.data.elasticsearch.core.geo.GeoPoint;
+
 import java.math.BigDecimal;
 import java.util.List;
 
-@Getter
-@Setter
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 @Document(indexName = "branch_search")
 public class BranchSearchDocument {
 
-    /**
-     * Elasticsearch _id
-     */
     @Id
     private Long branchId;
-
     private Long salonId;
-
-    @MultiField(
-            mainField = @Field(type = FieldType.Text),
-            otherFields = {
-                    @InnerField(
-                            suffix = "keyword",
-                            type = FieldType.Keyword
-                    )
-            }
-    )
+    @Field(type = FieldType.Text)
     private String salonName;
-
-    @MultiField(
-            mainField = @Field(type = FieldType.Text),
-            otherFields = {
-                    @InnerField(
-                            suffix = "keyword",
-                            type = FieldType.Keyword
-                    )
-            }
-    )
+    @Field(type = FieldType.Text)
     private String branchName;
-
     @Field(type = FieldType.Text)
     private String address;
-
-    /**
-     * Chưa dùng geo_point ở giai đoạn này
-     */
     @Field(type = FieldType.Double)
     private Double latitude;
-
     @Field(type = FieldType.Double)
     private Double longitude;
-
-    /**
-     * Filter theo serviceId
-     */
+    @GeoPointField
+    private GeoPoint location;
     @Field(type = FieldType.Long)
     private List<Long> serviceIds;
-
-    /**
-     * Full text search
-     */
-    @Field(type = FieldType.Keyword)
+    @Field(type = FieldType.Text)
     private List<String> services;
-
     @Field(type = FieldType.Double)
     private BigDecimal minPrice;
-
     @Field(type = FieldType.Double)
     private BigDecimal maxPrice;
-
-    /**
-     * Chưa có Review
-     */
     @Field(type = FieldType.Double)
-    @Builder.Default
     private Double averageRating = 0d;
-
     @Field(type = FieldType.Boolean)
     private Boolean active;
+
+    public Long getBranchId() {
+        return branchId;
+    }
+
+    public void setBranchId(Long branchId) {
+        this.branchId = branchId;
+    }
+
+    public Long getSalonId() {
+        return salonId;
+    }
+
+    public void setSalonId(Long salonId) {
+        this.salonId = salonId;
+    }
+
+    public String getSalonName() {
+        return salonName;
+    }
+
+    public void setSalonName(String salonName) {
+        this.salonName = salonName;
+    }
+
+    public String getBranchName() {
+        return branchName;
+    }
+
+    public void setBranchName(String branchName) {
+        this.branchName = branchName;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void setAddress(String address) {
+        this.address = address;
+    }
+
+    public Double getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+    }
+
+    public Double getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+    }
+
+    public GeoPoint getLocation() {
+        return location;
+    }
+
+    public void setLocation(GeoPoint location) {
+        this.location = location;
+    }
+
+    public List<Long> getServiceIds() {
+        return serviceIds;
+    }
+
+    public void setServiceIds(List<Long> serviceIds) {
+        this.serviceIds = serviceIds;
+    }
+
+    public List<String> getServices() {
+        return services;
+    }
+
+    public void setServices(List<String> services) {
+        this.services = services;
+    }
+
+    public BigDecimal getMinPrice() {
+        return minPrice;
+    }
+
+    public void setMinPrice(BigDecimal minPrice) {
+        this.minPrice = minPrice;
+    }
+
+    public BigDecimal getMaxPrice() {
+        return maxPrice;
+    }
+
+    public void setMaxPrice(BigDecimal maxPrice) {
+        this.maxPrice = maxPrice;
+    }
+
+    public Double getAverageRating() {
+        return averageRating;
+    }
+
+    public void setAverageRating(Double averageRating) {
+        this.averageRating = averageRating;
+    }
+
+    public Boolean getActive() {
+        return active;
+    }
+
+    public void setActive(Boolean active) {
+        this.active = active;
+    }
 }

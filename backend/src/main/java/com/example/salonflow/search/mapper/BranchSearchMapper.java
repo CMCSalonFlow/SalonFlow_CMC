@@ -3,6 +3,7 @@ package com.example.salonflow.search.mapper;
 import com.example.salonflow.entity.Branch;
 import com.example.salonflow.entity.SalonService;
 import com.example.salonflow.search.document.BranchSearchDocument;
+import org.springframework.data.elasticsearch.core.geo.GeoPoint;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
@@ -33,29 +34,34 @@ public class BranchSearchMapper {
                     .orElse(BigDecimal.ZERO);
         }
 
-        return BranchSearchDocument.builder()
-                .branchId(branch.getId())
-                .salonId(branch.getSalon().getId())
-                .salonName(branch.getSalon().getName())
-                .branchName(branch.getName())
-                .address(branch.getAddress())
-                .latitude(branch.getLatitude())
-                .longitude(branch.getLongitude())
-                .serviceIds(
-                        services.stream()
-                                .map(SalonService::getId)
-                                .toList()
-                )
-                .services(
-                        services.stream()
-                                .map(SalonService::getName)
-                                .toList()
-                )
-                .minPrice(minPrice)
-                .maxPrice(maxPrice)
-                .averageRating(0d)
-                .active(branch.getIsActive())
-                .build();
+        BranchSearchDocument document = new BranchSearchDocument();
+        document.setBranchId(branch.getId());
+        document.setSalonId(branch.getSalon().getId());
+        document.setSalonName(branch.getSalon().getName());
+        document.setBranchName(branch.getName());
+        document.setAddress(branch.getAddress());
+        document.setLatitude(branch.getLatitude());
+        document.setLongitude(branch.getLongitude());
+        document.setLocation(
+                branch.getLatitude() != null && branch.getLongitude() != null
+                        ? new GeoPoint(branch.getLatitude(), branch.getLongitude())
+                        : null
+        );
+        document.setServiceIds(
+                services.stream()
+                        .map(SalonService::getId)
+                        .toList()
+        );
+        document.setServices(
+                services.stream()
+                        .map(SalonService::getName)
+                        .toList()
+        );
+        document.setMinPrice(minPrice);
+        document.setMaxPrice(maxPrice);
+        document.setAverageRating(0d);
+        document.setActive(branch.getIsActive());
+        return document;
     }
 
 }
