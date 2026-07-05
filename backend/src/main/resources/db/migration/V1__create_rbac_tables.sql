@@ -25,7 +25,7 @@ email VARCHAR(255) NOT NULL UNIQUE,
 password_hash VARCHAR(255) NOT NULL,
 
 full_name VARCHAR(255),
-phone VARCHAR(20) UNIQUE,
+phone VARCHAR(20),
 
 avatar_url VARCHAR(500),
 
@@ -38,6 +38,7 @@ updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_phone ON users(phone);
 
 -- =====================================================
 -- ROLES
@@ -46,6 +47,7 @@ CREATE INDEX idx_users_username ON users(username);
 CREATE TABLE roles (
 id BIGSERIAL PRIMARY KEY,
 
+code VARCHAR(100) NOT NULL UNIQUE,
 name VARCHAR(100) NOT NULL UNIQUE,
 description TEXT,
 
@@ -81,10 +83,8 @@ CREATE TABLE user_roles (
 user_id BIGINT NOT NULL,
 role_id BIGINT NOT NULL,
 
-assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+assigned_at TIMESTAMP NOT NULL DEFAULT NOW(),
+assigned_by BIGINT,
 
 PRIMARY KEY(user_id, role_id),
 
@@ -107,9 +107,6 @@ CONSTRAINT fk_user_roles_role
 CREATE TABLE role_permissions (
 role_id BIGINT NOT NULL,
 permission_id BIGINT NOT NULL,
-
-created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
 PRIMARY KEY(role_id, permission_id),
 
