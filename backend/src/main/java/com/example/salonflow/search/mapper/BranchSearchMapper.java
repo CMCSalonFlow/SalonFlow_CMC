@@ -36,6 +36,7 @@ public class BranchSearchMapper {
 
         BranchSearchDocument document = new BranchSearchDocument();
         document.setBranchId(branch.getId());
+        document.setSortId(branch.getId());
         document.setSalonId(branch.getSalon().getId());
         document.setSalonName(branch.getSalon().getName());
         document.setBranchName(branch.getName());

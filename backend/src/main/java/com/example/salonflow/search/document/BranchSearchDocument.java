@@ -15,29 +15,46 @@ public class BranchSearchDocument {
 
     @Id
     private Long branchId;
+
+    @Field(type = FieldType.Long)
+    private Long sortId;
+
+    @Field(type = FieldType.Long)
     private Long salonId;
+
     @Field(type = FieldType.Text)
     private String salonName;
+
     @Field(type = FieldType.Text)
     private String branchName;
+
     @Field(type = FieldType.Text)
     private String address;
+
     @Field(type = FieldType.Double)
     private Double latitude;
+
     @Field(type = FieldType.Double)
     private Double longitude;
+
     @GeoPointField
     private GeoPoint location;
+
     @Field(type = FieldType.Long)
     private List<Long> serviceIds;
+
     @Field(type = FieldType.Text)
     private List<String> services;
+
     @Field(type = FieldType.Double)
     private BigDecimal minPrice;
+
     @Field(type = FieldType.Double)
     private BigDecimal maxPrice;
+
     @Field(type = FieldType.Double)
     private Double averageRating = 0d;
+
     @Field(type = FieldType.Boolean)
     private Boolean active;
 
@@ -47,6 +64,14 @@ public class BranchSearchDocument {
 
     public void setBranchId(Long branchId) {
         this.branchId = branchId;
+    }
+
+    public Long getSortId() {
+        return sortId;
+    }
+
+    public void setSortId(Long sortId) {
+        this.sortId = sortId;
     }
 
     public Long getSalonId() {

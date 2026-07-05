@@ -201,7 +201,7 @@ public class BranchSearchQueryServiceImpl implements BranchSearchQueryService {
 
         sorts.add(
                 SortOptions.of(s -> s.field(f -> f
-                        .field("branchId")
+                        .field("sortId")
                         .order(SortOrder.Asc)))
         );
 
@@ -224,7 +224,7 @@ public class BranchSearchQueryServiceImpl implements BranchSearchQueryService {
             if (hasLocation) {
                 values.add(payload.distance());
             }
-            values.add(payload.branchId());
+            values.add(payload.sortId());
             return values;
         } catch (Exception ex) {
             throw new BadRequestException("Invalid search cursor", ex);
@@ -249,8 +249,8 @@ public class BranchSearchQueryServiceImpl implements BranchSearchQueryService {
             distance = toDouble(sortValues.get(index++));
         }
 
-        Long branchId = toLong(sortValues.get(index));
-        CursorPayload payload = new CursorPayload(score, distance, branchId);
+        Long sortId = toLong(sortValues.get(index));
+        CursorPayload payload = new CursorPayload(score, distance, sortId);
         return Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(payload.toEncoded().getBytes(StandardCharsets.UTF_8));
     }
@@ -269,7 +269,7 @@ public class BranchSearchQueryServiceImpl implements BranchSearchQueryService {
         return value == null ? null : Long.parseLong(value.toString());
     }
 
-    private record CursorPayload(Double score, Double distance, Long branchId) {
+    private record CursorPayload(Double score, Double distance, Long sortId) {
 
         private static final String PREFIX = "branch-search:";
 
@@ -296,7 +296,7 @@ public class BranchSearchQueryServiceImpl implements BranchSearchQueryService {
                     + "|"
                     + (distance == null ? "" : distance)
                     + "|"
-                    + (branchId == null ? "" : branchId);
+                    + (sortId == null ? "" : sortId);
         }
     }
 }

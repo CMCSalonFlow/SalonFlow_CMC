@@ -15,25 +15,37 @@ import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 public class BranchSearchInitializer {
 
     private final ElasticsearchOperations elasticsearchOperations;
+@EventListener(ApplicationReadyEvent.class)
+public void initializeIndex() {
 
-    @EventListener(ApplicationReadyEvent.class)
-    public void initializeIndex() {
+    try {
+
+        log.info("=== initializeIndex() called ===");
 
         IndexOperations indexOperations =
                 elasticsearchOperations.indexOps(BranchSearchDocument.class);
 
-        if (!indexOperations.exists()) {
+        boolean exists = indexOperations.exists();
+        log.info("Index exists: {}", exists);
 
-            indexOperations.create();
+        if (!exists) {
 
-            indexOperations.putMapping();
+            boolean created = indexOperations.create();
+            log.info("Index created: {}", created);
 
-            log.info("Created Elasticsearch index: branch_search");
+            boolean mapped = indexOperations.putMapping();
+            log.info("Mapping created: {}", mapped);
 
         } else {
 
-            log.info("Elasticsearch index already exists: branch_search");
+            log.info("Index already exists.");
 
         }
+
+    } catch (Exception e) {
+
+        log.error("Failed to initialize Elasticsearch index", e);
+
     }
+}
 }
