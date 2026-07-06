@@ -28,6 +28,8 @@ public class BranchServiceImpl implements BranchService {
 
     private final BranchOwnershipValidator branchOwnershipValidator;
 
+    private final BranchHourRepository branchHourRepository;
+
     @Override
     @Transactional(readOnly = true)
     public List<BranchSummaryResponse> getMyBranches() {
@@ -44,6 +46,8 @@ public class BranchServiceImpl implements BranchService {
                             .id(branch.getId())
                             .name(branch.getName())
                             .address(branch.getAddress())
+                            .latitude(branch.getLatitude())
+                            .longitude(branch.getLongitude())
                             .isActive(branch.getIsActive())
                             .build())
                     .toList();
@@ -63,6 +67,8 @@ public class BranchServiceImpl implements BranchService {
                             .id(branch.getId())
                             .name(branch.getName())
                             .address(branch.getAddress())
+                            .latitude(branch.getLatitude())
+                            .longitude(branch.getLongitude())
                             .isActive(branch.getIsActive())
                             .build();
                 })
@@ -73,6 +79,18 @@ public class BranchServiceImpl implements BranchService {
         }
 
         // 3. Nếu là Khách hàng (Customer) hoặc không có chi nhánh nào được gán, trả về tất cả chi nhánh active trong hệ thống
+        // Bảo mật: Nếu user là Salon Owner hoặc Staff nhưng không có chi nhánh nào thuộc về họ, trả về danh sách rỗng
+        boolean isOwnerOrStaff = org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .getAuthentication()
+                .getAuthorities()
+                .stream()
+                .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                .anyMatch(authority -> authority.equals("ROLE_SALON_OWNER") || authority.equals("ROLE_STAFF"));
+
+        if (isOwnerOrStaff) {
+            return List.of();
+        }
+
         return branchRepository.findAll()
                 .stream()
                 .filter(Branch::getIsActive)
@@ -80,6 +98,8 @@ public class BranchServiceImpl implements BranchService {
                         .id(branch.getId())
                         .name(branch.getName())
                         .address(branch.getAddress())
+                        .latitude(branch.getLatitude())
+                        .longitude(branch.getLongitude())
                         .isActive(branch.getIsActive())
                         .build())
                 .toList();
@@ -110,12 +130,16 @@ public class BranchServiceImpl implements BranchService {
                         .phone(request.getPhone())
                         .email(request.getEmail())
                         .address(request.getAddress())
+                        .latitude(request.getLatitude())
+                        .longitude(request.getLongitude())
                         .isActive(true)
                         .salon(salon)
                         .build();
 
         Branch saved =
                 branchRepository.save(branch);
+
+        saveHours(saved, request.getHours());
 
         User owner =
                 userRepository
@@ -175,13 +199,25 @@ public class BranchServiceImpl implements BranchService {
                 request.getAddress()
         );
 
+        branch.setLatitude(
+                request.getLatitude()
+        );
+
+        branch.setLongitude(
+                request.getLongitude()
+        );
+
         branch.setIsActive(
                 request.getIsActive()
         );
 
-        return mapToResponse(
-                branchRepository.save(branch)
-        );
+        Branch saved = branchRepository.save(branch);
+        branchHourRepository.deleteByBranch(saved);
+        branchHourRepository.flush();
+        saved.getHours().clear();
+        saveHours(saved, request.getHours());
+
+        return mapToResponse(saved);
     }
 
     @Override
@@ -339,6 +375,16 @@ public class BranchServiceImpl implements BranchService {
     private BranchResponse mapToResponse(
             Branch branch
     ) {
+        List<BranchHourResponse> hourResponses = branch.getHours() != null
+                ? branch.getHours().stream()
+                        .map(hour -> BranchHourResponse.builder()
+                                .dayOfWeek(hour.getDayOfWeek())
+                                .openTime(hour.getOpenTime())
+                                .closeTime(hour.getCloseTime())
+                                .isClosed(hour.getIsClosed())
+                                .build())
+                        .toList()
+                : new java.util.ArrayList<>();
 
         return BranchResponse
                 .builder()
@@ -348,7 +394,45 @@ public class BranchServiceImpl implements BranchService {
                 .phone(branch.getPhone())
                 .email(branch.getEmail())
                 .address(branch.getAddress())
+                .latitude(branch.getLatitude())
+                .longitude(branch.getLongitude())
                 .isActive(branch.getIsActive())
+                .hours(hourResponses)
                 .build();
+    }
+
+    private void saveHours(
+            Branch branch,
+            List<BranchHourRequest> requests
+    ) {
+        if (requests == null || requests.isEmpty()) {
+            List<BranchHour> defaultHours = new java.util.ArrayList<>();
+            for (int i = 0; i < 7; i++) {
+                defaultHours.add(BranchHour.builder()
+                        .branch(branch)
+                        .dayOfWeek(i)
+                        .openTime(java.time.LocalTime.of(9, 0))
+                        .closeTime(java.time.LocalTime.of(21, 0))
+                        .isClosed(false)
+                        .build());
+            }
+            branchHourRepository.saveAll(defaultHours);
+            branch.getHours().addAll(defaultHours);
+            return;
+        }
+
+        List<BranchHour> hours = new java.util.ArrayList<>();
+        for (BranchHourRequest request : requests) {
+            BranchHour hour = BranchHour.builder()
+                    .branch(branch)
+                    .dayOfWeek(request.getDayOfWeek())
+                    .openTime(request.getOpenTime())
+                    .closeTime(request.getCloseTime())
+                    .isClosed(Boolean.TRUE.equals(request.getIsClosed()))
+                    .build();
+            hours.add(hour);
+        }
+        branchHourRepository.saveAll(hours);
+        branch.getHours().addAll(hours);
     }
 }

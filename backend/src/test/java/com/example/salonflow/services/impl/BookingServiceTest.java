@@ -1,6 +1,8 @@
 package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.booking.AvailabilityResponse;
+import com.example.salonflow.entity.BranchHour;
+import com.example.salonflow.repository.BranchHourRepository;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.entity.*;
@@ -56,7 +58,7 @@ class BookingServiceTest {
     private ServiceBundleRepository serviceBundleRepository;
 
     @Mock
-    private SalonHourRepository salonHourRepository;
+    private BranchHourRepository branchHourRepository;
 
     @InjectMocks
     private BookingServiceImpl bookingService;
@@ -66,7 +68,7 @@ class BookingServiceTest {
     private Staff staff1;
     private Staff staff2;
     private Service service1;
-    private SalonHour salonHour;
+    private BranchHour branchHour;
 
     @BeforeEach
     void setUp() {
@@ -98,9 +100,9 @@ class BookingServiceTest {
                 .services(new ArrayList<>(List.of(service1)))
                 .build();
 
-        salonHour = SalonHour.builder()
+        branchHour = BranchHour.builder()
                 .id(100L)
-                .salon(salon)
+                .branch(branch)
                 .dayOfWeek(3) // Thứ tư
                 .openTime(LocalTime.of(8, 0))
                 .closeTime(LocalTime.of(20, 0))
@@ -123,7 +125,7 @@ class BookingServiceTest {
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
         when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
-        when(salonHourRepository.findBySalonIdAndDayOfWeek(10L, 3)).thenReturn(Optional.of(salonHour));
+        when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
         when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
         
         // Giả lập không có lịch trùng của nhân sự này
@@ -159,7 +161,7 @@ class BookingServiceTest {
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
         when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
-        when(salonHourRepository.findBySalonIdAndDayOfWeek(10L, 3)).thenReturn(Optional.of(salonHour));
+        when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
         when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
         
         // Giả lập thợ 6 đã có lịch trùng
@@ -185,7 +187,7 @@ class BookingServiceTest {
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
         when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
-        when(salonHourRepository.findBySalonIdAndDayOfWeek(10L, 3)).thenReturn(Optional.of(salonHour));
+        when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
         
         // Trả về cả thợ A và thợ B
         when(staffRepository.findByBranchId(1L)).thenReturn(List.of(staff1, staff2));
@@ -221,7 +223,7 @@ class BookingServiceTest {
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
         when(staffRepository.findByBranchId(1L)).thenReturn(List.of(staff1));
-        when(salonHourRepository.findBySalonIdAndDayOfWeek(10L, 3)).thenReturn(Optional.of(salonHour));
+        when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
 
         // Giả lập thợ A bận từ 09:00 đến 10:00
         Booking bookingA = Booking.builder()

@@ -36,7 +36,7 @@ public class BookingServiceImpl implements BookingService {
     private final StaffRepository staffRepository;
     private final ServiceRepository serviceRepository;
     private final ServiceBundleRepository serviceBundleRepository;
-    private final SalonHourRepository salonHourRepository;
+    private final BranchHourRepository branchHourRepository;
 
     @Override
     @Transactional
@@ -92,14 +92,14 @@ public class BookingServiceImpl implements BookingService {
 
         // 5. Kiểm tra thời gian hoạt động của chi nhánh
         int dbDayOfWeek = request.getBookingDate().getDayOfWeek().getValue() == 7 ? 0 : request.getBookingDate().getDayOfWeek().getValue();
-        SalonHour salonHour = salonHourRepository.findBySalonIdAndDayOfWeek(branch.getSalon().getId(), dbDayOfWeek)
+        BranchHour branchHour = branchHourRepository.findByBranchIdAndDayOfWeek(branchId, dbDayOfWeek)
                 .orElseThrow(() -> new BusinessException("Chi nhánh không có lịch hoạt động vào ngày này"));
-        if (Boolean.TRUE.equals(salonHour.getIsClosed())) {
+        if (Boolean.TRUE.equals(branchHour.getIsClosed())) {
             throw new BusinessException("Chi nhánh đóng cửa vào ngày này");
         }
-        if (startTime.isBefore(salonHour.getOpenTime()) || endTime.isAfter(salonHour.getCloseTime())) {
+        if (startTime.isBefore(branchHour.getOpenTime()) || endTime.isAfter(branchHour.getCloseTime())) {
             throw new BusinessException("Thời gian hẹn nằm ngoài khung giờ mở cửa của chi nhánh (" 
-                    + salonHour.getOpenTime() + " - " + salonHour.getCloseTime() + ")");
+                    + branchHour.getOpenTime() + " - " + branchHour.getCloseTime() + ")");
         }
 
         // 6. Phân bổ nhân viên thực hiện (Staff Allocation)
@@ -273,13 +273,13 @@ public class BookingServiceImpl implements BookingService {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
         int dbDayOfWeek = date.getDayOfWeek().getValue() == 7 ? 0 : date.getDayOfWeek().getValue();
-        Optional<SalonHour> salonHourOpt = salonHourRepository.findBySalonIdAndDayOfWeek(branch.getSalon().getId(), dbDayOfWeek);
-        if (salonHourOpt.isEmpty() || Boolean.TRUE.equals(salonHourOpt.get().getIsClosed())) {
+        Optional<BranchHour> branchHourOpt = branchHourRepository.findByBranchIdAndDayOfWeek(branchId, dbDayOfWeek);
+        if (branchHourOpt.isEmpty() || Boolean.TRUE.equals(branchHourOpt.get().getIsClosed())) {
             return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
         }
-        SalonHour salonHour = salonHourOpt.get();
-        LocalTime openTime = salonHour.getOpenTime();
-        LocalTime closeTime = salonHour.getCloseTime();
+        BranchHour branchHour = branchHourOpt.get();
+        LocalTime openTime = branchHour.getOpenTime();
+        LocalTime closeTime = branchHour.getCloseTime();
 
         // 4. Lấy tất cả lịch hẹn hoạt động trong ngày của chi nhánh để tối ưu hóa kiểm tra chéo trong bộ nhớ
         List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);

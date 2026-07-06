@@ -16,7 +16,6 @@ public interface SalonRepository extends JpaRepository<Salon, Long> {
     Optional<Salon> findFirstByOwnerId(Long ownerId);
         @Query("""
     SELECT s FROM Salon s
-    LEFT JOIN FETCH s.hours
     LEFT JOIN FETCH s.photos p
     LEFT JOIN FETCH p.media
     WHERE s.id = :id

@@ -1,4 +1,4 @@
-package com.example.salonflow.dto.Salon;
+package com.example.salonflow.dto.Branch;
 
 import lombok.*;
 
@@ -9,7 +9,7 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SalonHourResponse {
+public class BranchHourResponse {
 
     private Integer dayOfWeek;
 

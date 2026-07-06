@@ -16,5 +16,12 @@ public class UpdateBranchRequest {
     @NotBlank
     private String address;
 
+    private Double latitude;
+
+    private Double longitude;
+
     private Boolean isActive;
+
+    @jakarta.validation.Valid
+    private java.util.List<BranchHourRequest> hours;
 }

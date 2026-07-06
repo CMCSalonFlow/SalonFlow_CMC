@@ -20,7 +20,6 @@ import java.util.List;
 public class SalonServiceImpl implements SalonService {
 
     private final SalonRepository salonRepository;
-    private final SalonHourRepository salonHourRepository;
     private final SalonPhotoRepository salonPhotoRepository;
     private final UserRepository userRepository;
     private final MediaFileRepository mediaFileRepository;
@@ -49,7 +48,6 @@ public class SalonServiceImpl implements SalonService {
                 .owner(owner)
                 .name(request.getName())
                 .description(request.getDescription())
-                .address(request.getAddress())
                 .phone(request.getPhone())
                 .email(request.getEmail())
                 .website(request.getWebsite())
@@ -58,7 +56,6 @@ public class SalonServiceImpl implements SalonService {
 
                 salon = salonRepository.save(salon);
 
-                saveHours(salon, request.getHours());
                 savePhotos(salon, request.getPhotoMediaIds()); 
 
                 System.out.println("OWNER ID = " + owner.getId());
@@ -69,34 +66,7 @@ public class SalonServiceImpl implements SalonService {
                 return mapToResponse(salon);
             }
 
-    private void saveHours(
-            Salon salon,
-            List<SalonHourRequest> requests
-    ) {
 
-        if (requests == null || requests.isEmpty()) {
-            return;
-        }
-
-        List<SalonHour> hours = new ArrayList<>();
-
-        for (SalonHourRequest request : requests) {
-
-            SalonHour hour = SalonHour.builder()
-                    .salon(salon)
-                    .dayOfWeek(request.getDayOfWeek())
-                    .openTime(request.getOpenTime())
-                    .closeTime(request.getCloseTime())
-                    .isClosed(Boolean.TRUE.equals(request.getIsClosed()))
-                    .build();
-
-            hours.add(hour);
-        }
-
-        salonHourRepository.saveAll(hours);
-
-        salon.getHours().addAll(hours);
-    }
 
     private void savePhotos(
             Salon salon,
@@ -149,16 +119,6 @@ public class SalonServiceImpl implements SalonService {
 
     private SalonResponse mapToResponse(Salon salon) {
 
-    List<SalonHourResponse> hourResponses =
-            salon.getHours().stream()
-                    .map(hour -> SalonHourResponse.builder()
-                            .dayOfWeek(hour.getDayOfWeek())
-                            .openTime(hour.getOpenTime())
-                            .closeTime(hour.getCloseTime())
-                            .isClosed(hour.getIsClosed())
-                            .build()
-                    ).toList();
-
     List<SalonPhotoResponse> photoResponses =
             salon.getPhotos().stream()
                     .map(photo -> {
@@ -176,14 +136,10 @@ public class SalonServiceImpl implements SalonService {
             .id(salon.getId())
             .name(salon.getName())
             .description(salon.getDescription())
-            .address(salon.getAddress())
             .phone(salon.getPhone())
             .email(salon.getEmail())
             .website(salon.getWebsite())
             .logoUrl(salon.getLogo() != null ? salon.getLogo().getUrl() : null)
-            .latitude(salon.getLatitude())
-            .longitude(salon.getLongitude())
-            .hours(hourResponses)
             .photos(photoResponses)
             .build();
 }
@@ -211,7 +167,6 @@ public class SalonServiceImpl implements SalonService {
 
         salon.setName(request.getName());
         salon.setDescription(request.getDescription());
-        salon.setAddress(request.getAddress());
         salon.setPhone(request.getPhone());
         salon.setEmail(request.getEmail());
         salon.setWebsite(request.getWebsite());
@@ -235,16 +190,12 @@ public class SalonServiceImpl implements SalonService {
     }
         salonRepository.save(salon);
 
-        salonHourRepository.deleteBySalon(salon);
         salonPhotoRepository.deleteBySalon(salon);
 
-        salonHourRepository.flush();
         salonPhotoRepository.flush();
 
-        salon.getHours().clear();
         salon.getPhotos().clear();
 
-        saveHours(salon, request.getHours());
         savePhotos(
                 salon,
                 request.getPhotoMediaIds()

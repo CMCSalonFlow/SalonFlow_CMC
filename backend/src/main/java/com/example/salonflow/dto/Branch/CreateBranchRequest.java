@@ -15,4 +15,11 @@ public class CreateBranchRequest {
 
     @NotBlank
     private String address;
+
+    private Double latitude;
+
+    private Double longitude;
+
+    @jakarta.validation.Valid
+    private java.util.List<BranchHourRequest> hours;
 }

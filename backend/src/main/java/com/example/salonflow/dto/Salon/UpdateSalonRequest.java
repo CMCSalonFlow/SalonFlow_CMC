@@ -19,9 +19,6 @@ public class UpdateSalonRequest {
 
     private String description;
 
-    @NotBlank
-    private String address;
-
     private String phone;
 
     @Email
@@ -29,8 +26,7 @@ public class UpdateSalonRequest {
 
     private String website;
 
-    @Valid
-    private List<SalonHourRequest> hours;
+
 
     private Long logoMediaId;
 

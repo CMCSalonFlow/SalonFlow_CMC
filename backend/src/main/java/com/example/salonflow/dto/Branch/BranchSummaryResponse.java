@@ -13,5 +13,9 @@ public class BranchSummaryResponse {
 
     private String address;
 
+    private Double latitude;
+
+    private Double longitude;
+
     private Boolean isActive;
 }

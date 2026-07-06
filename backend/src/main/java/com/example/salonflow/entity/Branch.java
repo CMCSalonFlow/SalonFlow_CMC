@@ -27,6 +27,10 @@ public class Branch extends BaseEntity {
 
     private String address;
 
+    private Double latitude;
+
+    private Double longitude;
+
     @Column(name = "is_active")
     private Boolean isActive;
 
@@ -37,4 +41,12 @@ public class Branch extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "branch")
     private List<UserBranch> userBranches = new ArrayList<>();
+
+    @OneToMany(
+            mappedBy = "branch",
+            cascade = CascadeType.ALL,
+            orphanRemoval = true
+    )
+    @Builder.Default
+    private List<BranchHour> hours = new ArrayList<>();
 }

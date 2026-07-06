@@ -1,4 +1,4 @@
-package com.example.salonflow.dto.Salon;
+package com.example.salonflow.dto.Branch;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -11,7 +11,7 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SalonHourRequest {
+public class BranchHourRequest {
 
     @Min(0)
     @Max(6)

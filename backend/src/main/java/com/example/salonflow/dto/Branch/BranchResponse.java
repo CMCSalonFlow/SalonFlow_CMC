@@ -21,5 +21,11 @@ public class BranchResponse {
 
     private String address;
 
+    private Double latitude;
+
+    private Double longitude;
+
     private Boolean isActive;
+
+    private java.util.List<BranchHourResponse> hours;
 }

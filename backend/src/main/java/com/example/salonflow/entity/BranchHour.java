@@ -7,10 +7,10 @@ import java.time.LocalTime;
 
 @Entity
 @Table(
-        name = "salon_hours",
+        name = "branch_hours",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = {
-                        "salon_id",
+                        "branch_id",
                         "day_of_week"
                 })
         }
@@ -20,15 +20,15 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class SalonHour {
+public class BranchHour {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "salon_id")
-    private Salon salon;
+    @JoinColumn(name = "branch_id")
+    private Branch branch;
 
     @Column(name = "day_of_week")
     private Integer dayOfWeek;
