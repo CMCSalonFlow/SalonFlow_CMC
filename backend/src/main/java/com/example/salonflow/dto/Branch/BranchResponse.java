@@ -13,8 +13,6 @@ public class BranchResponse {
 
     private Long salonId;
 
-    private String description;
-
     private String phone;
 
     private String email;

@@ -5,6 +5,7 @@
 CREATE TABLE staff (
     id BIGSERIAL PRIMARY KEY,
     branch_id BIGINT NOT NULL,
+    user_id BIGINT,
     name VARCHAR(255) NOT NULL,
     avatar_url VARCHAR(500),
     bio TEXT,
@@ -19,6 +20,7 @@ CREATE TABLE staff (
 );
 
 CREATE INDEX idx_staff_branch ON staff(branch_id);
+CREATE INDEX idx_staff_user ON staff(user_id);
 
 -- Trigger cập nhật thời gian thay đổi dữ liệu tự động
 CREATE TRIGGER trg_staff_updated_at
@@ -51,3 +53,33 @@ CREATE TABLE staff_services (
 -- Chỉ mục tối ưu hóa tìm kiếm quan hệ liên kết
 CREATE INDEX idx_staff_services_staff ON staff_services(staff_id);
 CREATE INDEX idx_staff_services_service ON staff_services(service_id);
+
+-- =====================================================
+-- STAFF OFF DAYS
+-- =====================================================
+
+CREATE TABLE staff_off_days (
+    id BIGSERIAL PRIMARY KEY,
+    staff_id BIGINT NOT NULL,
+    date_from DATE NOT NULL,
+    date_to DATE NOT NULL,
+    reason TEXT,
+    created_by VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_staff_off_days_staff
+        FOREIGN KEY (staff_id)
+        REFERENCES staff(id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT chk_date_from_to CHECK (date_from <= date_to)
+);
+
+CREATE INDEX idx_staff_off_days_staff_id ON staff_off_days(staff_id);
+CREATE INDEX idx_staff_off_days_date_range ON staff_off_days(date_from, date_to);
+
+CREATE TRIGGER trg_staff_off_days_updated_at
+BEFORE UPDATE ON staff_off_days
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();

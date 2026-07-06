@@ -81,6 +81,7 @@ public class SecurityConfig {
                     .requestMatchers("/api/v1/auth/**").permitAll()
                     .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                     .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                    .requestMatchers("/api/v1/branches/search").permitAll()
 
                     // media upload (tuỳ bạn có thể đổi authenticated)
                     .requestMatchers("/api/v1/media/**").authenticated()

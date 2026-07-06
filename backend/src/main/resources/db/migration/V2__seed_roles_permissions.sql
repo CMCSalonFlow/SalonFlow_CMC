@@ -1,76 +1,39 @@
-INSERT INTO roles(name, description)
+INSERT INTO roles(created_at, updated_at, code, name, description)
 VALUES
-('SUPER_ADMIN', 'System Administrator'),
-('SALON_OWNER', 'Salon Owner'),
-('STAFF', 'Salon Staff'),
-('CUSTOMER', 'Customer');
+(NOW(), NOW(), 'SUPER_ADMIN', 'Super Admin', 'System Administrator'),
+(NOW(), NOW(), 'SALON_OWNER', 'Salon Owner', 'Salon Owner'),
+(NOW(), NOW(), 'STAFF', 'Staff', 'Salon Staff'),
+(NOW(), NOW(), 'CUSTOMER', 'Customer', 'Customer')
+ON CONFLICT (code) DO NOTHING;
 
-INSERT INTO permissions(code, description)
+INSERT INTO permissions(created_at, updated_at, code, description)
 VALUES
 
-('user:create', 'Create user'),
-('user:view', 'View user'),
-('user:update', 'Update user'),
-('user:delete', 'Delete user'),
+(NOW(), NOW(), 'user:create', 'Create user'),
+(NOW(), NOW(), 'user:view', 'View user'),
+(NOW(), NOW(), 'user:update', 'Update user'),
+(NOW(), NOW(), 'user:delete', 'Delete user'),
 
-('salon:create', 'Create salon'),
-('salon:view', 'View salon'),
-('salon:update', 'Update salon'),
-('salon:delete', 'Delete salon'),
+(NOW(), NOW(), 'salon:create', 'Create salon'),
+(NOW(), NOW(), 'salon:view', 'View salon'),
+(NOW(), NOW(), 'salon:update', 'Update salon'),
+(NOW(), NOW(), 'salon:delete', 'Delete salon'),
 
-('service:create', 'Create service'),
-('service:view', 'View service'),
-('service:update', 'Update service'),
-('service:delete', 'Delete service'),
+(NOW(), NOW(), 'service:create', 'Create service'),
+(NOW(), NOW(), 'service:view', 'View service'),
+(NOW(), NOW(), 'service:update', 'Update service'),
+(NOW(), NOW(), 'service:delete', 'Delete service'),
 
-('booking:create', 'Create booking'),
-('booking:view', 'View booking'),
-('booking:update', 'Update booking'),
-('booking:cancel', 'Cancel booking'),
+(NOW(), NOW(), 'booking:create', 'Create booking'),
+(NOW(), NOW(), 'booking:view', 'View booking'),
+(NOW(), NOW(), 'booking:update', 'Update booking'),
+(NOW(), NOW(), 'booking:cancel', 'Cancel booking'),
 
-('staff:create', 'Create staff'),
-('staff:view', 'View staff'),
-('staff:update', 'Update staff'),
-('staff:delete', 'Delete staff'),
+(NOW(), NOW(), 'staff:create', 'Create staff'),
+(NOW(), NOW(), 'staff:view', 'View staff'),
+(NOW(), NOW(), 'staff:update', 'Update staff'),
+(NOW(), NOW(), 'staff:delete', 'Delete staff'),
 
-('profile:view', 'View profile'),
-('profile:update', 'Update profile');
-
-INSERT INTO role_permissions(role_id, permission_id)
-SELECT
-(SELECT id FROM roles WHERE name='SUPER_ADMIN'),
-id
-FROM permissions
-ON CONFLICT DO NOTHING;
-
-INSERT INTO role_permissions(role_id, permission_id)
-SELECT
-(SELECT id FROM roles WHERE name='SALON_OWNER'),
-id
-FROM permissions
-WHERE code IN (
-'salon:create',
-'salon:view',
-'salon:update',
-'service:create',
-'service:view',
-'service:update',
-'staff:create',
-'staff:view',
-'staff:update',
-'booking:view'
-)
-ON CONFLICT DO NOTHING;
-
-INSERT INTO role_permissions(role_id, permission_id)
-SELECT
-(SELECT id FROM roles WHERE name='CUSTOMER'),
-id
-FROM permissions
-WHERE code IN (
-'profile:view',
-'profile:update',
-'booking:create',
-'booking:view'
-)
-ON CONFLICT DO NOTHING;
+(NOW(), NOW(), 'profile:view', 'View profile'),
+(NOW(), NOW(), 'profile:update', 'Update profile')
+ON CONFLICT (code) DO NOTHING;

@@ -78,7 +78,7 @@ CREATE TABLE service_images (
 
     display_order INT DEFAULT 0,
 
-    created_at TIMESTAMPTZ DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     CONSTRAINT fk_service_images_service
         FOREIGN KEY(service_id)
@@ -88,6 +88,7 @@ CREATE TABLE service_images (
 
 CREATE INDEX idx_service_images_service
 ON service_images(service_id);
+
 -- =====================================================
 -- SHIFT TEMPLATES
 -- =====================================================
@@ -148,7 +149,7 @@ CREATE TABLE shift_template_details (
 
     template_id BIGINT NOT NULL,
 
-    day_of_week SMALLINT NOT NULL,
+    day_of_week INT NOT NULL,
 
     start_time TIME NOT NULL,
 

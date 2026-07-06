@@ -9,7 +9,7 @@ CREATE TABLE service_categories (
 
     name VARCHAR(100) NOT NULL,
 
-    icon VARCHAR(255),
+    icon_media_id BIGINT,
 
     color VARCHAR(7) NOT NULL,
 
@@ -28,3 +28,6 @@ CREATE TRIGGER trg_service_categories_updated_at
 BEFORE UPDATE ON service_categories
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
+
+CREATE INDEX idx_service_categories_icon_media
+ON service_categories(icon_media_id);

@@ -25,7 +25,9 @@ public class SalonResponse {
 
     private String logoUrl;
 
+    private Double latitude;
 
+    private Double longitude;
 
     private List<SalonPhotoResponse> photos;
 }

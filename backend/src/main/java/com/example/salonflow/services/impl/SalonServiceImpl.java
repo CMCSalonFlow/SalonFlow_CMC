@@ -19,227 +19,207 @@ import java.util.List;
 @Transactional
 public class SalonServiceImpl implements SalonService {
 
-    private final SalonRepository salonRepository;
-    private final SalonPhotoRepository salonPhotoRepository;
-    private final UserRepository userRepository;
-    private final MediaFileRepository mediaFileRepository;
+        private final SalonRepository salonRepository;
+        private final SalonPhotoRepository salonPhotoRepository;
+        private final UserRepository userRepository;
+        private final MediaFileRepository mediaFileRepository;
 
-    @Override
-    public SalonResponse create(CreateSalonRequest request) {
+        @Override
+        public SalonResponse create(CreateSalonRequest request) {
 
-        User owner = getCurrentUser();
+                User owner = getCurrentUser();
 
-        if (salonRepository.existsByOwner(owner)) {
-            throw new BusinessException("You already own a salon.");
-        }
-        MediaFile logo = null;
+                if (salonRepository.existsByOwner(owner)) {
+                        throw new BusinessException("You already own a salon.");
+                }
+                MediaFile logo = null;
 
-        if (request.getLogoMediaId() != null) {
+                if (request.getLogoMediaId() != null) {
 
-            logo = mediaFileRepository
-                    .findById(request.getLogoMediaId())
-                    .orElseThrow(() ->
-                            new ResourceNotFoundException(
-                                    "Logo media not found"
-                            ));
-        }
+                        logo = mediaFileRepository
+                                        .findById(request.getLogoMediaId())
+                                        .orElseThrow(() -> new ResourceNotFoundException(
+                                                        "Logo media not found"));
+                }
 
-        Salon salon = Salon.builder()
-                .owner(owner)
-                .name(request.getName())
-                .description(request.getDescription())
-                .phone(request.getPhone())
-                .email(request.getEmail())
-                .website(request.getWebsite())
-                .logo(logo)
-                .build();
+                Salon salon = Salon.builder()
+                                .owner(owner)
+                                .name(request.getName())
+                                .description(request.getDescription())
+                                .phone(request.getPhone())
+                                .email(request.getEmail())
+                                .website(request.getWebsite())
+                                .logo(logo)
+                                .build();
 
                 salon = salonRepository.save(salon);
 
-                savePhotos(salon, request.getPhotoMediaIds()); 
+                savePhotos(salon, request.getPhotoMediaIds());
 
                 System.out.println("OWNER ID = " + owner.getId());
 
                 System.out.println(
-                salonRepository.findByOwner(owner)
-                );
+                                salonRepository.findByOwner(owner));
                 return mapToResponse(salon);
-            }
-
-
-
-    private void savePhotos(
-            Salon salon,
-            List<Long> mediaIds
-    ) {
-
-        if (mediaIds == null || mediaIds.isEmpty()) {
-            return;
         }
 
-        boolean primary = true;
+        private void savePhotos(
+                        Salon salon,
+                        List<Long> mediaIds) {
 
-        List<SalonPhoto> photos = new ArrayList<>();
+                if (mediaIds == null || mediaIds.isEmpty()) {
+                        return;
+                }
 
-        for (Long mediaId : mediaIds) {
+                boolean primary = true;
 
-            MediaFile media =
-                    mediaFileRepository.findById(mediaId)
-                            .orElseThrow(
-                                    () -> new ResourceNotFoundException(
-                                            "Media not found"
-                                    )
-                            );
+                List<SalonPhoto> photos = new ArrayList<>();
 
-            SalonPhoto photo =
-                    SalonPhoto.builder()
-                            .salon(salon)
-                            .media(media)
-                            .isPrimary(primary)
-                            .build();
+                for (Long mediaId : mediaIds) {
 
-            photos.add(photo);
+                        MediaFile media = mediaFileRepository.findById(mediaId)
+                                        .orElseThrow(
+                                                        () -> new ResourceNotFoundException(
+                                                                        "Media not found"));
 
-            primary = false;
+                        SalonPhoto photo = SalonPhoto.builder()
+                                        .salon(salon)
+                                        .media(media)
+                                        .isPrimary(primary)
+                                        .build();
+
+                        photos.add(photo);
+
+                        primary = false;
+                }
+
+                salonPhotoRepository.saveAll(photos);
+
+                salon.getPhotos().addAll(photos);
         }
 
-        salonPhotoRepository.saveAll(photos);
+        private User getCurrentUser() {
 
-        salon.getPhotos().addAll(photos);
-    }
+                String email = SecurityUtil.getCurrentUsername();
 
-    private User getCurrentUser() {
+                return userRepository.findByEmail(email)
+                                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        }
 
-        String email = SecurityUtil.getCurrentUsername();
+        private SalonResponse mapToResponse(Salon salon) {
 
-        return userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("User not found"));
-    }
+                List<SalonPhotoResponse> photoResponses = salon.getPhotos().stream()
+                                .map(photo -> {
+                                        MediaFile media = photo.getMedia();
 
-    private SalonResponse mapToResponse(Salon salon) {
+                                        return SalonPhotoResponse.builder()
+                                                        .mediaId(media != null ? media.getId() : null)
+                                                        .url(media != null ? media.getUrl() : null)
+                                                        .isPrimary(photo.getIsPrimary())
+                                                        .build();
+                                })
+                                .toList();
 
-    List<SalonPhotoResponse> photoResponses =
-            salon.getPhotos().stream()
-                    .map(photo -> {
-                        MediaFile media = photo.getMedia();
-
-                        return SalonPhotoResponse.builder()
-                                .mediaId(media != null ? media.getId() : null)
-                                .url(media != null ? media.getUrl() : null)
-                                .isPrimary(photo.getIsPrimary())
+                return SalonResponse.builder()
+                                .id(salon.getId())
+                                .name(salon.getName())
+                                .description(salon.getDescription())
+                                .phone(salon.getPhone())
+                                .email(salon.getEmail())
+                                .website(salon.getWebsite())
+                                .logoUrl(salon.getLogo() != null ? salon.getLogo().getUrl() : null)
+                                .photos(photoResponses)
                                 .build();
-                    })
-                    .toList();
-
-    return SalonResponse.builder()
-            .id(salon.getId())
-            .name(salon.getName())
-            .description(salon.getDescription())
-            .phone(salon.getPhone())
-            .email(salon.getEmail())
-            .website(salon.getWebsite())
-            .logoUrl(salon.getLogo() != null ? salon.getLogo().getUrl() : null)
-            .photos(photoResponses)
-            .build();
-}
-        @Override
-    @Transactional(readOnly = true)
-    public SalonResponse getMine() {
-
-        User owner = getCurrentUser();
-
-        Salon salon = salonRepository.findByOwner(owner)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Salon not found"));
-
-        return mapToResponse(salon);
-    }
-
-    @Override
-    public SalonResponse update(UpdateSalonRequest request) {
-
-        User owner = getCurrentUser();
-
-        Salon salon = salonRepository.findByOwner(owner)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Salon not found"));
-
-        salon.setName(request.getName());
-        salon.setDescription(request.getDescription());
-        salon.setPhone(request.getPhone());
-        salon.setEmail(request.getEmail());
-        salon.setWebsite(request.getWebsite());
-
-        if (request.getLogoMediaId() != null) {
-
-        MediaFile logo =
-                mediaFileRepository.findById(
-                        request.getLogoMediaId()
-                ).orElseThrow(
-                        () -> new ResourceNotFoundException(
-                                "Logo not found"
-                        )
-                );
-
-        salon.setLogo(logo);
-
-    } else {
-
-        salon.setLogo(null);
-    }
-        salonRepository.save(salon);
-
-        salonPhotoRepository.deleteBySalon(salon);
-
-        salonPhotoRepository.flush();
-
-        salon.getPhotos().clear();
-
-        savePhotos(
-                salon,
-                request.getPhotoMediaIds()
-        );
-
-        return mapToResponse(salon);
-    }
-
-    @Override
-    public void delete() {
-
-        User owner = getCurrentUser();
-
-        Salon salon = salonRepository.findByOwner(owner)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Salon not found"));
-
-        salonRepository.delete(salon);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<SalonResponse> getAll() {
-
-        List<Salon> salons = salonRepository.findAll();
-
-        List<SalonResponse> responses = new ArrayList<>();
-
-        for (Salon salon : salons) {
-            responses.add(mapToResponse(salon));
         }
 
-        return responses;
-    }
+        @Override
+        @Transactional(readOnly = true)
+        public SalonResponse getMine() {
 
-    @Override
-    @Transactional(readOnly = true)
-    public SalonResponse getById(Long id) {
+                User owner = getCurrentUser();
 
-        Salon salon = salonRepository.findById(id)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException("Salon not found"));
+                Salon salon = salonRepository.findByOwner(owner)
+                                .orElseThrow(() -> new ResourceNotFoundException("Salon not found"));
 
-        return mapToResponse(salon);
-    }
+                return mapToResponse(salon);
+        }
+
+        @Override
+        public SalonResponse update(UpdateSalonRequest request) {
+
+                User owner = getCurrentUser();
+
+                Salon salon = salonRepository.findByOwner(owner)
+                                .orElseThrow(() -> new ResourceNotFoundException("Salon not found"));
+
+                salon.setName(request.getName());
+                salon.setDescription(request.getDescription());
+                salon.setPhone(request.getPhone());
+                salon.setEmail(request.getEmail());
+                salon.setWebsite(request.getWebsite());
+
+                if (request.getLogoMediaId() != null) {
+
+                        MediaFile logo = mediaFileRepository.findById(
+                                        request.getLogoMediaId()).orElseThrow(
+                                                        () -> new ResourceNotFoundException(
+                                                                        "Logo not found"));
+
+                        salon.setLogo(logo);
+
+                } else {
+
+                        salon.setLogo(null);
+                }
+                salonRepository.save(salon);
+
+                salonPhotoRepository.deleteBySalon(salon);
+
+                salonPhotoRepository.flush();
+
+                salon.getPhotos().clear();
+
+                savePhotos(
+                                salon,
+                                request.getPhotoMediaIds());
+
+                return mapToResponse(salon);
+        }
+
+        @Override
+        public void delete() {
+
+                User owner = getCurrentUser();
+
+                Salon salon = salonRepository.findByOwner(owner)
+                                .orElseThrow(() -> new ResourceNotFoundException("Salon not found"));
+
+                salonRepository.delete(salon);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<SalonResponse> getAll() {
+
+                List<Salon> salons = salonRepository.findAll();
+
+                List<SalonResponse> responses = new ArrayList<>();
+
+                for (Salon salon : salons) {
+                        responses.add(mapToResponse(salon));
+                }
+
+                return responses;
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public SalonResponse getById(Long id) {
+
+                Salon salon = salonRepository.findById(id)
+                                .orElseThrow(() -> new ResourceNotFoundException("Salon not found"));
+
+                return mapToResponse(salon);
+        }
 
 }

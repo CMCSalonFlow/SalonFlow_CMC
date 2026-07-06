@@ -11,7 +11,7 @@ CREATE TABLE salons (
 
     description TEXT,
 
-    logo_url VARCHAR(500),
+    logo_media_id BIGINT,
 
     phone VARCHAR(20),
 
@@ -77,7 +77,6 @@ EXECUTE FUNCTION update_updated_at_column();
 -- =====================================================
 
 CREATE TABLE user_branches (
-
     user_id BIGINT NOT NULL,
     branch_id BIGINT NOT NULL,
 
@@ -104,3 +103,8 @@ ON user_branches(user_id);
 
 CREATE INDEX idx_user_branches_branch
 ON user_branches(branch_id);
+
+CREATE TRIGGER trg_user_branches_updated_at
+BEFORE UPDATE ON user_branches
+FOR EACH ROW
+EXECUTE FUNCTION update_updated_at_column();

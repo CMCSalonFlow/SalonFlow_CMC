@@ -22,4 +22,5 @@ public class CreateBranchRequest {
 
     @jakarta.validation.Valid
     private java.util.List<BranchHourRequest> hours;
+
 }

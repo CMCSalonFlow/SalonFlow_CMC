@@ -64,7 +64,7 @@ public class StaffServiceImpl implements StaffService {
         }
 
         // Lấy danh sách thực thể dịch vụ từ danh sách ID truyền lên
-        List<com.example.salonflow.entity.Service> services = new ArrayList<>();
+        List<com.example.salonflow.entity.SalonService> services = new ArrayList<>();
         if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
             services = serviceRepository.findAllById(request.getServiceIds());
         }
@@ -168,7 +168,7 @@ public class StaffServiceImpl implements StaffService {
         }
 
         // Cập nhật lại liên kết danh sách dịch vụ cho phép thực hiện
-        List<com.example.salonflow.entity.Service> services = new ArrayList<>();
+        List<com.example.salonflow.entity.SalonService> services = new ArrayList<>();
         if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
             services = serviceRepository.findAllById(request.getServiceIds());
         }
@@ -195,7 +195,7 @@ public class StaffServiceImpl implements StaffService {
     private StaffResponse toResponse(Staff staff) {
         List<ServiceResponse> serviceResponses = new ArrayList<>();
         if (staff.getServices() != null) {
-            for (com.example.salonflow.entity.Service service : staff.getServices()) {
+            for (com.example.salonflow.entity.SalonService service : staff.getServices()) {
                 // Sắp xếp thứ tự ảnh hiển thị của dịch vụ
                 List<String> imageUrls = service.getImages().stream()
                         .sorted((a, b) -> {

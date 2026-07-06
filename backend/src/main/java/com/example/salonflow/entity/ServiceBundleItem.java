@@ -25,7 +25,7 @@ public class ServiceBundleItem {
     @ManyToOne(fetch = FetchType.LAZY)
     @MapsId("serviceId")
     @JoinColumn(name = "service_id")
-    private Service service;
+    private SalonService service;
 
     @Column(name = "display_order", nullable = false)
     @Builder.Default

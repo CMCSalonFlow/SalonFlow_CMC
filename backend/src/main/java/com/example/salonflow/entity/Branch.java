@@ -42,11 +42,7 @@ public class Branch extends BaseEntity {
     @OneToMany(mappedBy = "branch")
     private List<UserBranch> userBranches = new ArrayList<>();
 
-    @OneToMany(
-            mappedBy = "branch",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
+    @OneToMany(mappedBy = "branch", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<BranchHour> hours = new ArrayList<>();
 }

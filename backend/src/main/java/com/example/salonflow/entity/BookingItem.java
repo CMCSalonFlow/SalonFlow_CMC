@@ -29,7 +29,7 @@ public class BookingItem {
     // Dịch vụ lẻ được đặt (có thể null nếu đặt theo combo)
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "service_id")
-    private Service service;
+    private SalonService service;
 
     // Combo/Gói dịch vụ được đặt (có thể null nếu đặt dịch vụ lẻ)
     @ManyToOne(fetch = FetchType.LAZY)

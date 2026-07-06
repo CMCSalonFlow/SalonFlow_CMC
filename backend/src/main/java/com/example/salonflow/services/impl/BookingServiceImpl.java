@@ -57,7 +57,7 @@ public class BookingServiceImpl implements BookingService {
         // 3. Tính toán tổng thời lượng, tổng số tiền và lấy danh sách chi tiết dịch vụ/combo
         BigDecimal totalPrice = BigDecimal.ZERO;
         int totalDuration = 0;
-        List<Service> services = new ArrayList<>();
+        List<SalonService> services = new ArrayList<>();
         ServiceBundle bundle = null;
 
         if (request.getBundleId() != null) {
@@ -75,7 +75,7 @@ public class BookingServiceImpl implements BookingService {
                 throw new BusinessException("Một số dịch vụ được chọn không hợp lệ hoặc không tồn tại");
             }
             // Đảm bảo tất cả các dịch vụ đều thuộc chi nhánh này
-            for (Service service : services) {
+            for (SalonService service : services) {
                 if (!service.getBranch().getId().equals(branchId)) {
                     throw new BusinessException("Dịch vụ '" + service.getName() + "' không thuộc chi nhánh này");
                 }
@@ -126,7 +126,7 @@ public class BookingServiceImpl implements BookingService {
             assignedStaff = preferredStaff;
         } else {
             // Trường hợp chọn "Bất kỳ nhân viên" -> Phân bổ tự động
-            final List<Service> finalServices = services;
+            final List<SalonService> finalServices = services;
             List<Staff> branchStaff = staffRepository.findByBranchId(branchId);
             List<Staff> qualifiedStaff = branchStaff.stream()
                     .filter(s -> isStaffQualified(s, finalServices))
@@ -192,7 +192,7 @@ public class BookingServiceImpl implements BookingService {
                     .build();
             items.add(bookingItemRepository.save(item));
         } else {
-            for (Service service : services) {
+            for (SalonService service : services) {
                 BookingItem item = BookingItem.builder()
                         .booking(booking)
                         .service(service)
@@ -235,7 +235,7 @@ public class BookingServiceImpl implements BookingService {
     public AvailabilityResponse getAvailability(Long branchId, LocalDate date, List<Long> serviceIds, Long bundleId, Long staffId) {
         // 1. Tính toán tổng thời lượng cần đặt
         int totalDuration = 0;
-        List<Service> services = new ArrayList<>();
+        List<SalonService> services = new ArrayList<>();
         if (bundleId != null) {
             ServiceBundle bundle = serviceBundleRepository.findByIdAndBranchId(bundleId, branchId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy combo với id: " + bundleId + " tại chi nhánh này"));
@@ -243,7 +243,7 @@ public class BookingServiceImpl implements BookingService {
             services = bundle.getItems().stream().map(ServiceBundleItem::getService).toList();
         } else if (serviceIds != null && !serviceIds.isEmpty()) {
             services = serviceRepository.findAllById(serviceIds);
-            for (Service service : services) {
+            for (SalonService service : services) {
                 totalDuration += service.getDurationMinutes();
             }
         } else {
@@ -260,7 +260,7 @@ public class BookingServiceImpl implements BookingService {
             branchStaff = branchStaff.stream().filter(s -> s.getId().equals(staffId)).toList();
         }
         
-        List<Service> finalServices = services;
+        List<SalonService> finalServices = services;
         List<Staff> qualifiedStaff = branchStaff.stream()
                 .filter(s -> isStaffQualified(s, finalServices))
                 .toList();
@@ -325,11 +325,11 @@ public class BookingServiceImpl implements BookingService {
     }
 
     // Kiểm tra xem một nhân viên có được cấp phép làm toàn bộ các dịch vụ yêu cầu hay không
-    private boolean isStaffQualified(Staff staff, List<Service> requiredServices) {
+    private boolean isStaffQualified(Staff staff, List<SalonService> requiredServices) {
         List<Long> allowedServiceIds = staff.getServices().stream()
-                .map(Service::getId)
+                .map(SalonService::getId)
                 .toList();
-        for (Service req : requiredServices) {
+        for (SalonService req : requiredServices) {
             if (!allowedServiceIds.contains(req.getId())) {
                 return false;
             }

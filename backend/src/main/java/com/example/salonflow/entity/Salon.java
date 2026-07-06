@@ -21,12 +21,8 @@ public class Salon extends BaseEntity {
 
     // Owner
     @OneToOne(fetch = FetchType.LAZY)
-        @JoinColumn(
-                name = "owner_id",
-                nullable = false,
-                unique = true
-        )
-        private User owner;
+    @JoinColumn(name = "owner_id", nullable = false, unique = true)
+    private User owner;
 
     @Column(nullable = false)
     private String name;
@@ -34,9 +30,9 @@ public class Salon extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
-        @ManyToOne(fetch = FetchType.LAZY)
-        @JoinColumn(name = "logo_media_id")
-        private MediaFile logo;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "logo_media_id")
+    private MediaFile logo;
 
     @Column(name = "phone")
     private String phone;
@@ -47,13 +43,7 @@ public class Salon extends BaseEntity {
     @Column(name = "website")
     private String website;
 
-
-
-    @OneToMany(
-            mappedBy = "salon",
-            cascade = CascadeType.ALL,
-            orphanRemoval = true
-    )
+    @OneToMany(mappedBy = "salon", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<SalonPhoto> photos = new ArrayList<>();
 

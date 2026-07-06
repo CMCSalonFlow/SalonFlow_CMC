@@ -34,7 +34,10 @@ CREATE TABLE bookings (
         CHECK (total_price >= 0),
 
     CONSTRAINT chk_bookings_duration_positive
-        CHECK (total_duration_minutes > 0)
+        CHECK (total_duration_minutes > 0),
+
+    CONSTRAINT chk_bookings_status
+        CHECK (status IN ('PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'))
 );
 
 CREATE INDEX idx_bookings_customer ON bookings(customer_id);
