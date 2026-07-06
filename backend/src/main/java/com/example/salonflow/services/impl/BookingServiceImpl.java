@@ -10,16 +10,21 @@ import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.BookingService;
+import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+
+import com.example.salonflow.dto.booking.CancellationResult;
+import com.example.salonflow.exception.BadRequestException;
 
 /**
  * Lớp triển khai các nghiệp vụ liên quan đến Đặt lịch hẹn (BookingService).
@@ -37,6 +42,8 @@ public class BookingServiceImpl implements BookingService {
     private final ServiceRepository serviceRepository;
     private final ServiceBundleRepository serviceBundleRepository;
     private final BranchHourRepository branchHourRepository;
+    private final CancellationPolicyRepository cancellationPolicyRepository; // ← Thêm
+    private final EmailService emailService; // ← Thêm nếu chưa có
 
     @Override
     @Transactional
@@ -378,5 +385,67 @@ public class BookingServiceImpl implements BookingService {
                 .notes(booking.getNotes())
                 .items(itemResponses)
                 .build();
+    }
+       @Override
+@Transactional
+public CancellationResult cancelBooking(Long bookingId, String reason) {
+    Booking booking = bookingRepository.findById(bookingId)
+            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy booking với ID: " + bookingId));
+
+    if (booking.getStatus() == BookingStatus.CANCELLED) {
+        throw new BadRequestException("Booking này đã bị hủy trước đó");
+    }
+
+    CancellationPolicy policy = cancellationPolicyRepository.findBySalonId(
+            booking.getBranch().getSalon().getId())
+            .orElseGet(() -> createDefaultPolicy(booking.getBranch().getSalon()));
+
+    CancellationResult result = calculateCancellationFee(booking, policy);
+
+    booking.setStatus(BookingStatus.CANCELLED);
+    if (reason != null && !reason.trim().isEmpty()) {
+        booking.setNotes(reason);
+    }
+    bookingRepository.save(booking);
+
+    // TODO: Gửi email sau khi hoàn thiện EmailService
+    // emailService.sendCancellationEmail(booking, result);
+
+    return result;
+}
+
+    private CancellationResult calculateCancellationFee(Booking booking, CancellationPolicy policy) {
+        LocalDateTime bookingTime = booking.getBookingDate().atTime(booking.getStartTime());
+        long hoursUntilBooking = java.time.Duration.between(LocalDateTime.now(), bookingTime).toHours();
+
+        if (hoursUntilBooking >= policy.getFreeCancelHours()) {
+            return CancellationResult.builder()
+                    .success(true)
+                    .feeAmount(BigDecimal.ZERO)
+                    .isFreeCancel(true)
+                    .message("Hủy miễn phí theo chính sách")
+                    .build();
+        } else {
+            BigDecimal fee = booking.getTotalPrice()
+                    .multiply(policy.getFeePercentage())
+                    .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+
+            return CancellationResult.builder()
+                    .success(true)
+                    .feeAmount(fee)
+                    .isFreeCancel(false)
+                    .message("Hủy có phí: " + fee + " VND (" + policy.getFeePercentage() + "%)")
+                    .build();
+        }
+    }
+
+    private CancellationPolicy createDefaultPolicy(Salon salon) {
+        CancellationPolicy policy = CancellationPolicy.builder()
+                .salon(salon)
+                .freeCancelHours(24)
+                .feePercentage(BigDecimal.valueOf(10.0))
+                .isActive(true)
+                .build();
+        return cancellationPolicyRepository.save(policy);
     }
 }

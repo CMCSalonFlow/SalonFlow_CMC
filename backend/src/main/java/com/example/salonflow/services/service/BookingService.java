@@ -3,6 +3,7 @@ package com.example.salonflow.services.service;
 import com.example.salonflow.dto.booking.AvailabilityResponse;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
+import com.example.salonflow.dto.booking.CancellationResult;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -23,4 +24,6 @@ public interface BookingService {
 
     // Kiểm tra tính rảnh (Availability) của nhân viên hoặc chi nhánh theo thời gian thực
     AvailabilityResponse getAvailability(Long branchId, LocalDate date, List<Long> serviceIds, Long bundleId, Long staffId);
+
+    CancellationResult cancelBooking(Long bookingId, String reason);
 }

@@ -1,5 +1,6 @@
 package com.example.salonflow.entity;
 
+import com.example.salonflow.entity.CancellationPolicy;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -50,4 +51,7 @@ public class Salon extends BaseEntity {
     @Builder.Default
     @OneToMany(mappedBy = "salon")
     private List<Branch> branches = new ArrayList<>();
+
+    @OneToOne(mappedBy = "salon", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private CancellationPolicy cancellationPolicy;
 }

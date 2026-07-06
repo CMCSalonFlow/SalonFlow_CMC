@@ -1,5 +1,7 @@
 package com.example.salonflow.services.impl;
 
+import com.example.salonflow.dto.booking.CancellationResult;
+import com.example.salonflow.entity.Booking;
 import com.example.salonflow.services.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -86,5 +88,45 @@ public class EmailServiceImpl
             .retrieve()
             .bodyToMono(String.class)
             .block();
+ }
+ @Override
+public void sendCancellationEmail(Booking booking, CancellationResult result) {
+    String subject = "Thông báo hủy lịch hẹn #" + booking.getId();
+    String body = "Lịch hẹn của bạn đã bị hủy.\n" +
+                  "Lý do: " + (result.isFreeCancel() ? "Hủy miễn phí" : "Có phí hủy") + "\n" +
+                  "Số tiền phí: " + result.getFeeAmount() + " VND";
+
+    sendEmail(booking.getCustomer().getEmail(), subject, body);
 }
+
+@Override
+public void sendOverdueCancellationEmail(Booking booking) {
+    String subject = "Lịch hẹn #" + booking.getId() + " đã bị hủy tự động";
+    String body = "Lịch hẹn của bạn đã bị hủy vì quá hạn thanh toán.";
+
+    sendEmail(booking.getCustomer().getEmail(), subject, body);
+ }
+ private void sendEmail(String to, String subject, String body) {
+    try {
+        Map<String, Object> emailBody = Map.of(
+                "from", from,
+                "to", to,
+                "subject", subject,
+                "html", "<p>" + body.replace("\n", "<br>") + "</p>"
+        );
+
+        webClient.post()
+                .uri("/emails")
+                .header("Authorization", "Bearer " + apiKey)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(emailBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+
+        System.out.println("Email sent to: " + to);
+    } catch (Exception e) {
+        System.err.println("Failed to send email: " + e.getMessage());
+    }
+ }
 }

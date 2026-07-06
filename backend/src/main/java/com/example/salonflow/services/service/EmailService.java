@@ -1,5 +1,8 @@
 package com.example.salonflow.services.service;
 
+import com.example.salonflow.dto.booking.CancellationResult;
+import com.example.salonflow.entity.Booking;
+
 public interface EmailService {
 
     void sendVerificationOtp(
@@ -11,4 +14,7 @@ public interface EmailService {
             String email,
             String resetLink
     );
+
+    void sendCancellationEmail(Booking booking, CancellationResult result);
+    void sendOverdueCancellationEmail(Booking booking);
 }

@@ -23,6 +23,37 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     // Tìm các lịch hẹn của một nhân viên cụ thể theo ngày và danh sách các trạng thái
     List<Booking> findByAssignedStaffIdAndBookingDateAndStatusIn(Long staffId, LocalDate bookingDate, Collection<BookingStatus> statuses);
 
+   @Query("""
+    SELECT b
+    FROM Booking b
+    WHERE b.status = :status
+      AND (
+            b.bookingDate < :date
+            OR (
+                b.bookingDate = :date
+                AND b.startTime < :time
+            )
+      )
+""")
+List<Booking> findExpiredBookings(
+        @Param("status") BookingStatus status,
+        @Param("date") LocalDate date,
+        @Param("time") LocalTime time
+);
+
+@Query("""
+    SELECT b FROM Booking b
+    WHERE b.status = :status
+      AND (
+            b.bookingDate < :today
+            OR (b.bookingDate = :today AND b.startTime <= :nowTime)
+      )
+""")
+List<Booking> findExpiredPendingBookings(
+        @Param("status") BookingStatus status,
+        @Param("today") LocalDate today,
+        @Param("nowTime") LocalTime nowTime
+);
     // Truy vấn kiểm tra trùng lịch của một nhân viên trong một khung giờ cụ thể
     @Query("SELECT b FROM Booking b WHERE b.assignedStaff.id = :staffId " +
            "AND b.bookingDate = :date " +
