@@ -26,6 +26,9 @@ public class UpdateServiceRequest {
 
     private String description;
 
+    private Boolean depositRequired;
+
+    private BigDecimal depositPercentage;
     private List<String> images;
 
     private Boolean isActive;
