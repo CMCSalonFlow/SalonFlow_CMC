@@ -8,6 +8,8 @@ import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.pricing.BookingPricingResult;
+import com.example.salonflow.pricing.BookingPricingService;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.BookingService;
 import com.example.salonflow.util.SecurityUtil;
@@ -37,6 +39,7 @@ public class BookingServiceImpl implements BookingService {
     private final ServiceRepository serviceRepository;
     private final ServiceBundleRepository serviceBundleRepository;
     private final BranchHourRepository branchHourRepository;
+    private final BookingPricingService bookingPricingService;
 
     @Override
     @Transactional
@@ -54,37 +57,23 @@ public class BookingServiceImpl implements BookingService {
             customer = getCurrentUser();
         }
 
-        // 3. Tính toán tổng thời lượng, tổng số tiền và lấy danh sách chi tiết dịch vụ/combo
-        BigDecimal totalPrice = BigDecimal.ZERO;
-        int totalDuration = 0;
-        List<SalonService> services = new ArrayList<>();
+        // 3. Sử dụng Engine tính tiền để tính toán chi tiết dịch vụ/combo, tiền cọc và tổng thời lượng
         ServiceBundle bundle = null;
-
         if (request.getBundleId() != null) {
-            // Đặt lịch theo combo (bundle)
             bundle = serviceBundleRepository.findByIdAndBranchId(request.getBundleId(), branchId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy combo với id: " + request.getBundleId() + " tại chi nhánh này"));
-            totalPrice = bundle.getPrice();
-            totalDuration = bundle.getTotalDurationMinutes();
-            // Lấy danh sách dịch vụ trong combo
-            services = bundle.getItems().stream().map(ServiceBundleItem::getService).toList();
-        } else if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
-            // Đặt lịch theo danh sách dịch vụ lẻ
-            services = serviceRepository.findAllById(request.getServiceIds());
-            if (services.size() != request.getServiceIds().size()) {
-                throw new BusinessException("Một số dịch vụ được chọn không hợp lệ hoặc không tồn tại");
-            }
-            // Đảm bảo tất cả các dịch vụ đều thuộc chi nhánh này
-            for (SalonService service : services) {
-                if (!service.getBranch().getId().equals(branchId)) {
-                    throw new BusinessException("Dịch vụ '" + service.getName() + "' không thuộc chi nhánh này");
-                }
-                totalPrice = totalPrice.add(service.getPrice());
-                totalDuration += service.getDurationMinutes();
-            }
-        } else {
+        } else if (request.getServiceIds() == null || request.getServiceIds().isEmpty()) {
             throw new BusinessException("Vui lòng chọn ít nhất một dịch vụ hoặc combo để đặt lịch");
         }
+
+        BookingPricingResult pricingResult = bookingPricingService.calculate(
+                branchId, 
+                request.getServiceIds(), 
+                bundle
+        );
+
+        List<SalonService> services = pricingResult.getServices();
+        int totalDuration = pricingResult.getTotalDurationMinutes();
 
         // 4. Tính toán thời gian kết thúc lịch hẹn
         LocalTime startTime = request.getStartTime();
@@ -174,7 +163,9 @@ public class BookingServiceImpl implements BookingService {
                 .preferredStaff(preferredStaff)
                 .assignedStaff(assignedStaff)
                 .status(BookingStatus.PENDING)
-                .totalPrice(totalPrice)
+                .totalPrice(pricingResult.getTotalPrice())
+                .depositAmount(pricingResult.getDepositAmount())
+                .remainingAmount(pricingResult.getRemainingAmount())
                 .totalDurationMinutes(totalDuration)
                 .notes(request.getNotes())
                 .build();
@@ -239,13 +230,13 @@ public class BookingServiceImpl implements BookingService {
         if (bundleId != null) {
             ServiceBundle bundle = serviceBundleRepository.findByIdAndBranchId(bundleId, branchId)
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy combo với id: " + bundleId + " tại chi nhánh này"));
-            totalDuration = bundle.getTotalDurationMinutes();
-            services = bundle.getItems().stream().map(ServiceBundleItem::getService).toList();
+            BookingPricingResult pricingResult = bookingPricingService.calculate(branchId, null, bundle);
+            totalDuration = pricingResult.getTotalDurationMinutes();
+            services = pricingResult.getServices();
         } else if (serviceIds != null && !serviceIds.isEmpty()) {
-            services = serviceRepository.findAllById(serviceIds);
-            for (SalonService service : services) {
-                totalDuration += service.getDurationMinutes();
-            }
+            BookingPricingResult pricingResult = bookingPricingService.calculate(branchId, serviceIds, null);
+            totalDuration = pricingResult.getTotalDurationMinutes();
+            services = pricingResult.getServices();
         } else {
             return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
         }
@@ -374,6 +365,8 @@ public class BookingServiceImpl implements BookingService {
                 .assignedStaffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getName() : null)
                 .status(booking.getStatus().name())
                 .totalPrice(booking.getTotalPrice())
+                .depositAmount(booking.getDepositAmount())
+                .remainingAmount(booking.getRemainingAmount())
                 .totalDurationMinutes(booking.getTotalDurationMinutes())
                 .notes(booking.getNotes())
                 .items(itemResponses)

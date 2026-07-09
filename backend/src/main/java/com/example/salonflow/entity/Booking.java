@@ -76,6 +76,9 @@ public class Booking extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    private BigDecimal depositAmount;
+
+    private BigDecimal remainingAmount;
     // Chi tiết danh sách dịch vụ lẻ hoặc combo tương ứng với lượt đặt lịch này
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
