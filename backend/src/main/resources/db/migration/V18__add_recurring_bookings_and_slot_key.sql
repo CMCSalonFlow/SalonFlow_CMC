@@ -1,8 +1,8 @@
 -- =====================================================
--- RECURRING BOOKINGS
+-- RECURRING BOOKINGS (Idempotent)
 -- =====================================================
 -- Lưu thông tin "công thức" lặp lại (pattern) của đặt lịch.
-CREATE TABLE recurring_bookings (
+CREATE TABLE IF NOT EXISTS recurring_bookings (
     id BIGSERIAL PRIMARY KEY,
     customer_id BIGINT NOT NULL,
     service_id  BIGINT NOT NULL,
@@ -56,10 +56,11 @@ CREATE TABLE recurring_bookings (
         CHECK (end_time > start_time)
 );
 
-CREATE INDEX idx_recurring_bookings_customer ON recurring_bookings(customer_id);
-CREATE INDEX idx_recurring_bookings_staff    ON recurring_bookings(staff_id);
-CREATE INDEX idx_recurring_bookings_status   ON recurring_bookings(status);
+CREATE INDEX IF NOT EXISTS idx_recurring_bookings_customer ON recurring_bookings(customer_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_bookings_staff    ON recurring_bookings(staff_id);
+CREATE INDEX IF NOT EXISTS idx_recurring_bookings_status   ON recurring_bookings(status);
 
+DROP TRIGGER IF EXISTS trg_recurring_bookings_updated_at ON recurring_bookings;
 CREATE TRIGGER trg_recurring_bookings_updated_at
 BEFORE UPDATE ON recurring_bookings
 FOR EACH ROW
@@ -69,14 +70,15 @@ EXECUTE FUNCTION update_updated_at_column();
 -- BỔ SUNG CỘT CHO BẢNG BOOKINGS
 -- =====================================================
 ALTER TABLE bookings
-ADD COLUMN slot_key VARCHAR(255),
-ADD COLUMN recurring_booking_id BIGINT;
+ADD COLUMN IF NOT EXISTS slot_key VARCHAR(255),
+ADD COLUMN IF NOT EXISTS recurring_booking_id BIGINT;
 
+ALTER TABLE bookings DROP CONSTRAINT IF EXISTS fk_bookings_recurring;
 ALTER TABLE bookings
 ADD CONSTRAINT fk_bookings_recurring
     FOREIGN KEY(recurring_booking_id)
     REFERENCES recurring_bookings(id)
     ON DELETE SET NULL;
 
-CREATE INDEX idx_bookings_recurring ON bookings(recurring_booking_id);
-CREATE INDEX idx_bookings_slot_key ON bookings(slot_key);
+CREATE INDEX IF NOT EXISTS idx_bookings_recurring ON bookings(recurring_booking_id);
+CREATE INDEX IF NOT EXISTS idx_bookings_slot_key ON bookings(slot_key);
