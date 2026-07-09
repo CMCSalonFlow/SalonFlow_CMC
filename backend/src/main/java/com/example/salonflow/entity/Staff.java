@@ -31,12 +31,13 @@ public class Staff extends BaseEntity {
     @Column(name = "user_id")
     private Long userId;
 
-    // Liên kết tài khoản người dùng tại chi nhánh (UserBranch) của nhân viên (read-only)
+    // Liên kết tài khoản người dùng tại chi nhánh (UserBranch) của nhân viên
+    // (read-only)
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumns({
-        @JoinColumn(name = "user_id", referencedColumnName = "user_id", insertable = false, updatable = false),
-        @JoinColumn(name = "branch_id", referencedColumnName = "branch_id", insertable = false, updatable = false)
-    })
+    @JoinColumns(value = {
+            @JoinColumn(name = "user_id", referencedColumnName = "user_id", insertable = false, updatable = false),
+            @JoinColumn(name = "branch_id", referencedColumnName = "branch_id", insertable = false, updatable = false)
+    }, foreignKey = @ForeignKey(jakarta.persistence.ConstraintMode.NO_CONSTRAINT))
     private UserBranch userBranch;
 
     // Tên của nhân viên
@@ -57,11 +58,7 @@ public class Staff extends BaseEntity {
 
     // Danh sách các dịch vụ nhân viên này được phép thực hiện (nhiều-nhiều)
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "staff_services",
-            joinColumns = @JoinColumn(name = "staff_id"),
-            inverseJoinColumns = @JoinColumn(name = "service_id")
-    )
+    @JoinTable(name = "staff_services", joinColumns = @JoinColumn(name = "staff_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     @Builder.Default
     private List<SalonService> services = new ArrayList<>();
 }

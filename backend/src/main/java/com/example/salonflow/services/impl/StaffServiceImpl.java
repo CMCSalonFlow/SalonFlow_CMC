@@ -50,7 +50,6 @@ public class StaffServiceImpl implements StaffService {
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
 
-
     @Override
     @Transactional
     public StaffResponse create(Long branchId, CreateStaffRequest request) {
