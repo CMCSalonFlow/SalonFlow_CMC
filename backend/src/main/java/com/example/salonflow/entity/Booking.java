@@ -80,4 +80,20 @@ public class Booking extends BaseEntity {
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<BookingItem> items = new ArrayList<>();
+
+    /**
+     * THÊM MỚI: liên kết tới RecurringBooking nếu booking này
+     * là 1 phần của chuỗi lặp định kỳ. NULL nếu là booking đơn lẻ.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recurring_booking_id")
+    private RecurringBooking recurringBooking;
+
+    /**
+     * Key dùng trong Redis để lock slot.
+     * Format: "slot:{branchId}:{staffId}:{date}:{startTime}"
+     * VD: "slot:1:5:2026-06-30:09:00"
+     */
+    @Column(name = "slot_key", length = 255)
+    private String slotKey;
 }
