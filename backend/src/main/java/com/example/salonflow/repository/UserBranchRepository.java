@@ -30,6 +30,8 @@ public interface UserBranchRepository
                 Long userId,
                 Long branchId
         );
+
+        void deleteByBranch_Id(Long branchId);
         @Query("""
         SELECT ub
         FROM UserBranch ub

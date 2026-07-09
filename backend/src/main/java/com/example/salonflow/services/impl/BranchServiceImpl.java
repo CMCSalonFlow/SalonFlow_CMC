@@ -3,9 +3,11 @@ package com.example.salonflow.services.impl;
 import com.example.salonflow.dto.Branch.*;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.exception.BadRequestException;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.BranchService;
+import com.example.salonflow.services.service.GeocodingService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,6 +34,8 @@ public class BranchServiceImpl implements BranchService {
         private final BranchOwnershipValidator branchOwnershipValidator;
 
         private final BranchHourRepository branchHourRepository;
+
+        private final GeocodingService geocodingService;
 
         @Override
         @Transactional(readOnly = true)
@@ -123,13 +127,27 @@ public class BranchServiceImpl implements BranchService {
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Salon not found"));
 
+                Double lat = request.getLatitude();
+                Double lng = request.getLongitude();
+                if (lat == null || lng == null) {
+                        double[] coords = geocodingService.getCoordinates(request.getAddress());
+                        if (coords != null) {
+                                lat = coords[0];
+                                lng = coords[1];
+                        }
+                }
+
+                if (lat == null || lng == null) {
+                        throw new BadRequestException("Không thể xác định vĩ độ và kinh độ từ địa chỉ đã nhập. Vui lòng ghi rõ hơn tên đường, quận, thành phố hoặc tự chọn vị trí trên bản đồ.");
+                }
+
                 Branch branch = Branch.builder()
                                 .name(request.getName())
                                 .phone(request.getPhone())
                                 .email(request.getEmail())
                                 .address(request.getAddress())
-                                .latitude(request.getLatitude())
-                                .longitude(request.getLongitude())
+                                .latitude(lat)
+                                .longitude(lng)
                                 .isActive(true)
                                 .salon(salon)
                                 .build();
@@ -170,6 +188,20 @@ public class BranchServiceImpl implements BranchService {
                                 .validateOwnerBranch(
                                                 branchId);
 
+                Double lat = request.getLatitude();
+                Double lng = request.getLongitude();
+                if (lat == null || lng == null) {
+                        double[] coords = geocodingService.getCoordinates(request.getAddress());
+                        if (coords != null) {
+                                lat = coords[0];
+                                lng = coords[1];
+                        }
+                }
+
+                if (lat == null || lng == null) {
+                        throw new BadRequestException("Không thể xác định vĩ độ và kinh độ từ địa chỉ đã nhập. Vui lòng ghi rõ hơn tên đường, quận, thành phố hoặc tự chọn vị trí trên bản đồ.");
+                }
+
                 branch.setName(
                                 request.getName());
 
@@ -182,11 +214,9 @@ public class BranchServiceImpl implements BranchService {
                 branch.setAddress(
                                 request.getAddress());
 
-                branch.setLatitude(
-                                request.getLatitude());
+                branch.setLatitude(lat);
 
-                branch.setLongitude(
-                                request.getLongitude());
+                branch.setLongitude(lng);
 
                 branch.setIsActive(
                                 request.getIsActive());
@@ -208,11 +238,19 @@ public class BranchServiceImpl implements BranchService {
                 Branch branch = branchOwnershipValidator
                                 .validateOwnerBranch(
                                                 branchId);
-                branch.setIsActive(false);
-
-                Branch updated = branchRepository.save(branch);
-
-                branchSearchService.indexBranch(updated.getId());
+                try {
+                        // 1. Delete associated user assignments
+                        userBranchRepository.deleteByBranch_Id(branchId);
+                        
+                        // 2. Delete branch from database
+                        branchRepository.delete(branch);
+                        branchRepository.flush();
+                        
+                        // 3. Delete from Elasticsearch
+                        branchSearchService.deleteBranch(branchId);
+                } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                        throw new BadRequestException("Không thể xóa chi nhánh này vì đã có dữ liệu liên quan (Nhân viên, Dịch vụ hoặc Lịch đặt). Bạn hãy đổi trạng thái sang đóng cửa thay vì xóa.");
+                }
         }
 
         @Override
