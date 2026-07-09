@@ -51,6 +51,15 @@ public class BranchController {
         );
     }
 
+    @GetMapping("/public")
+    public ResponseEntity<List<BranchResponse>> getPublicBranches(
+            @RequestParam Long salonId
+    ) {
+        return ResponseEntity.ok(
+                branchService.getBranchesBySalonId(salonId)
+        );
+    }
+
     @GetMapping("/{branchId}")
     public ResponseEntity<BranchResponse>
     getById(

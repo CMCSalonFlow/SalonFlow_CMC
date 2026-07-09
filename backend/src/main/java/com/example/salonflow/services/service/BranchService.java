@@ -43,4 +43,6 @@ public interface BranchService {
     List<UserInBranchResponse> getUsers(
             Long branchId
     );
+
+    List<BranchResponse> getBranchesBySalonId(Long salonId);
 }

@@ -424,4 +424,13 @@ public class BranchServiceImpl implements BranchService {
                 branchHourRepository.saveAll(hours);
                 branch.getHours().addAll(hours);
         }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<BranchResponse> getBranchesBySalonId(Long salonId) {
+                return branchRepository.findBySalonId(salonId)
+                                .stream()
+                                .map(this::mapToResponse)
+                                .toList();
+        }
 }

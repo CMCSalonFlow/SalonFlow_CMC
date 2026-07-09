@@ -71,6 +71,14 @@ public class SalonController {
     }
 
     /**
+     * Khách hàng xem danh sách tất cả salon công khai
+     */
+    @GetMapping("/public")
+    public List<SalonResponse> getPublicSalons() {
+        return salonService.getAll();
+    }
+
+    /**
      * Super Admin xem chi tiết salon
      */
     @GetMapping("/{id}")
