@@ -1,7 +1,6 @@
 package com.example.salonflow.entity;
 
 import jakarta.persistence.*;
-import jakarta.persistence.Entity;
 import lombok.*;
 
 import java.math.BigDecimal;
@@ -55,6 +54,9 @@ public class SalonService extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    private Boolean depositRequired;
+
+    private BigDecimal depositPercentage;
     @Column(name = "is_active", nullable = false)
     @Builder.Default
     private Boolean isActive = true;

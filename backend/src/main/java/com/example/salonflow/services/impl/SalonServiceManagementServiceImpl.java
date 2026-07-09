@@ -15,7 +15,7 @@ import com.example.salonflow.search.service.BranchSearchService;
 import com.example.salonflow.services.service.ServiceManagementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.salonflow.search.service.BranchSearchService;
+import com.example.salonflow.validation.ServiceValidator;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +33,7 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
     private final ServiceRepository serviceRepository;
     private final BranchRepository branchRepository;
     private final ServiceCategoryRepository categoryRepository;
-
+    private final ServiceValidator serviceValidator;
     private final BranchSearchService branchSearchService;
 
     @Override
@@ -42,7 +42,10 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
             Long branchId,
             CreateServiceRequest request
     ) {
-
+        serviceValidator.validateDeposit(
+                request.getDepositRequired(),
+                request.getDepositPercentage()
+        );
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Branch with id " + branchId + " not found"));
@@ -56,6 +59,12 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
                 .price(request.getPrice())
                 .durationMinutes(request.getDurationMinutes())
                 .description(request.getDescription())
+                .depositRequired(Boolean.TRUE.equals(request.getDepositRequired()))
+                .depositPercentage(
+                        Boolean.TRUE.equals(request.getDepositRequired())
+                                ? request.getDepositPercentage()
+                                : null
+                )
                 .isActive(true)
                 .build();
 
@@ -99,6 +108,10 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
 
         ServiceCategory category = resolveCategory(request.getCategoryId());
 
+        serviceValidator.validateDeposit(
+                request.getDepositRequired(),
+                request.getDepositPercentage()
+        );
         service.setName(request.getName());
         service.setCategory(category);
         service.setPrice(request.getPrice());
@@ -114,6 +127,15 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
             attachImages(service, request.getImages());
         }
 
+        service.setDepositRequired(
+                Boolean.TRUE.equals(request.getDepositRequired())
+        );
+
+        service.setDepositPercentage(
+                Boolean.TRUE.equals(request.getDepositRequired())
+                        ? request.getDepositPercentage()
+                        : null
+        );
         service = serviceRepository.save(service);
 
         branchSearchService.indexBranch(branchId);
@@ -194,6 +216,8 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
                 .price(service.getPrice())
                 .durationMinutes(service.getDurationMinutes())
                 .description(service.getDescription())
+                .depositRequired(service.getDepositRequired())
+                .depositPercentage(service.getDepositPercentage())
                 .isActive(service.getIsActive())
                 .images(imageUrls)
                 .build();

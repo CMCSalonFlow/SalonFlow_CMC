@@ -26,6 +26,9 @@ public class CreateServiceRequest {
 
     private String description;
 
+    private Boolean depositRequired;
+
+    private BigDecimal depositPercentage;
     /** Danh sách URL ảnh (đã upload sẵn lên MinIO trước đó) */
     private List<String> images;
 }

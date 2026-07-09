@@ -26,6 +26,10 @@ public class ServiceResponse {
 
     private String description;
 
+    private Boolean depositRequired;
+
+    private BigDecimal depositPercentage;
+    
     private Boolean isActive;
 
     private List<String> images;
