@@ -12,6 +12,7 @@ import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.BookingService;
 import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.util.SecurityUtil;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,10 @@ import java.util.Optional;
 
 import com.example.salonflow.dto.booking.CancellationResult;
 import com.example.salonflow.exception.BadRequestException;
+import com.example.salonflow.entity.enums.ShiftStatus;
+import com.example.salonflow.websocket.BookingWebSocketHandler;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 /**
  * Lớp triển khai các nghiệp vụ liên quan đến Đặt lịch hẹn (BookingService).
@@ -32,6 +37,7 @@ import com.example.salonflow.exception.BadRequestException;
  */
 @org.springframework.stereotype.Service
 @RequiredArgsConstructor
+@Slf4j
 public class BookingServiceImpl implements BookingService {
 
     private final BookingRepository bookingRepository;
@@ -44,6 +50,12 @@ public class BookingServiceImpl implements BookingService {
     private final BranchHourRepository branchHourRepository;
     private final CancellationPolicyRepository cancellationPolicyRepository; // ← Thêm
     private final EmailService emailService; // ← Thêm nếu chưa có
+    private final ShiftRepository shiftRepository;
+    private final StaffOffDayRepository staffOffDayRepository;
+    private final BookingWebSocketHandler bookingWebSocketHandler;
+    private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+
+    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @Override
     @Transactional
@@ -171,22 +183,35 @@ public class BookingServiceImpl implements BookingService {
             assignedStaff = selectedStaff;
         }
 
-        // 7. Tạo lịch hẹn Booking chính
-        Booking booking = Booking.builder()
-                .customer(customer)
-                .branch(branch)
-                .bookingDate(request.getBookingDate())
-                .startTime(startTime)
-                .endTime(endTime)
-                .preferredStaff(preferredStaff)
-                .assignedStaff(assignedStaff)
-                .status(BookingStatus.PENDING)
-                .totalPrice(totalPrice)
-                .totalDurationMinutes(totalDuration)
-                .notes(request.getNotes())
-                .build();
+        // Chống trùng lịch đồng thời (Race condition control via Redis Lock)
+        String lockKey = String.format("lock:booking:%d:%s:%s",
+                assignedStaff.getId(),
+                request.getBookingDate().toString(),
+                startTime.toString()
+        );
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", java.time.Duration.ofSeconds(5));
+        if (Boolean.FALSE.equals(acquired)) {
+            throw new BusinessException("Khung giờ này đang có giao dịch đặt lịch song song hoặc đã được đặt. Vui lòng chọn khung giờ khác.");
+        }
 
-        booking = bookingRepository.save(booking);
+        Booking booking = null;
+        try {
+            // 7. Tạo lịch hẹn Booking chính
+            booking = Booking.builder()
+                    .customer(customer)
+                    .branch(branch)
+                    .bookingDate(request.getBookingDate())
+                    .startTime(startTime)
+                    .endTime(endTime)
+                    .preferredStaff(preferredStaff)
+                    .assignedStaff(assignedStaff)
+                    .status(BookingStatus.PENDING)
+                    .totalPrice(totalPrice)
+                    .totalDurationMinutes(totalDuration)
+                    .notes(request.getNotes())
+                    .build();
+
+            booking = bookingRepository.save(booking);
 
         // 8. Tạo chi tiết Booking Items
         List<BookingItem> items = new ArrayList<>();
@@ -210,6 +235,29 @@ public class BookingServiceImpl implements BookingService {
             }
         }
         booking.setItems(items);
+
+        // Evict cache and broadcast WebSocket update
+        try {
+            Long branchIdOpt = branchId;
+            String pattern = String.format("availability:branch:%d:staff:*:date:%s:duration:*", branchIdOpt, booking.getBookingDate().toString());
+            java.util.Set<String> keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.info("Evicted {} availability cache keys for branch {} and date {}", keys.size(), branchIdOpt, booking.getBookingDate());
+            }
+            bookingWebSocketHandler.broadcastBookingUpdate(
+                    branchIdOpt,
+                    booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null,
+                    booking.getBookingDate().toString()
+            );
+        } catch (Exception e) {
+            log.error("Failed to evict cache and broadcast booking update", e);
+        }
+
+        } catch (Exception e) {
+            redisTemplate.delete(lockKey);
+            throw e;
+        }
 
         return toResponse(booking);
     }
@@ -261,6 +309,28 @@ public class BookingServiceImpl implements BookingService {
             return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
         }
 
+        // --- Tích hợp Redis Cache ---
+        String cacheKey = String.format("availability:branch:%d:staff:%s:date:%s:duration:%d",
+                branchId,
+                staffId != null ? staffId.toString() : "all",
+                date.toString(),
+                totalDuration
+        );
+
+        try {
+            String cached = redisTemplate.opsForValue().get(cacheKey);
+            if (cached != null) {
+                log.info("Redis cache hit for key: {}", cacheKey);
+                List<LocalTime> times = objectMapper.readValue(
+                        cached,
+                        objectMapper.getTypeFactory().constructCollectionType(List.class, LocalTime.class)
+                );
+                return AvailabilityResponse.builder().availableStartTimes(times).build();
+            }
+        } catch (Exception e) {
+            log.error("Failed to read from Redis cache", e);
+        }
+
         // 2. Lấy danh sách nhân viên đủ khả năng thực hiện
         List<Staff> branchStaff = staffRepository.findByBranchId(branchId);
         if (staffId != null) {
@@ -292,6 +362,26 @@ public class BookingServiceImpl implements BookingService {
         List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
         List<Booking> branchBookings = bookingRepository.findByBranchIdAndBookingDateAndStatusIn(branchId, date, activeStatuses);
 
+        // Pre-fetch off-days and scheduled shifts for qualified staff
+        java.util.Map<Long, Boolean> staffOffDaysMap = new java.util.HashMap<>();
+        java.util.Map<Long, List<Shift>> staffShiftsMap = new java.util.HashMap<>();
+
+        for (Staff staff : qualifiedStaff) {
+            boolean isOff = staffOffDayRepository.existsByStaffIdAndDateFromLessThanEqualAndDateToGreaterThanEqual(
+                    staff.getId(), date, date
+            );
+            staffOffDaysMap.put(staff.getId(), isOff);
+
+            if (!isOff && staff.getUserId() != null) {
+                List<Shift> shifts = shiftRepository.findByUserIdAndShiftDate(staff.getUserId(), date).stream()
+                        .filter(s -> s.getStatus() == ShiftStatus.SCHEDULED)
+                        .toList();
+                staffShiftsMap.put(staff.getId(), shifts);
+            } else {
+                staffShiftsMap.put(staff.getId(), new ArrayList<>());
+            }
+        }
+
         // 5. Quét các khung giờ cách nhau 15 phút
         List<LocalTime> availableStartTimes = new ArrayList<>();
         LocalTime current = openTime;
@@ -304,6 +394,25 @@ public class BookingServiceImpl implements BookingService {
             // Kiểm tra xem có ít nhất một nhân viên đủ điều kiện đang trống lịch trong khung giờ này không
             boolean anyStaffFree = false;
             for (Staff staff : qualifiedStaff) {
+                // 1. Kiểm tra ngày nghỉ
+                if (Boolean.TRUE.equals(staffOffDaysMap.get(staff.getId()))) {
+                    continue;
+                }
+
+                // 2. Kiểm tra ca làm việc (Shift) phải phủ kín slot
+                List<Shift> shifts = staffShiftsMap.get(staff.getId());
+                boolean coveredByShift = false;
+                for (Shift shift : shifts) {
+                    if (!slotStart.isBefore(shift.getStartTime()) && !slotEnd.isAfter(shift.getEndTime())) {
+                        coveredByShift = true;
+                        break;
+                    }
+                }
+                if (!coveredByShift) {
+                    continue;
+                }
+
+                // 3. Kiểm tra trùng lịch đặt (Booking)
                 boolean staffBusy = false;
                 for (Booking booking : branchBookings) {
                     if (booking.getAssignedStaff() != null && booking.getAssignedStaff().getId().equals(staff.getId())) {
@@ -314,16 +423,39 @@ public class BookingServiceImpl implements BookingService {
                         }
                     }
                 }
-                if (!staffBusy) {
-                    anyStaffFree = true;
-                    break;
+                if (staffBusy) {
+                    continue;
                 }
+
+                // 4. Kiểm tra Redis Slot Lock của user khác (chống trùng lịch thời gian thực)
+                String lockKey = String.format("slot:%d:%d:%s:%s",
+                        branchId,
+                        staff.getId(),
+                        date.toString(),
+                        slotStart.toString()
+                );
+                if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))) {
+                    continue;
+                }
+
+                // Vượt qua tất cả điều kiện
+                anyStaffFree = true;
+                break;
             }
 
             if (anyStaffFree) {
                 availableStartTimes.add(slotStart);
             }
             current = current.plusMinutes(15);
+        }
+
+        // Cache kết quả vào Redis với TTL 60s
+        try {
+            String json = objectMapper.writeValueAsString(availableStartTimes);
+            redisTemplate.opsForValue().set(cacheKey, json, java.time.Duration.ofSeconds(60));
+            log.info("Cached availability results to Redis with key: {}", cacheKey);
+        } catch (Exception e) {
+            log.error("Failed to write to Redis cache", e);
         }
 
         return AvailabilityResponse.builder()
@@ -410,6 +542,24 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
 
     // TODO: Gửi email sau khi hoàn thiện EmailService
     // emailService.sendCancellationEmail(booking, result);
+
+    // Evict cache and broadcast WebSocket update
+    try {
+        Long branchId = booking.getBranch().getId();
+        String pattern = String.format("availability:branch:%d:staff:*:date:%s:duration:*", branchId, booking.getBookingDate().toString());
+        java.util.Set<String> keys = redisTemplate.keys(pattern);
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+            log.info("Evicted {} availability cache keys for branch {} and date {} due to cancellation", keys.size(), branchId, booking.getBookingDate());
+        }
+        bookingWebSocketHandler.broadcastBookingUpdate(
+                branchId,
+                booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null,
+                booking.getBookingDate().toString()
+        );
+    } catch (Exception e) {
+        log.error("Failed to evict cache and broadcast booking cancellation", e);
+    }
 
     return result;
 }

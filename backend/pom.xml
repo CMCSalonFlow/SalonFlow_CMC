@@ -124,6 +124,12 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- WEBSOCKET -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
         <!-- ═══════════════════════════════════════════════════ -->
         <!-- TEST DEPENDENCIES                                   -->
         <!-- ═══════════════════════════════════════════════════ -->
