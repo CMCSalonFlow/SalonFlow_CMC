@@ -39,4 +39,17 @@ public class CreateBookingRequest {
 
     // Ghi chú thêm từ phía khách hàng
     private String notes;
+
+    // Đặt lịch tại quầy (Walk-in)
+   @Builder.Default
+   private Boolean walkIn = false;
+
+   // Tên khách vãng lai
+   private String customerName;
+
+   // Số điện thoại khách
+   private String customerPhone;
+
+   // Email khách (không bắt buộc)
+   private String customerEmail;
 }

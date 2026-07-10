@@ -2,6 +2,7 @@ package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.booking.AvailabilityResponse;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
+import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.dto.booking.BookingItemResponse;
 import com.example.salonflow.entity.*;
@@ -14,6 +15,8 @@ import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.util.SecurityUtil;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -30,6 +33,7 @@ import com.example.salonflow.entity.enums.ShiftStatus;
 import com.example.salonflow.websocket.BookingWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Lớp triển khai các nghiệp vụ liên quan đến Đặt lịch hẹn (BookingService).
@@ -57,6 +61,10 @@ public class BookingServiceImpl implements BookingService {
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
+    private final CustomerProfileRepository customerProfileRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
+
     @Override
     @Transactional
     public BookingResponse create(Long branchId, CreateBookingRequest request) {
@@ -65,13 +73,19 @@ public class BookingServiceImpl implements BookingService {
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
 
         // 2. Xác định khách hàng thực hiện đặt lịch
-        User customer;
-        if (request.getCustomerId() != null) {
-            customer = userRepository.findById(request.getCustomerId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy khách hàng với id: " + request.getCustomerId()));
-        } else {
-            customer = getCurrentUser();
-        }
+    User customer;
+
+if (request.getCustomerId() != null) {
+
+    customer = userRepository.findById(request.getCustomerId())
+            .orElseThrow(() ->
+                    new ResourceNotFoundException(
+                            "Không tìm thấy khách hàng với id: " + request.getCustomerId()));
+
+} else {
+
+    customer = getCurrentUser();
+}
 
         // 3. Tính toán tổng thời lượng, tổng số tiền và lấy danh sách chi tiết dịch vụ/combo
         BigDecimal totalPrice = BigDecimal.ZERO;
@@ -598,4 +612,79 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
                 .build();
         return cancellationPolicyRepository.save(policy);
     }
+
+ private User getOrCreateWalkInCustomer(
+        CreateWalkInBookingRequest request,
+        Branch branch
+) {
+
+    // Nếu số điện thoại đã tồn tại thì dùng luôn
+    User existedUser = userRepository
+            .findByPhone(request.getCustomerPhone())
+            .orElse(null);
+
+    if (existedUser != null) {
+        return existedUser;
+    }
+
+    Role customerRole = roleRepository.findByCode("CUSTOMER")
+            .orElseThrow(() ->
+                    new ResourceNotFoundException(
+                            "Không tìm thấy role CUSTOMER"));
+
+    User user = User.builder()
+            .username("walkin_" + System.currentTimeMillis())
+            .email("walkin_" + System.currentTimeMillis() + "@walkin.local")
+            .passwordHash(passwordEncoder.encode("WalkIn@123"))
+            .fullName(request.getCustomerName())
+            .phone(request.getCustomerPhone())
+            .status(com.example.salonflow.entity.enums.UserStatus.ACTIVE)
+            .build();
+
+    user = userRepository.save(user);
+
+    UserRole userRole = UserRole.builder()
+            .id(new UserRoleId(user.getId(), customerRole.getId()))
+            .user(user)
+            .role(customerRole)
+            .assignedAt(LocalDateTime.now())
+            .build();
+
+    user.getUserRoles().add(userRole);
+
+    CustomerProfile profile = CustomerProfile.builder()
+            .user(user)
+            .salon(branch.getSalon())
+            .build();
+
+    customerProfileRepository.save(profile);
+
+    return user;
+  }
+    @Override
+@Transactional
+public BookingResponse createWalkInBooking(
+        Long branchId,
+        CreateWalkInBookingRequest request
+) {
+
+    Branch branch = branchRepository.findById(branchId)
+            .orElseThrow(() ->
+                    new ResourceNotFoundException(
+                            "Không tìm thấy chi nhánh"));
+
+    User customer = getOrCreateWalkInCustomer(request, branch);
+
+    CreateBookingRequest bookingRequest = CreateBookingRequest.builder()
+            .customerId(customer.getId())
+            .bookingDate(request.getBookingDate())
+            .startTime(request.getStartTime())
+            .preferredStaffId(request.getPreferredStaffId())
+            .serviceIds(request.getServiceIds())
+            .bundleId(request.getBundleId())
+            .notes(request.getNotes())
+            .build();
+
+    return create(branchId, bookingRequest);
+ }
 }

@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -64,6 +65,14 @@ public class BookingController {
     ) {
         return ResponseEntity.ok(bookingService.getAvailability(branchId, date, serviceIds, bundleId, staffId));
     }
+
+   @PostMapping("/api/v1/branches/{branchId}/walk-in-bookings")
+   public ResponseEntity<BookingResponse> createWalkInBooking(
+           @PathVariable Long branchId,
+           @Valid @RequestBody CreateWalkInBookingRequest request
+    ) {
+        return ResponseEntity.ok( bookingService.createWalkInBooking(branchId, request));
+   }
 
     /**
      * Lock slot khi user chọn khung giờ.
