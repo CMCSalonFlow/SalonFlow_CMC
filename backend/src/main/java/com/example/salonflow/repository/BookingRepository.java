@@ -114,4 +114,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     );
 
     List<Booking> findByRecurringBookingId(Long recurringBookingId);
+
+    @Query("SELECT b FROM Booking b WHERE b.status = 'PENDING' " +
+           "AND b.createdAt < :cutoffTime " +
+           "AND EXISTS (SELECT p FROM Payment p WHERE p.booking = b AND p.status IN ('PENDING', 'FAILED'))")
+    List<Booking> findUnpaidOnlineBookings(@Param("cutoffTime") java.time.Instant cutoffTime);
 }

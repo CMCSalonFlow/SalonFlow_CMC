@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import com.example.salonflow.services.service.BookingService;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
@@ -23,6 +24,13 @@ public class BookingScheduler {
 
     private final BookingRepository bookingRepository;
     private final EmailService emailService;
+    private final BookingService bookingService;
+
+    @Scheduled(cron = "0 */5 * * * *") // chạy mỗi 5 phút
+    public void cancelUnpaidOnlineBookings() {
+        log.info("Running scheduled task to cancel unpaid online bookings...");
+        bookingService.cancelUnpaidBookings();
+    }
 
     @Scheduled(cron = "0 */10 * * * *") // chạy mỗi 10 phút
     @Transactional

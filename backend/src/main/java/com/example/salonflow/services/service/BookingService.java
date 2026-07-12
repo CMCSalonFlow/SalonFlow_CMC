@@ -30,4 +30,6 @@ public interface BookingService {
     BookingResponse createWalkInBooking( Long branchId, CreateWalkInBookingRequest request);
 
     CancellationResult cancelBooking(Long bookingId, String reason);
+
+    void cancelUnpaidBookings();
 }

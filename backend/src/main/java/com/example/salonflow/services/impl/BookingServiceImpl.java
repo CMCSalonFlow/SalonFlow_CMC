@@ -26,6 +26,8 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 import com.example.salonflow.dto.booking.CancellationResult;
 import com.example.salonflow.exception.BadRequestException;
@@ -323,6 +325,18 @@ if (request.getCustomerId() != null) {
             return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
         }
 
+        // Lấy thời gian mở cửa / đóng cửa của chi nhánh
+        Branch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
+        int dbDayOfWeek = date.getDayOfWeek().getValue() == 7 ? 0 : date.getDayOfWeek().getValue();
+        Optional<BranchHour> branchHourOpt = branchHourRepository.findByBranchIdAndDayOfWeek(branchId, dbDayOfWeek);
+        if (branchHourOpt.isEmpty() || Boolean.TRUE.equals(branchHourOpt.get().getIsClosed())) {
+            return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
+        }
+        BranchHour branchHour = branchHourOpt.get();
+        LocalTime openTime = branchHour.getOpenTime();
+        LocalTime closeTime = branchHour.getCloseTime();
+
         // --- Tích hợp Redis Cache ---
         String cacheKey = String.format("availability:branch:%d:staff:%s:date:%s:duration:%d",
                 branchId,
@@ -339,7 +353,11 @@ if (request.getCustomerId() != null) {
                         cached,
                         objectMapper.getTypeFactory().constructCollectionType(List.class, LocalTime.class)
                 );
-                return AvailabilityResponse.builder().availableStartTimes(times).build();
+                return AvailabilityResponse.builder()
+                        .availableStartTimes(times)
+                        .openTime(openTime)
+                        .closeTime(closeTime)
+                        .build();
             }
         } catch (Exception e) {
             log.error("Failed to read from Redis cache", e);
@@ -359,18 +377,6 @@ if (request.getCustomerId() != null) {
         if (qualifiedStaff.isEmpty()) {
             return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
         }
-
-        // 3. Lấy thời gian mở cửa / đóng cửa của chi nhánh
-        Branch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
-        int dbDayOfWeek = date.getDayOfWeek().getValue() == 7 ? 0 : date.getDayOfWeek().getValue();
-        Optional<BranchHour> branchHourOpt = branchHourRepository.findByBranchIdAndDayOfWeek(branchId, dbDayOfWeek);
-        if (branchHourOpt.isEmpty() || Boolean.TRUE.equals(branchHourOpt.get().getIsClosed())) {
-            return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
-        }
-        BranchHour branchHour = branchHourOpt.get();
-        LocalTime openTime = branchHour.getOpenTime();
-        LocalTime closeTime = branchHour.getCloseTime();
 
         // 4. Lấy tất cả lịch hẹn hoạt động trong ngày của chi nhánh để tối ưu hóa kiểm tra chéo trong bộ nhớ
         List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
@@ -474,6 +480,8 @@ if (request.getCustomerId() != null) {
 
         return AvailabilityResponse.builder()
                 .availableStartTimes(availableStartTimes)
+                .openTime(openTime)
+                .closeTime(closeTime)
                 .build();
     }
 
@@ -687,4 +695,21 @@ public BookingResponse createWalkInBooking(
 
     return create(branchId, bookingRequest);
  }
+
+    @Override
+    @Transactional
+    public void cancelUnpaidBookings() {
+        log.info("Bat dau quet va tu dong huy cac booking chua thanh toan online...");
+        Instant cutoff = Instant.now().minus(15, ChronoUnit.MINUTES);
+        List<Booking> unpaidBookings = bookingRepository.findUnpaidOnlineBookings(cutoff);
+        
+        for (Booking booking : unpaidBookings) {
+            try {
+                cancelBooking(booking.getId(), "Tu dong huy do qua han thanh toan truc tuyen (15 phut)");
+                log.info("Da tu dong huy booking chua thanh toan online ID: {}", booking.getId());
+            } catch (Exception e) {
+                log.error("Loi khi tu dong huy booking ID: {}", booking.getId(), e);
+            }
+        }
+    }
 }

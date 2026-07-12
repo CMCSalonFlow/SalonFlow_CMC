@@ -29,7 +29,7 @@ public class ShiftController {
 
     @GetMapping("/templates")
     public ResponseEntity<List<ShiftTemplateResponse>> getTemplates(
-            @RequestParam Long userId,
+            @RequestParam(required = false) Long userId,
             @RequestParam Long branchId
     ) {
         return ResponseEntity.ok(

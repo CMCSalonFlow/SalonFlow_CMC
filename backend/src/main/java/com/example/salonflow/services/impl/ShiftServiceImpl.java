@@ -54,6 +54,12 @@ public class ShiftServiceImpl implements ShiftService {
 
     @Override
     public List<ShiftTemplateResponse> getTemplatesByUser(Long userId, Long branchId) {
+        if (userId == null) {
+            return templateRepository.findByBranchId(branchId)
+                    .stream()
+                    .map(this::toTemplateResponse)
+                    .toList();
+        }
         return templateRepository.findByUserIdAndBranchId(userId, branchId)
                 .stream()
                 .map(this::toTemplateResponse)
