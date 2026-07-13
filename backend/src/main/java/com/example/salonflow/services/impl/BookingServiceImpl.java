@@ -20,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -120,6 +121,8 @@ if (request.getCustomerId() != null) {
         } else {
             throw new BusinessException("Vui lòng chọn ít nhất một dịch vụ hoặc combo để đặt lịch");
         }
+
+        BigDecimal depositAmount = calculateDepositAmount(services);
 
         // 4. Tính toán thời gian kết thúc lịch hẹn
         LocalTime startTime = request.getStartTime();
@@ -223,6 +226,7 @@ if (request.getCustomerId() != null) {
                     .assignedStaff(assignedStaff)
                     .status(BookingStatus.PENDING)
                     .totalPrice(totalPrice)
+                    .depositAmount(depositAmount)
                     .totalDurationMinutes(totalDuration)
                     .notes(request.getNotes())
                     .build();
@@ -535,10 +539,35 @@ if (request.getCustomerId() != null) {
                 .assignedStaffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getName() : null)
                 .status(booking.getStatus().name())
                 .totalPrice(booking.getTotalPrice())
+                .depositAmount(booking.getDepositAmount())
                 .totalDurationMinutes(booking.getTotalDurationMinutes())
                 .notes(booking.getNotes())
                 .items(itemResponses)
                 .build();
+    }
+
+    private BigDecimal calculateDepositAmount(List<SalonService> services) {
+        BigDecimal depositAmount = BigDecimal.ZERO;
+
+        for (SalonService service : services) {
+            if (!Boolean.TRUE.equals(service.getDepositRequired())) {
+                continue;
+            }
+
+            BigDecimal depositPercentage = service.getDepositPercentage();
+            if (depositPercentage == null) {
+                throw new BusinessException(
+                        "Dịch vụ '" + service.getName() + "' đang bật deposit nhưng chưa có phần trăm cọc"
+                );
+            }
+
+            BigDecimal serviceDeposit = service.getPrice()
+                    .multiply(depositPercentage)
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+            depositAmount = depositAmount.add(serviceDeposit);
+        }
+
+        return depositAmount;
     }
        @Override
 @Transactional

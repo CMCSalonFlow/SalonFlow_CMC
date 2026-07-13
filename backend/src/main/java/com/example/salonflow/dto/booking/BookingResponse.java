@@ -42,6 +42,7 @@ public class BookingResponse {
     // Trạng thái đơn đặt và thông tin tổng tiền/thời gian
     private String status;
     private BigDecimal totalPrice;
+    private BigDecimal depositAmount;
     private Integer totalDurationMinutes;
     private String notes;
 

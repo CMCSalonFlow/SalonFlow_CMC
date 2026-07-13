@@ -7,8 +7,10 @@ import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
+import com.example.salonflow.entity.enums.ShiftStatus;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.repository.*;
+import com.example.salonflow.websocket.BookingWebSocketHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,12 +18,15 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.ValueOperations;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -61,6 +66,21 @@ class BookingServiceTest {
         @Mock
         private BranchHourRepository branchHourRepository;
 
+        @Mock
+        private StaffOffDayRepository staffOffDayRepository;
+
+        @Mock
+        private ShiftRepository shiftRepository;
+
+        @Mock
+        private BookingWebSocketHandler bookingWebSocketHandler;
+
+        @Mock
+        private StringRedisTemplate redisTemplate;
+
+        @Mock
+        private ValueOperations<String, String> valueOperations;
+
         @InjectMocks
         private BookingServiceImpl bookingService;
 
@@ -70,9 +90,20 @@ class BookingServiceTest {
         private Staff staff2;
         private SalonService service1;
         private BranchHour branchHour;
+        private Shift scheduledShift;
 
         @BeforeEach
         void setUp() {
+                lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+                lenient().when(valueOperations.setIfAbsent(anyString(), anyString(), any())).thenReturn(true);
+                lenient().when(redisTemplate.keys(anyString())).thenReturn(Collections.emptySet());
+                lenient().when(redisTemplate.delete(any(Collection.class))).thenReturn(0L);
+                lenient().when(redisTemplate.hasKey(anyString())).thenReturn(false);
+                lenient().when(staffOffDayRepository.existsByStaffIdAndDateFromLessThanEqualAndDateToGreaterThanEqual(anyLong(), any(), any()))
+                                .thenReturn(false);
+                lenient().when(shiftRepository.findByUserIdAndShiftDate(anyLong(), any()))
+                                .thenReturn(Collections.emptyList());
+
                 Salon salon = Salon.builder().id(10L).name("Hair Salon").build();
                 branch = Branch.builder().id(1L).salon(salon).name("Chi nhánh 1").build();
                 customer = User.builder().id(2L).fullName("Nguyễn Khách Hàng").phone("0987654321").build();
@@ -83,12 +114,15 @@ class BookingServiceTest {
                                 .name("Cắt tóc nam")
                                 .price(BigDecimal.valueOf(80000.00))
                                 .durationMinutes(30)
+                                .depositRequired(true)
+                                .depositPercentage(BigDecimal.valueOf(10))
                                 .isActive(true)
                                 .images(new ArrayList<>())
                                 .build();
 
                 staff1 = Staff.builder()
                                 .id(6L)
+                                .userId(6L)
                                 .branch(branch)
                                 .name("Thợ cắt tóc A")
                                 .services(new ArrayList<>(List.of(service1)))
@@ -96,6 +130,7 @@ class BookingServiceTest {
 
                 staff2 = Staff.builder()
                                 .id(7L)
+                                .userId(7L)
                                 .branch(branch)
                                 .name("Thợ cắt tóc B")
                                 .services(new ArrayList<>(List.of(service1)))
@@ -109,6 +144,17 @@ class BookingServiceTest {
                                 .closeTime(LocalTime.of(20, 0))
                                 .isClosed(false)
                                 .build();
+
+                scheduledShift = Shift.builder()
+                                .id(200L)
+                                .branch(branch)
+                                .startTime(LocalTime.of(8, 0))
+                                .endTime(LocalTime.of(20, 0))
+                                .shiftDate(LocalDate.of(2026, 7, 1))
+                                .status(ShiftStatus.SCHEDULED)
+                                .build();
+                lenient().when(shiftRepository.findByUserIdAndShiftDate(anyLong(), any()))
+                                .thenReturn(List.of(scheduledShift));
         }
 
         @Test
@@ -148,6 +194,7 @@ class BookingServiceTest {
                 assertThat(response.getAssignedStaffId()).isEqualTo(6L);
                 assertThat(response.getEndTime()).isEqualTo(LocalTime.of(9, 30));
                 assertThat(response.getTotalPrice()).isEqualByComparingTo("80000.00");
+                assertThat(response.getDepositAmount()).isEqualByComparingTo("8000.00");
         }
 
         @Test
@@ -230,6 +277,8 @@ class BookingServiceTest {
                 when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
                 when(staffRepository.findByBranchId(1L)).thenReturn(List.of(staff1));
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
+                when(shiftRepository.findByUserIdAndShiftDate(eq(6L), eq(date)))
+                                .thenReturn(List.of(scheduledShift));
 
                 // Giả lập thợ A bận từ 09:00 đến 10:00
                 Booking bookingA = Booking.builder()
