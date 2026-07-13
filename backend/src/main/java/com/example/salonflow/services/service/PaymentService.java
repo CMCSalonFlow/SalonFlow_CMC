@@ -18,18 +18,12 @@ public interface PaymentService {
     PaymentResponse getPaymentStatus(Long bookingId);
 
     /**
-     * Xử lý IPN Webhook từ VNPay.
+     * Xác thực thông tin thanh toán từ callback của VNPay.
      */
-    void processVNPayWebhook(Map<String, String> params);
+    PaymentResponse verifyPayment(Map<String, String> params);
 
     /**
-     * Xử lý Webhook từ MoMo.
+     * Xác thực thông tin thanh toán từ IPN của VNPay.
      */
-    void processMoMoWebhook(Map<String, String> params);
-
-    /**
-     * Xử lý Webhook từ ZaloPay.
-     * ZaloPay Webhook gửi data (JSON) và mac (chữ ký).
-     */
-    Map<String, Object> processZaloPayWebhook(Map<String, String> params);
+    Map<String, String> verifyIpn(Map<String, String> params);
 }

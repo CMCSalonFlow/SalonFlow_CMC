@@ -9,44 +9,40 @@ import com.example.salonflow.entity.enums.PaymentMethod;
 import com.example.salonflow.entity.enums.PaymentStatus;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.PaymentRepository;
-import com.example.salonflow.services.service.PaymentGatewayService;
 import com.example.salonflow.services.service.PaymentService;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Qualifier;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import jakarta.servlet.http.HttpServletRequest;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
-import java.util.Map;
-import java.util.Optional;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class PaymentServiceImpl implements PaymentService {
 
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
 
-    @Qualifier("vnpayService")
-    private final PaymentGatewayService vnpayService;
+    @Value("${vnpay.tmn-code}")
+    private String tmnCode;
 
-    @Qualifier("momoService")
-    private final PaymentGatewayService momoService;
+    @Value("${vnpay.hash-secret}")
+    private String hashSecret;
 
-    @Qualifier("zalopayService")
-    private final PaymentGatewayService zalopayService;
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    private PaymentGatewayService getGatewayService(PaymentMethod method) {
-        return switch (method) {
-            case VNPAY -> vnpayService;
-            case MOMO -> momoService;
-            case ZALOPAY -> zalopayService;
-        };
-    }
+    @Value("${vnpay.pay-url}")
+    private String payUrl;
 
     @Override
     @Transactional
@@ -58,7 +54,6 @@ public class PaymentServiceImpl implements PaymentService {
             if (existingPayment.getStatus() == PaymentStatus.SUCCESS) {
                 throw new IllegalStateException("Giao dich voi idempotency key nay da thanh toan thanh cong");
             }
-            // Nếu vẫn đang PENDING và đã có paymentUrl, trả về luôn để tránh sinh lại giao dịch bên Gateway
             if (existingPayment.getStatus() == PaymentStatus.PENDING && existingPayment.getPaymentUrl() != null) {
                 return mapToResponse(existingPayment);
             }
@@ -80,15 +75,66 @@ public class PaymentServiceImpl implements PaymentService {
                 .idempotencyKey(request.getIdempotencyKey())
                 .build();
 
-        // Lưu trước để lấy ID (cần thiết cho mã app_trans_id của ZaloPay)
-        payment = paymentRepository.saveAndFlush(payment);
-
-        // Sinh link thanh toán từ gateway tương ứng
-        PaymentGatewayService gatewayService = getGatewayService(request.getPaymentMethod());
-        String paymentUrl = gatewayService.createPaymentUrl(payment, request.getReturnUrl());
-
-        payment.setPaymentUrl(paymentUrl);
         payment = paymentRepository.save(payment);
+
+        if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
+            try {
+                HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+                String clientIp = getClientIp(servletRequest);
+
+                String vnp_Version = "2.1.0";
+                String vnp_Command = "pay";
+                String orderType = "other";
+                long amount = booking.getTotalPrice().multiply(new BigDecimal(100)).longValue();
+                String vnp_TxnRef = payment.getId().toString();
+
+                Map<String, String> vnp_Params = new HashMap<>();
+                vnp_Params.put("vnp_Version", vnp_Version);
+                vnp_Params.put("vnp_Command", vnp_Command);
+                vnp_Params.put("vnp_TmnCode", tmnCode);
+                vnp_Params.put("vnp_Amount", String.valueOf(amount));
+                vnp_Params.put("vnp_CurrCode", "VND");
+                vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
+                vnp_Params.put("vnp_OrderInfo", "Thanh toan don hang:" + vnp_TxnRef);
+                vnp_Params.put("vnp_OrderType", orderType);
+                vnp_Params.put("vnp_Locale", "vn");
+                vnp_Params.put("vnp_ReturnUrl", request.getReturnUrl());
+                vnp_Params.put("vnp_IpAddr", clientIp);
+
+                Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+                SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+                String vnp_CreateDate = formatter.format(cld.getTime());
+                vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
+
+                cld.add(Calendar.MINUTE, 15);
+                String vnp_ExpireDate = formatter.format(cld.getTime());
+                vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
+
+                List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
+                Collections.sort(fieldNames);
+                List<String> parts = new ArrayList<>();
+                for (String fieldName : fieldNames) {
+                    String fieldValue = vnp_Params.get(fieldName);
+                    if (fieldValue != null && !fieldValue.isEmpty()) {
+                        parts.add(encode(fieldName) + "=" + encode(fieldValue));
+                    }
+                }
+                String hashData = String.join("&", parts);
+                log.info("VNPay Config - tmnCode: {}, hashSecret: {}, payUrl: {}", tmnCode, hashSecret, payUrl);
+                log.info("VNPay HashData for signing: {}", hashData);
+                String vnp_SecureHash = hmacSHA512(hashSecret, hashData);
+                log.info("VNPay Computed Hash: {}", vnp_SecureHash);
+                String queryUrl = hashData + "&vnp_SecureHash=" + vnp_SecureHash;
+                String generatedUrl = payUrl + "?" + queryUrl;
+                log.info("VNPay Generated URL: {}", generatedUrl);
+
+                payment.setPaymentUrl(generatedUrl);
+                payment = paymentRepository.save(payment);
+            } catch (Exception e) {
+                log.error("Loi khi tao URL thanh toan VNPay", e);
+                throw new IllegalStateException("Loi khi tao URL thanh toan VNPay: " + e.getMessage());
+            }
+        }
 
         return mapToResponse(payment);
     }
@@ -103,117 +149,203 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Override
     @Transactional
-    public void processVNPayWebhook(Map<String, String> params) {
-        String secureHash = params.get("vnp_SecureHash");
-        if (secureHash == null || !vnpayService.verifyWebhookSignature(params, secureHash)) {
-            throw new IllegalArgumentException("Chu ky VNPay khong hop le");
+    public PaymentResponse verifyPayment(Map<String, String> params) {
+        String vnp_SecureHash = params.get("vnp_SecureHash");
+        if (vnp_SecureHash == null || vnp_SecureHash.isEmpty()) {
+            throw new IllegalArgumentException("Khong tim thay Secure Hash");
         }
 
-        String idempotencyKey = params.get("vnp_TxnRef");
-        // Lock bản ghi Payment bằng Pessimistic Write để tránh race condition
-        Payment payment = paymentRepository.findByIdempotencyKeyWithLock(idempotencyKey)
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay giao dich voi key: " + idempotencyKey));
-
-        // Tránh double processing nếu webhook bị gọi lại nhiều lần
-        if (payment.getStatus() != PaymentStatus.PENDING) {
-            return;
-        }
-
-        String responseCode = params.get("vnp_ResponseCode");
-        String transactionStatus = params.get("vnp_TransactionStatus");
-        String transactionNo = params.get("vnp_TransactionNo");
-
-        if ("00".equals(responseCode) && "00".equals(transactionStatus)) {
-            payment.setStatus(PaymentStatus.SUCCESS);
-            payment.setGatewayTransactionId(transactionNo);
-            
-            // Cập nhật trạng thái Booking
-            Booking booking = payment.getBooking();
-            booking.setStatus(BookingStatus.CONFIRMED);
-            bookingRepository.save(booking);
-        } else {
-            payment.setStatus(PaymentStatus.FAILED);
-            payment.setGatewayTransactionId(transactionNo);
-        }
-
-        paymentRepository.save(payment);
-    }
-
-    @Override
-    @Transactional
-    public void processMoMoWebhook(Map<String, String> params) {
-        String signature = params.get("signature");
-        if (signature == null || !momoService.verifyWebhookSignature(params, signature)) {
-            throw new IllegalArgumentException("Chu ky MoMo khong hop le");
-        }
-
-        String idempotencyKey = params.get("orderId");
-        Payment payment = paymentRepository.findByIdempotencyKeyWithLock(idempotencyKey)
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay giao dich voi key: " + idempotencyKey));
-
-        if (payment.getStatus() != PaymentStatus.PENDING) {
-            return;
-        }
-
-        String resultCode = params.get("resultCode");
-        String transId = params.get("transId");
-
-        if ("0".equals(resultCode)) {
-            payment.setStatus(PaymentStatus.SUCCESS);
-            payment.setGatewayTransactionId(transId);
-
-            Booking booking = payment.getBooking();
-            booking.setStatus(BookingStatus.CONFIRMED);
-            bookingRepository.save(booking);
-        } else {
-            payment.setStatus(PaymentStatus.FAILED);
-            payment.setGatewayTransactionId(transId);
-        }
-
-        paymentRepository.save(payment);
-    }
-
-    @Override
-    @Transactional
-    public Map<String, Object> processZaloPayWebhook(Map<String, String> params) {
-        String signature = params.get("mac");
-        if (signature == null || !zalopayService.verifyWebhookSignature(params, signature)) {
-            return Map.of("return_code", 2, "return_message", "Chu ky ZaloPay khong hop le");
-        }
-
-        try {
-            String dataStr = params.get("data");
-            Map<String, Object> dataMap = objectMapper.readValue(dataStr, new TypeReference<Map<String, Object>>() {});
-            String appTransId = (String) dataMap.get("app_trans_id");
-            
-            // app_trans_id dang yyMMdd_paymentId, can tach lay paymentId
-            String[] parts = appTransId.split("_");
-            if (parts.length < 2) {
-                return Map.of("return_code", 2, "return_message", "Format app_trans_id khong hop le");
+        // 1. Verify Signature
+        Map<String, String> fields = new HashMap<>();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            if (value != null && !value.isEmpty() && !key.equals("vnp_SecureHash") && !key.equals("vnp_SecureHashType")) {
+                fields.put(key, value);
             }
-            
-            Long paymentId = Long.parseLong(parts[1]);
-            // Lock bản ghi để đảm bảo an toàn luồng dữ liệu
-            Payment payment = paymentRepository.findById(paymentId)
-                    .orElseThrow(() -> new IllegalArgumentException("Khong tim thay giao dich voi ID: " + paymentId));
+        }
 
-            if (payment.getStatus() != PaymentStatus.PENDING) {
-                return Map.of("return_code", 1, "return_message", "Giao dich da duoc xu ly truoc do");
-            }
+        List<String> fieldNames = new ArrayList<>(fields.keySet());
+        Collections.sort(fieldNames);
+        List<String> parts = new ArrayList<>();
+        for (String fieldName : fieldNames) {
+            String fieldValue = fields.get(fieldName);
+            parts.add(encode(fieldName) + "=" + encode(fieldValue));
+        }
+        String hashData = String.join("&", parts);
+        String computedHash = hmacSHA512(hashSecret, hashData);
 
-            String zpTransId = String.valueOf(dataMap.get("zp_trans_id"));
-            payment.setStatus(PaymentStatus.SUCCESS);
-            payment.setGatewayTransactionId(zpTransId);
+        if (!computedHash.equalsIgnoreCase(vnp_SecureHash)) {
+            log.error("Signature verification failed. Computed: {}, Received: {}", computedHash, vnp_SecureHash);
+            throw new IllegalArgumentException("Chu ky khong hop le");
+        }
 
+        // 2. Process payment status
+        String vnp_TxnRef = params.get("vnp_TxnRef");
+        if (vnp_TxnRef == null) {
+            throw new IllegalArgumentException("Khong tim thay ma giao dich (vnp_TxnRef)");
+        }
+
+        Long paymentId = Long.parseLong(vnp_TxnRef);
+        Payment payment = paymentRepository.findById(paymentId)
+                .orElseThrow(() -> new IllegalArgumentException("Giao dich khong ton tai: " + paymentId));
+
+        // Check amount
+        BigDecimal vnpAmount = new BigDecimal(params.get("vnp_Amount")).divide(new BigDecimal(100));
+        if (payment.getAmount().compareTo(vnpAmount) != 0) {
+            throw new IllegalArgumentException("So tien khong khop");
+        }
+
+        // Check order status
+        if (payment.getStatus() == PaymentStatus.PENDING) {
+            String responseCode = params.get("vnp_ResponseCode");
             Booking booking = payment.getBooking();
-            booking.setStatus(BookingStatus.CONFIRMED);
-            bookingRepository.save(booking);
-
+            if ("00".equals(responseCode)) {
+                payment.setStatus(PaymentStatus.SUCCESS);
+                booking.setStatus(BookingStatus.CONFIRMED);
+            } else {
+                payment.setStatus(PaymentStatus.FAILED);
+                booking.setStatus(BookingStatus.CANCELLED);
+            }
+            payment.setGatewayTransactionId(params.get("vnp_TransactionNo"));
             paymentRepository.save(payment);
+            bookingRepository.save(booking);
+        }
 
-            return Map.of("return_code", 1, "return_message", "success");
+        return mapToResponse(payment);
+    }
+
+    @Override
+    @Transactional
+    public Map<String, String> verifyIpn(Map<String, String> params) {
+        Map<String, String> response = new HashMap<>();
+        try {
+            String vnp_SecureHash = params.get("vnp_SecureHash");
+            if (vnp_SecureHash == null || vnp_SecureHash.isEmpty()) {
+                response.put("RspCode", "97");
+                response.put("Message", "Invalid Checksum");
+                return response;
+            }
+
+            // Verify Signature
+            Map<String, String> fields = new HashMap<>();
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                String key = entry.getKey();
+                String value = entry.getValue();
+                if (value != null && !value.isEmpty() && !key.equals("vnp_SecureHash") && !key.equals("vnp_SecureHashType")) {
+                    fields.put(key, value);
+                }
+            }
+
+            List<String> fieldNames = new ArrayList<>(fields.keySet());
+            Collections.sort(fieldNames);
+            List<String> parts = new ArrayList<>();
+            for (String fieldName : fieldNames) {
+                String fieldValue = fields.get(fieldName);
+                parts.add(encode(fieldName) + "=" + encode(fieldValue));
+            }
+            String hashData = String.join("&", parts);
+            String computedHash = hmacSHA512(hashSecret, hashData);
+
+            if (!computedHash.equalsIgnoreCase(vnp_SecureHash)) {
+                response.put("RspCode", "97");
+                response.put("Message", "Invalid Checksum");
+                return response;
+            }
+
+            String vnp_TxnRef = params.get("vnp_TxnRef");
+            if (vnp_TxnRef == null) {
+                response.put("RspCode", "01");
+                response.put("Message", "Order not Found");
+                return response;
+            }
+
+            Long paymentId = Long.parseLong(vnp_TxnRef);
+            Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
+            if (paymentOpt.isEmpty()) {
+                response.put("RspCode", "01");
+                response.put("Message", "Order not Found");
+                return response;
+            }
+
+            Payment payment = paymentOpt.get();
+
+            // Verify Amount
+            BigDecimal vnpAmount = new BigDecimal(params.get("vnp_Amount")).divide(new BigDecimal(100));
+            if (payment.getAmount().compareTo(vnpAmount) != 0) {
+                response.put("RspCode", "04");
+                response.put("Message", "Invalid Amount");
+                return response;
+            }
+
+            // Verify status
+            if (payment.getStatus() != PaymentStatus.PENDING) {
+                response.put("RspCode", "02");
+                response.put("Message", "Order already confirmed");
+                return response;
+            }
+
+            // Update status
+            String responseCode = params.get("vnp_ResponseCode");
+            Booking booking = payment.getBooking();
+            if ("00".equals(responseCode)) {
+                payment.setStatus(PaymentStatus.SUCCESS);
+                booking.setStatus(BookingStatus.CONFIRMED);
+            } else {
+                payment.setStatus(PaymentStatus.FAILED);
+                booking.setStatus(BookingStatus.CANCELLED);
+            }
+            payment.setGatewayTransactionId(params.get("vnp_TransactionNo"));
+            paymentRepository.save(payment);
+            bookingRepository.save(booking);
+
+            response.put("RspCode", "00");
+            response.put("Message", "Confirm Success");
+            return response;
+
         } catch (Exception e) {
-            return Map.of("return_code", 2, "return_message", e.getMessage());
+            log.error("IPN handling failed", e);
+            response.put("RspCode", "99");
+            response.put("Message", "Unknown error");
+            return response;
+        }
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ipAddress = request.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getHeader("Proxy-Client-IP");
+        }
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getRemoteAddr();
+        }
+        if (ipAddress != null && ipAddress.contains(",")) {
+            ipAddress = ipAddress.split(",")[0].trim();
+        }
+        // Chuẩn hóa địa chỉ IPv6 localhost hoặc các IPv6 khác thành IPv4 127.0.0.1 để tránh lỗi chữ ký VNPay
+        if ("0:0:0:0:0:0:0:1".equals(ipAddress) || (ipAddress != null && ipAddress.contains(":"))) {
+            ipAddress = "127.0.0.1";
+        }
+        return ipAddress;
+    }
+
+    private String hmacSHA512(String key, String data) {
+        try {
+            Mac hmac512 = Mac.getInstance("HmacSHA512");
+            SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
+            hmac512.init(secretKey);
+            byte[] result = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(2 * result.length);
+            for (byte b : result) {
+                sb.append(String.format("%02x", b & 0xff));
+            }
+            return sb.toString();
+        } catch (Exception ex) {
+            log.error("Error creating hmacSHA512 hash", ex);
+            return "";
         }
     }
 
@@ -226,5 +358,14 @@ public class PaymentServiceImpl implements PaymentService {
                 .status(payment.getStatus())
                 .paymentUrl(payment.getPaymentUrl())
                 .build();
+    }
+
+    private String encode(String value) {
+        try {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
+        } catch (Exception e) {
+            log.error("Error URL encoding value: {}", value, e);
+            return "";
+        }
     }
 }
