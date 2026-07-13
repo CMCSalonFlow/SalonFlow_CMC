@@ -68,6 +68,10 @@ public class Booking extends BaseEntity {
     @Column(name = "total_price", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalPrice;
 
+    // Số tiền cần đặt cọc cho booking này
+    @Column(name = "deposit_amount", precision = 12, scale = 2)
+    private BigDecimal depositAmount;
+
     // Tổng thời gian dự kiến thực hiện (tính bằng phút)
     @Column(name = "total_duration_minutes", nullable = false)
     private Integer totalDurationMinutes;
