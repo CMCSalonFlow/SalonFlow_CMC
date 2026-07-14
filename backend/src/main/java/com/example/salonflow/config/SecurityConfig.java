@@ -84,7 +84,7 @@ public class SecurityConfig {
                     .requestMatchers("/api/v1/branches/search").permitAll()
                     .requestMatchers("/api/v1/salons/public").permitAll()
                     .requestMatchers("/api/v1/branches/public").permitAll()
-                    .requestMatchers("/api/v1/payments/*/webhook").permitAll()
+                    .requestMatchers("/api/v1/payments/vnpay-callback", "/api/v1/payments/vnpay-ipn").permitAll()
 
                     // media upload (tuỳ bạn có thể đổi authenticated)
                     .requestMatchers("/api/v1/media/**").authenticated()
