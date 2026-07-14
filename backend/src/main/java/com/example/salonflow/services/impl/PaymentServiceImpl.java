@@ -13,19 +13,23 @@ import com.example.salonflow.services.service.PaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import jakarta.servlet.http.HttpServletRequest;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
@@ -43,6 +47,9 @@ public class PaymentServiceImpl implements PaymentService {
 
     @Value("${vnpay.pay-url}")
     private String payUrl;
+
+    @Value("${vnpay.api-url}")
+    private String apiUrl;
 
     @Override
     @Transactional
@@ -66,11 +73,22 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalStateException("Khong the thanh toan cho lich hen o trang thai: " + booking.getStatus());
         }
 
+        boolean alreadyPaid = paymentRepository
+                .findByBookingId(booking.getId())
+                .stream()
+                .anyMatch(payment -> payment.getPaymentMethod() == request.getPaymentMethod()
+                        && (payment.getStatus() == PaymentStatus.SUCCESS || payment.getStatus() == PaymentStatus.REFUNDED));
+        if (alreadyPaid) {
+            throw new IllegalStateException("Lich hen nay da duoc thanh toan thanh cong");
+        }
+
+        BigDecimal paymentAmount = resolvePaymentAmount(booking);
+
         // Tạo bản ghi Payment ở trạng thái PENDING
         Payment payment = Payment.builder()
                 .booking(booking)
                 .paymentMethod(request.getPaymentMethod())
-                .amount(booking.getTotalPrice()) // Thanh toán toàn bộ tổng tiền
+                .amount(paymentAmount)
                 .status(PaymentStatus.PENDING)
                 .idempotencyKey(request.getIdempotencyKey())
                 .build();
@@ -85,7 +103,7 @@ public class PaymentServiceImpl implements PaymentService {
                 String vnp_Version = "2.1.0";
                 String vnp_Command = "pay";
                 String orderType = "other";
-                long amount = booking.getTotalPrice().multiply(new BigDecimal(100)).longValue();
+                long amount = paymentAmount.multiply(new BigDecimal(100)).longValue();
                 String vnp_TxnRef = payment.getId().toString();
 
                 Map<String, String> vnp_Params = new HashMap<>();
@@ -208,6 +226,7 @@ public class PaymentServiceImpl implements PaymentService {
                 booking.setStatus(BookingStatus.CANCELLED);
             }
             payment.setGatewayTransactionId(params.get("vnp_TransactionNo"));
+            payment.setGatewayTransactionDate(extractGatewayTransactionDate(params));
             paymentRepository.save(payment);
             bookingRepository.save(booking);
         }
@@ -296,6 +315,7 @@ public class PaymentServiceImpl implements PaymentService {
                 booking.setStatus(BookingStatus.CANCELLED);
             }
             payment.setGatewayTransactionId(params.get("vnp_TransactionNo"));
+            payment.setGatewayTransactionDate(extractGatewayTransactionDate(params));
             paymentRepository.save(payment);
             bookingRepository.save(booking);
 
@@ -357,7 +377,167 @@ public class PaymentServiceImpl implements PaymentService {
                 .amount(payment.getAmount())
                 .status(payment.getStatus())
                 .paymentUrl(payment.getPaymentUrl())
+                .refundAmount(payment.getRefundAmount())
+                .refundTransactionId(payment.getRefundTransactionId())
+                .refundedAt(payment.getRefundedAt())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponse refundDeposit(Long bookingId, BigDecimal refundAmount, String reason) {
+        if (refundAmount == null || refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("So tien hoan phai lon hon 0");
+        }
+
+        if (apiUrl == null || apiUrl.isBlank()) {
+            throw new IllegalStateException("Chua cau hinh VNPay refund API URL");
+        }
+
+        Payment payment = paymentRepository
+                .findFirstByBookingIdAndPaymentMethodAndStatusOrderByCreatedAtDesc(
+                        bookingId,
+                        PaymentMethod.VNPAY,
+                        PaymentStatus.SUCCESS
+                )
+                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay giao dich VNPay da thanh toan cho booking " + bookingId));
+
+        if (refundAmount.compareTo(payment.getAmount()) > 0) {
+            throw new IllegalArgumentException("So tien hoan khong duoc lon hon so tien da thanh toan");
+        }
+
+        if (payment.getRefundedAt() != null || payment.getStatus() == PaymentStatus.REFUNDED) {
+            return mapToResponse(payment);
+        }
+
+        String originalTransactionDate = payment.getGatewayTransactionDate();
+        if (originalTransactionDate == null || originalTransactionDate.isBlank()) {
+            throw new IllegalStateException("Khong co ngay giao dich goc de hoan tien VNPay");
+        }
+
+        String requestId = UUID.randomUUID().toString().replace("-", "");
+        String createDate = currentVnpayTime();
+        String txnRef = payment.getId().toString();
+        String transactionNo = payment.getGatewayTransactionId();
+        if (transactionNo == null || transactionNo.isBlank()) {
+            throw new IllegalStateException("Khong co ma giao dich VNPay de hoan tien");
+        }
+
+        Map<String, String> payload = new LinkedHashMap<>();
+        payload.put("vnp_RequestId", requestId);
+        payload.put("vnp_Version", "2.1.0");
+        payload.put("vnp_Command", "refund");
+        payload.put("vnp_TmnCode", tmnCode);
+        payload.put("vnp_TransactionType", "02");
+        payload.put("vnp_TxnRef", txnRef);
+        payload.put("vnp_Amount", refundAmount.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).toPlainString());
+        payload.put("vnp_OrderInfo", buildRefundOrderInfo(payment, reason));
+        payload.put("vnp_TransactionNo", transactionNo);
+        payload.put("vnp_TransactionDate", originalTransactionDate);
+        payload.put("vnp_CreateDate", createDate);
+        payload.put("vnp_CreateBy", "salonflow");
+        payload.put("vnp_IpAddr", "127.0.0.1");
+
+        Map<String, String> signPayload = new LinkedHashMap<>(payload);
+        String hashData = buildSignedData(signPayload);
+        payload.put("vnp_SecureHash", hmacSHA512(hashSecret, hashData));
+
+        try {
+            Map<?, ?> response = WebClient.create()
+                    .post()
+                    .uri(apiUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(payload)
+                    .retrieve()
+                    .bodyToMono(Map.class)
+                    .block();
+
+            if (response == null) {
+                throw new IllegalStateException("VNPay refund tra ve response rong");
+            }
+
+            String responseCode = firstNonBlank(
+                    stringValue(response.get("vnp_ResponseCode")),
+                    stringValue(response.get("RspCode")),
+                    stringValue(response.get("ResponseCode"))
+            );
+
+            if (!"00".equals(responseCode)) {
+                String message = firstNonBlank(
+                        stringValue(response.get("vnp_Message")),
+                        stringValue(response.get("Message")),
+                        "VNPay refund failed"
+                );
+                throw new IllegalStateException(message);
+            }
+
+            payment.setRefundAmount(refundAmount);
+            payment.setRefundTransactionId(firstNonBlank(
+                    stringValue(response.get("vnp_TransactionNo")),
+                    stringValue(response.get("TransactionNo")),
+                    requestId
+            ));
+            payment.setRefundedAt(Instant.now());
+            payment.setStatus(PaymentStatus.REFUNDED);
+            paymentRepository.save(payment);
+            log.info("Refunded VNPay payment {} for booking {} with amount {}", payment.getId(), bookingId, refundAmount);
+            return mapToResponse(payment);
+        } catch (Exception e) {
+            log.error("Refund VNPay failed for booking {}: {}", bookingId, e.getMessage(), e);
+            throw new IllegalStateException("Khong the hoan tien VNPay: " + e.getMessage());
+        }
+    }
+
+    private BigDecimal resolvePaymentAmount(Booking booking) {
+        BigDecimal depositAmount = booking.getDepositAmount();
+        if (depositAmount != null && depositAmount.compareTo(BigDecimal.ZERO) > 0) {
+            return depositAmount;
+        }
+        return booking.getTotalPrice();
+    }
+
+    private String extractGatewayTransactionDate(Map<String, String> params) {
+        return firstNonBlank(params.get("vnp_PayDate"), params.get("vnp_TransactionDate"));
+    }
+
+    private String currentVnpayTime() {
+        Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+        return formatter.format(cld.getTime());
+    }
+
+    private String buildRefundOrderInfo(Payment payment, String reason) {
+        String sanitizedReason = reason == null ? "" : reason.trim();
+        if (sanitizedReason.isEmpty()) {
+            sanitizedReason = "Hoan tien booking";
+        }
+        return "Hoan tien booking " + payment.getBooking().getId() + " - " + sanitizedReason;
+    }
+
+    private String buildSignedData(Map<String, String> params) {
+        List<String> fieldNames = new ArrayList<>(params.keySet());
+        Collections.sort(fieldNames);
+        List<String> parts = new ArrayList<>();
+        for (String fieldName : fieldNames) {
+            String fieldValue = params.get(fieldName);
+            if (fieldValue != null && !fieldValue.isEmpty()) {
+                parts.add(encode(fieldName) + "=" + encode(fieldValue));
+            }
+        }
+        return String.join("&", parts);
+    }
+
+    private String stringValue(Object value) {
+        return value == null ? null : String.valueOf(value);
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 
     private String encode(String value) {

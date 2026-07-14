@@ -12,6 +12,7 @@ import java.math.BigDecimal;
 public class CancellationResult {
     private boolean success;
     private BigDecimal feeAmount;
+    private BigDecimal refundAmount;
     private String message;
     private boolean isFreeCancel;
 }

@@ -1,6 +1,7 @@
 package com.example.salonflow.repository;
 
 import com.example.salonflow.entity.Payment;
+import com.example.salonflow.entity.enums.PaymentMethod;
 import com.example.salonflow.entity.enums.PaymentStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -23,6 +24,12 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
     List<Payment> findByBookingId(Long bookingId);
 
     Optional<Payment> findFirstByBookingIdOrderByCreatedAtDesc(Long bookingId);
+
+    Optional<Payment> findFirstByBookingIdAndPaymentMethodAndStatusOrderByCreatedAtDesc(
+            Long bookingId,
+            PaymentMethod paymentMethod,
+            PaymentStatus status
+    );
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM Payment p WHERE p.idempotencyKey = :idempotencyKey")
