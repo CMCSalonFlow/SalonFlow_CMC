@@ -10,6 +10,7 @@ import com.example.salonflow.entity.enums.PaymentStatus;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.PaymentRepository;
 import com.example.salonflow.services.service.PaymentService;
+import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.InvoicePdfService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,6 +37,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
     private final InvoicePdfService invoicePdfService;
+    private final EmailService emailService;
 
     @Value("${vnpay.tmn-code}")
     private String tmnCode;
@@ -208,6 +210,7 @@ public class PaymentServiceImpl implements PaymentService {
 
                 try {
                     String invoiceUrl = invoicePdfService.generateInvoice(booking);
+                    emailService.sendInvoiceEmail(booking, invoiceUrl);
                     log.info("Invoice created: {}", invoiceUrl);
                 } catch (Exception ex) {
                     log.error("Generate invoice failed", ex);
@@ -304,6 +307,7 @@ public class PaymentServiceImpl implements PaymentService {
 
                 try {
                     String invoiceUrl = invoicePdfService.generateInvoice(booking);
+                    emailService.sendInvoiceEmail(booking, invoiceUrl);
                     log.info("Invoice created: {}", invoiceUrl);
                 } catch (Exception ex) {
                     log.error("Generate invoice failed", ex);
