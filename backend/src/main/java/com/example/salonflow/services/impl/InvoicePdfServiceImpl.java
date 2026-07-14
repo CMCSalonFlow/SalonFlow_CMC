@@ -1,10 +1,11 @@
 package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.invoice.InvoiceDto;
-import com.example.salonflow.dto.invoice.InvoiceItemDto;
 import com.example.salonflow.entity.Booking;
-import com.example.salonflow.entity.BookingItem;
+import com.example.salonflow.mapper.InvoiceMapper;
+import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.services.service.InvoicePdfService;
+import com.example.salonflow.services.service.MediaService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -13,14 +14,18 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class InvoicePdfServiceImpl implements InvoicePdfService {
 
     private final ObjectMapper objectMapper;
+
+    private final InvoiceMapper invoiceMapper;
+
+    private final MediaService mediaService;
+
+    private final BookingRepository bookingRepository;
 
     @Override
     public String generateInvoice(Booking booking) throws Exception {
@@ -31,10 +36,10 @@ public class InvoicePdfServiceImpl implements InvoicePdfService {
         Path jsonFile = tempDir.resolve("invoice.json");
         Path pdfFile = tempDir.resolve("invoice.pdf");
 
-        // Booking -> InvoiceDto
-        InvoiceDto invoice = buildInvoice(booking);
+        // Mapping Booking -> InvoiceDto
+        InvoiceDto invoice = invoiceMapper.toDto(booking);
 
-        // Ghi JSON cho NodeJS đọc
+        // Ghi JSON
         objectMapper.writeValue(jsonFile.toFile(), invoice);
 
         // Gọi NodeJS render PDF
@@ -60,114 +65,24 @@ public class InvoicePdfServiceImpl implements InvoicePdfService {
             throw new RuntimeException("Invoice PDF not found.");
         }
 
-        return pdfFile.toAbsolutePath().toString();
-    }
+        // Upload PDF lên MinIO
+        String invoiceUrl = mediaService.uploadInvoice(
+                pdfFile.toFile(),
+                booking.getId()
+        );
 
-    /**
-     * Booking -> InvoiceDto
-     */
-    private InvoiceDto buildInvoice(Booking booking) {
+        // Lưu URL hóa đơn vào Booking
+        booking.setInvoiceUrl(invoiceUrl);
+        booking.setInvoiceGeneratedAt(LocalDateTime.now());
 
-        List<InvoiceItemDto> items = booking.getItems()
-                .stream()
-                .map(this::mapItem)
-                .toList();
+        bookingRepository.save(booking);
 
-        double subTotal = items.stream()
-                .mapToDouble(InvoiceItemDto::getTotalPrice)
-                .sum();
+        // Xóa file tạm
+        Files.deleteIfExists(pdfFile);
+        Files.deleteIfExists(jsonFile);
+        Files.deleteIfExists(tempDir);
 
-        // Chưa áp dụng VAT
-        double tax = 0;
-
-        double total = subTotal;
-
-        return InvoiceDto.builder()
-
-                // ===== Salon =====
-                .salonName(
-                        booking.getBranch()
-                                .getSalon()
-                                .getName()
-                )
-
-                .salonAddress(
-                        booking.getBranch()
-                                .getAddress()
-                )
-
-                .salonPhone(
-                        booking.getBranch()
-                                .getPhone()
-                )
-
-                // Sau này lấy logo từ DB hoặc MinIO
-                .salonLogo(null)
-
-                // ===== Booking =====
-                .bookingId(
-                        booking.getId()
-                )
-
-                .bookingTime(
-                        booking.getCreatedAt() == null
-                                ? LocalDateTime.now()
-                                : booking.getCreatedAt()
-                                .atZone(ZoneId.systemDefault())
-                                .toLocalDateTime()
-                )
-
-                // ===== Customer =====
-                .customerName(
-                        booking.getCustomer()
-                                .getFullName()
-                )
-
-                .customerPhone(
-                        booking.getCustomer()
-                                .getPhone()
-                )
-
-                // ===== Services =====
-                .items(items)
-
-                // ===== Money =====
-                .subTotal(subTotal)
-
-                .tax(tax)
-
-                .total(total)
-
-                .build();
-    }
-
-    /**
-     * BookingItem -> InvoiceItemDto
-     */
-    private InvoiceItemDto mapItem(BookingItem item) {
-
-        String serviceName;
-
-        if (item.getService() != null) {
-
-            serviceName = item.getService().getName();
-
-        } else {
-
-            serviceName = item.getBundle().getName();
-
-        }
-
-        return InvoiceItemDto.builder()
-
-                .serviceName(serviceName)
-
-                .quantity(1)
-
-                .unitPrice(item.getPrice().doubleValue())
-
-                .totalPrice(item.getPrice().doubleValue())
-
-                .build();
+        // Trả về URL hóa đơn
+        return invoiceUrl;
     }
 }
