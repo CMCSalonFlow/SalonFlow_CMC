@@ -4,14 +4,12 @@ import com.example.salonflow.dto.booking.CancellationResult;
 import com.example.salonflow.entity.Booking;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.repository.BookingRepository;
-import com.example.salonflow.services.service.EmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import com.example.salonflow.services.service.BookingService;
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -23,7 +21,6 @@ import java.util.List;
 public class BookingScheduler {
 
     private final BookingRepository bookingRepository;
-    private final EmailService emailService;
     private final BookingService bookingService;
 
     @Scheduled(cron = "0 */5 * * * *") // chạy mỗi 5 phút
@@ -46,21 +43,10 @@ public class BookingScheduler {
                         now);
 
         for (Booking booking : bookings) {
-
-            booking.setStatus(BookingStatus.CANCELLED);
-            booking.setNotes("Tự động hủy do quá hạn xác nhận");
-
-            bookingRepository.save(booking);
-
-            CancellationResult result =
-                    CancellationResult.builder()
-                            .success(true)
-                            .isFreeCancel(true)
-                            .feeAmount(BigDecimal.ZERO)
-                            .message("Booking tự động hủy do quá hạn xác nhận")
-                            .build();
-
-            emailService.sendCancellationEmail(booking, result);
+            CancellationResult result = bookingService.cancelBooking(
+                    booking.getId(),
+                    "Tự động hủy do quá hạn xác nhận"
+            );
 
             log.info("Auto cancelled booking {}", booking.getId());
         }

@@ -7,6 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 @Getter
 @Setter
@@ -18,4 +19,7 @@ public class PaymentResponse {
     private BigDecimal amount;
     private PaymentStatus status;
     private String paymentUrl;
+    private BigDecimal refundAmount;
+    private String refundTransactionId;
+    private Instant refundedAt;
 }

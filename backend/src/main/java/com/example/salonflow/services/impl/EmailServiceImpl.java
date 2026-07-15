@@ -9,6 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Service
@@ -82,7 +83,6 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendCancellationEmail(Booking booking, CancellationResult result) {
-
         String subject = "Thông báo hủy lịch hẹn #" + booking.getId();
 
         String body = """
@@ -98,16 +98,11 @@ public class EmailServiceImpl implements EmailService {
                 result.getFeeAmount()
         );
 
-        sendEmail(
-                booking.getCustomer().getEmail(),
-                subject,
-                body
-        );
+        sendEmail(booking.getCustomer().getEmail(), subject, body);
     }
 
     @Override
     public void sendOverdueCancellationEmail(Booking booking) {
-
         String subject = "Lịch hẹn #" + booking.getId() + " đã bị hủy tự động";
 
         String body = """
@@ -116,11 +111,7 @@ public class EmailServiceImpl implements EmailService {
                 <p>Lịch hẹn của bạn đã bị hủy vì quá hạn thanh toán.</p>
                 """;
 
-        sendEmail(
-                booking.getCustomer().getEmail(),
-                subject,
-                body
-        );
+        sendEmail(booking.getCustomer().getEmail(), subject, body);
     }
 
     @Override
@@ -154,17 +145,12 @@ public class EmailServiceImpl implements EmailService {
                 invoiceUrl
         );
 
-        sendEmail(
-                booking.getCustomer().getEmail(),
-                subject,
-                body
-        );
+        sendEmail(booking.getCustomer().getEmail(), subject, body);
     }
 
     private void sendEmail(String to, String subject, String body) {
 
         try {
-
             Map<String, Object> emailBody = Map.of(
                     "from", from,
                     "to", to,

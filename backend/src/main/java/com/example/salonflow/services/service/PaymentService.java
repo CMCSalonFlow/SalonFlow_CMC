@@ -3,6 +3,7 @@ package com.example.salonflow.services.service;
 import com.example.salonflow.dto.payment.CreatePaymentUrlRequest;
 import com.example.salonflow.dto.payment.PaymentResponse;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 public interface PaymentService {
@@ -26,4 +27,9 @@ public interface PaymentService {
      * Xác thực thông tin thanh toán từ IPN của VNPay.
      */
     Map<String, String> verifyIpn(Map<String, String> params);
+
+    /**
+     * Hoàn tiền cho khoản deposit đã thanh toán qua VNPay.
+     */
+    PaymentResponse refundDeposit(Long bookingId, BigDecimal refundAmount, String reason);
 }
