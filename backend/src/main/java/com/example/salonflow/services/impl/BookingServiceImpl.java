@@ -1,6 +1,7 @@
 package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.booking.AvailabilityResponse;
+import com.example.salonflow.dto.booking.CreateGuestBookingRequest;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Optional;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.UUID;
 
 import com.example.salonflow.dto.booking.CancellationResult;
 import com.example.salonflow.exception.BadRequestException;
@@ -71,220 +73,47 @@ public class BookingServiceImpl implements BookingService {
 
     private final CustomerProfileRepository customerProfileRepository;
     private final RoleRepository roleRepository;
+    private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
     public BookingResponse create(Long branchId, CreateBookingRequest request) {
-        // 1. Xác thực chi nhánh có tồn tại hay không
-        Branch branch = branchRepository.findById(branchId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
-
-        // 2. Xác định khách hàng thực hiện đặt lịch
-    User customer;
-
-if (request.getCustomerId() != null) {
-
-    customer = userRepository.findById(request.getCustomerId())
-            .orElseThrow(() ->
-                    new ResourceNotFoundException(
+        User customer;
+        if (request.getCustomerId() != null) {
+            customer = userRepository.findById(request.getCustomerId())
+                    .orElseThrow(() -> new ResourceNotFoundException(
                             "Không tìm thấy khách hàng với id: " + request.getCustomerId()));
-
-} else {
-
-    customer = getCurrentUser();
-}
-
-        // 3. Tính toán tổng thời lượng, tổng số tiền và lấy danh sách chi tiết dịch vụ/combo
-        BigDecimal totalPrice = BigDecimal.ZERO;
-        int totalDuration = 0;
-        List<SalonService> services = new ArrayList<>();
-        ServiceBundle bundle = null;
-
-        if (request.getBundleId() != null) {
-            // Đặt lịch theo combo (bundle)
-            bundle = serviceBundleRepository.findByIdAndBranchId(request.getBundleId(), branchId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy combo với id: " + request.getBundleId() + " tại chi nhánh này"));
-            totalPrice = bundle.getPrice();
-            totalDuration = bundle.getTotalDurationMinutes();
-            // Lấy danh sách dịch vụ trong combo
-            services = bundle.getItems().stream().map(ServiceBundleItem::getService).toList();
-        } else if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
-            // Đặt lịch theo danh sách dịch vụ lẻ
-            services = serviceRepository.findAllById(request.getServiceIds());
-            if (services.size() != request.getServiceIds().size()) {
-                throw new BusinessException("Một số dịch vụ được chọn không hợp lệ hoặc không tồn tại");
-            }
-            // Đảm bảo tất cả các dịch vụ đều thuộc chi nhánh này
-            for (SalonService service : services) {
-                if (!service.getBranch().getId().equals(branchId)) {
-                    throw new BusinessException("Dịch vụ '" + service.getName() + "' không thuộc chi nhánh này");
-                }
-                totalPrice = totalPrice.add(service.getPrice());
-                totalDuration += service.getDurationMinutes();
-            }
         } else {
-            throw new BusinessException("Vui lòng chọn ít nhất một dịch vụ hoặc combo để đặt lịch");
+            customer = getCurrentUser();
         }
 
-        BigDecimal depositAmount = calculateDepositAmount(services);
-
-        // 4. Tính toán thời gian kết thúc lịch hẹn
-        LocalTime startTime = request.getStartTime();
-        LocalTime endTime = startTime.plusMinutes(totalDuration);
-
-        // 5. Kiểm tra thời gian hoạt động của chi nhánh
-        int dbDayOfWeek = request.getBookingDate().getDayOfWeek().getValue() == 7 ? 0 : request.getBookingDate().getDayOfWeek().getValue();
-        BranchHour branchHour = branchHourRepository.findByBranchIdAndDayOfWeek(branchId, dbDayOfWeek)
-                .orElseThrow(() -> new BusinessException("Chi nhánh không có lịch hoạt động vào ngày này"));
-        if (Boolean.TRUE.equals(branchHour.getIsClosed())) {
-            throw new BusinessException("Chi nhánh đóng cửa vào ngày này");
-        }
-        if (startTime.isBefore(branchHour.getOpenTime()) || endTime.isAfter(branchHour.getCloseTime())) {
-            throw new BusinessException("Thời gian hẹn nằm ngoài khung giờ mở cửa của chi nhánh (" 
-                    + branchHour.getOpenTime() + " - " + branchHour.getCloseTime() + ")");
-        }
-
-        // 6. Phân bổ nhân viên thực hiện (Staff Allocation)
-        Staff preferredStaff = null;
-        Staff assignedStaff = null;
-        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
-
-        if (request.getPreferredStaffId() != null) {
-            // Trường hợp khách hàng yêu cầu chọn nhân viên cụ thể
-            preferredStaff = staffRepository.findByIdAndBranchId(request.getPreferredStaffId(), branchId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy nhân viên với id: " + request.getPreferredStaffId() + " tại chi nhánh này"));
-            
-            // Kiểm tra xem nhân viên này có kỹ năng thực hiện các dịch vụ đã chọn không
-            if (!isStaffQualified(preferredStaff, services)) {
-                throw new BusinessException("Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện một số dịch vụ đã chọn");
-            }
-
-            // Kiểm tra xem nhân viên có bị trùng lịch hẹn nào khác không
-            List<Booking> overlapping = bookingRepository.findOverlappingBookings(
-                    preferredStaff.getId(), request.getBookingDate(), startTime, endTime, activeStatuses);
-            if (!overlapping.isEmpty()) {
-                throw new BusinessException("Nhân viên " + preferredStaff.getName() + " đã bận vào khung giờ bạn chọn");
-            }
-            assignedStaff = preferredStaff;
-        } else {
-            // Trường hợp chọn "Bất kỳ nhân viên" -> Phân bổ tự động
-            final List<SalonService> finalServices = services;
-            List<Staff> branchStaff = staffRepository.findByBranchId(branchId);
-            List<Staff> qualifiedStaff = branchStaff.stream()
-                    .filter(s -> isStaffQualified(s, finalServices))
-                    .toList();
-
-            if (qualifiedStaff.isEmpty()) {
-                throw new BusinessException("Không có nhân viên nào tại chi nhánh có khả năng thực hiện toàn bộ dịch vụ đã chọn");
-            }
-
-            // Lọc ra các nhân viên đang rảnh trong khung giờ này
-            List<Staff> availableStaff = new ArrayList<>();
-            for (Staff staff : qualifiedStaff) {
-                List<Booking> overlapping = bookingRepository.findOverlappingBookings(
-                        staff.getId(), request.getBookingDate(), startTime, endTime, activeStatuses);
-                if (overlapping.isEmpty()) {
-                    availableStaff.add(staff);
-                }
-            }
-
-            if (availableStaff.isEmpty()) {
-                throw new BusinessException("Hiện tại không có nhân viên nào trống lịch trong khung giờ bạn chọn");
-            }
-
-            // Thuật toán Least Bookings: Chọn người có ít lượt đặt lịch nhất trong ngày để cân bằng tải
-            Staff selectedStaff = availableStaff.get(0);
-            int minBookings = Integer.MAX_VALUE;
-            for (Staff staff : availableStaff) {
-                int count = bookingRepository.findByAssignedStaffIdAndBookingDateAndStatusIn(
-                        staff.getId(), request.getBookingDate(), activeStatuses).size();
-                if (count < minBookings) {
-                    minBookings = count;
-                    selectedStaff = staff;
-                }
-            }
-            assignedStaff = selectedStaff;
-        }
-
-        // Chống trùng lịch đồng thời (Race condition control via Redis Lock)
-        String lockKey = String.format("lock:booking:%d:%s:%s",
-                assignedStaff.getId(),
-                request.getBookingDate().toString(),
-                startTime.toString()
+        return createBookingInternal(
+                branchId,
+                customer,
+                request.getBookingDate(),
+                request.getStartTime(),
+                request.getPreferredStaffId(),
+                request.getServiceIds(),
+                request.getBundleId(),
+                request.getNotes()
         );
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", java.time.Duration.ofSeconds(5));
-        if (Boolean.FALSE.equals(acquired)) {
-            throw new BusinessException("Khung giờ này đang có giao dịch đặt lịch song song hoặc đã được đặt. Vui lòng chọn khung giờ khác.");
-        }
+    }
 
-        Booking booking = null;
-        try {
-            // 7. Tạo lịch hẹn Booking chính
-            booking = Booking.builder()
-                    .customer(customer)
-                    .branch(branch)
-                    .bookingDate(request.getBookingDate())
-                    .startTime(startTime)
-                    .endTime(endTime)
-                    .preferredStaff(preferredStaff)
-                    .assignedStaff(assignedStaff)
-                    .status(BookingStatus.PENDING)
-                    .totalPrice(totalPrice)
-                    .depositAmount(depositAmount)
-                    .totalDurationMinutes(totalDuration)
-                    .notes(request.getNotes())
-                    .build();
-
-            booking = bookingRepository.save(booking);
-
-        // 8. Tạo chi tiết Booking Items
-        List<BookingItem> items = new ArrayList<>();
-        if (bundle != null) {
-            BookingItem item = BookingItem.builder()
-                    .booking(booking)
-                    .bundle(bundle)
-                    .price(bundle.getPrice())
-                    .durationMinutes(bundle.getTotalDurationMinutes())
-                    .build();
-            items.add(bookingItemRepository.save(item));
-        } else {
-            for (SalonService service : services) {
-                BookingItem item = BookingItem.builder()
-                        .booking(booking)
-                        .service(service)
-                        .price(service.getPrice())
-                        .durationMinutes(service.getDurationMinutes())
-                        .build();
-                items.add(bookingItemRepository.save(item));
-            }
-        }
-        booking.setItems(items);
-
-        // Evict cache and broadcast WebSocket update
-        try {
-            Long branchIdOpt = branchId;
-            String pattern = String.format("availability:branch:%d:staff:*:date:%s:duration:*", branchIdOpt, booking.getBookingDate().toString());
-            java.util.Set<String> keys = redisTemplate.keys(pattern);
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                log.info("Evicted {} availability cache keys for branch {} and date {}", keys.size(), branchIdOpt, booking.getBookingDate());
-            }
-            bookingWebSocketHandler.broadcastBookingUpdate(
-                    branchIdOpt,
-                    booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null,
-                    booking.getBookingDate().toString()
-            );
-        } catch (Exception e) {
-            log.error("Failed to evict cache and broadcast booking update", e);
-        }
-
-        } catch (Exception e) {
-            redisTemplate.delete(lockKey);
-            throw e;
-        }
-
-        return toResponse(booking);
+    @Override
+    @Transactional
+    public BookingResponse createGuestBooking(Long branchId, CreateGuestBookingRequest request) {
+        User customer = findOrCreateGuestCustomer(request);
+        return createBookingInternal(
+                branchId,
+                customer,
+                request.getBookingDate(),
+                request.getStartTime(),
+                request.getPreferredStaffId(),
+                request.getServiceIds(),
+                request.getBundleId(),
+                request.getNotes()
+        );
     }
 
     @Override
@@ -573,6 +402,240 @@ if (request.getCustomerId() != null) {
         }
 
         return depositAmount;
+    }
+
+    private BookingResponse createBookingInternal(
+            Long branchId,
+            User customer,
+            LocalDate bookingDate,
+            LocalTime startTime,
+            Long preferredStaffId,
+            List<Long> serviceIds,
+            Long bundleId,
+            String notes
+    ) {
+        Branch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
+
+        BigDecimal totalPrice = BigDecimal.ZERO;
+        int totalDuration = 0;
+        List<SalonService> services = new ArrayList<>();
+        ServiceBundle bundle = null;
+
+        if (bundleId != null) {
+            bundle = serviceBundleRepository.findByIdAndBranchId(bundleId, branchId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy combo với id: " + bundleId + " tại chi nhánh này"));
+            totalPrice = bundle.getPrice();
+            totalDuration = bundle.getTotalDurationMinutes();
+            services = bundle.getItems().stream().map(ServiceBundleItem::getService).toList();
+        } else if (serviceIds != null && !serviceIds.isEmpty()) {
+            services = serviceRepository.findAllById(serviceIds);
+            if (services.size() != serviceIds.size()) {
+                throw new BusinessException("Một số dịch vụ được chọn không hợp lệ hoặc không tồn tại");
+            }
+            for (SalonService service : services) {
+                if (!service.getBranch().getId().equals(branchId)) {
+                    throw new BusinessException("Dịch vụ '" + service.getName() + "' không thuộc chi nhánh này");
+                }
+                totalPrice = totalPrice.add(service.getPrice());
+                totalDuration += service.getDurationMinutes();
+            }
+        } else {
+            throw new BusinessException("Vui lòng chọn ít nhất một dịch vụ hoặc combo để đặt lịch");
+        }
+
+        BigDecimal depositAmount = calculateDepositAmount(services);
+
+        LocalTime endTime = startTime.plusMinutes(totalDuration);
+
+        int dbDayOfWeek = bookingDate.getDayOfWeek().getValue() == 7 ? 0 : bookingDate.getDayOfWeek().getValue();
+        BranchHour branchHour = branchHourRepository.findByBranchIdAndDayOfWeek(branchId, dbDayOfWeek)
+                .orElseThrow(() -> new BusinessException("Chi nhánh không có lịch hoạt động vào ngày này"));
+        if (Boolean.TRUE.equals(branchHour.getIsClosed())) {
+            throw new BusinessException("Chi nhánh đóng cửa vào ngày này");
+        }
+        if (startTime.isBefore(branchHour.getOpenTime()) || endTime.isAfter(branchHour.getCloseTime())) {
+            throw new BusinessException("Thời gian hẹn nằm ngoài khung giờ mở cửa của chi nhánh ("
+                    + branchHour.getOpenTime() + " - " + branchHour.getCloseTime() + ")");
+        }
+
+        Staff preferredStaff = null;
+        Staff assignedStaff = null;
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
+
+        if (preferredStaffId != null) {
+            preferredStaff = staffRepository.findByIdAndBranchId(preferredStaffId, branchId)
+                    .orElseThrow(() -> new ResourceNotFoundException(
+                            "Không tìm thấy nhân viên với id: " + preferredStaffId + " tại chi nhánh này"));
+
+            if (!isStaffQualified(preferredStaff, services)) {
+                throw new BusinessException("Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện một số dịch vụ đã chọn");
+            }
+
+            List<Booking> overlapping = bookingRepository.findOverlappingBookings(
+                    preferredStaff.getId(), bookingDate, startTime, endTime, activeStatuses);
+            if (!overlapping.isEmpty()) {
+                throw new BusinessException("Nhân viên " + preferredStaff.getName() + " đã bận vào khung giờ bạn chọn");
+            }
+            assignedStaff = preferredStaff;
+        } else {
+            final List<SalonService> finalServices = services;
+            List<Staff> branchStaff = staffRepository.findByBranchId(branchId);
+            List<Staff> qualifiedStaff = branchStaff.stream()
+                    .filter(s -> isStaffQualified(s, finalServices))
+                    .toList();
+
+            if (qualifiedStaff.isEmpty()) {
+                throw new BusinessException("Không có nhân viên nào tại chi nhánh có khả năng thực hiện toàn bộ dịch vụ đã chọn");
+            }
+
+            List<Staff> availableStaff = new ArrayList<>();
+            for (Staff staff : qualifiedStaff) {
+                List<Booking> overlapping = bookingRepository.findOverlappingBookings(
+                        staff.getId(), bookingDate, startTime, endTime, activeStatuses);
+                if (overlapping.isEmpty()) {
+                    availableStaff.add(staff);
+                }
+            }
+
+            if (availableStaff.isEmpty()) {
+                throw new BusinessException("Hiện tại không có nhân viên nào trống lịch trong khung giờ bạn chọn");
+            }
+
+            Staff selectedStaff = availableStaff.get(0);
+            int minBookings = Integer.MAX_VALUE;
+            for (Staff staff : availableStaff) {
+                int count = bookingRepository.findByAssignedStaffIdAndBookingDateAndStatusIn(
+                        staff.getId(), bookingDate, activeStatuses).size();
+                if (count < minBookings) {
+                    minBookings = count;
+                    selectedStaff = staff;
+                }
+            }
+            assignedStaff = selectedStaff;
+        }
+
+        String lockKey = String.format("lock:booking:%d:%s:%s",
+                assignedStaff.getId(),
+                bookingDate,
+                startTime
+        );
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, "LOCKED", java.time.Duration.ofSeconds(5));
+        if (Boolean.FALSE.equals(acquired)) {
+            throw new BusinessException("Khung giờ này đang có giao dịch đặt lịch song song hoặc đã được đặt. Vui lòng chọn khung giờ khác.");
+        }
+
+        Booking booking = null;
+        try {
+            booking = Booking.builder()
+                    .customer(customer)
+                    .branch(branch)
+                    .bookingDate(bookingDate)
+                    .startTime(startTime)
+                    .endTime(endTime)
+                    .preferredStaff(preferredStaff)
+                    .assignedStaff(assignedStaff)
+                    .status(BookingStatus.PENDING)
+                    .totalPrice(totalPrice)
+                    .depositAmount(depositAmount)
+                    .totalDurationMinutes(totalDuration)
+                    .notes(notes)
+                    .build();
+
+            booking = bookingRepository.save(booking);
+
+            List<BookingItem> items = new ArrayList<>();
+            if (bundle != null) {
+                BookingItem item = BookingItem.builder()
+                        .booking(booking)
+                        .bundle(bundle)
+                        .price(bundle.getPrice())
+                        .durationMinutes(bundle.getTotalDurationMinutes())
+                        .build();
+                items.add(bookingItemRepository.save(item));
+            } else {
+                for (SalonService service : services) {
+                    BookingItem item = BookingItem.builder()
+                            .booking(booking)
+                            .service(service)
+                            .price(service.getPrice())
+                            .durationMinutes(service.getDurationMinutes())
+                            .build();
+                    items.add(bookingItemRepository.save(item));
+                }
+            }
+            booking.setItems(items);
+
+            try {
+                String pattern = String.format("availability:branch:%d:staff:*:date:%s:duration:*",
+                        branchId,
+                        booking.getBookingDate());
+                java.util.Set<String> keys = redisTemplate.keys(pattern);
+                if (keys != null && !keys.isEmpty()) {
+                    redisTemplate.delete(keys);
+                    log.info("Evicted {} availability cache keys for branch {} and date {}", keys.size(), branchId, booking.getBookingDate());
+                }
+                bookingWebSocketHandler.broadcastBookingUpdate(
+                        branchId,
+                        booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null,
+                        booking.getBookingDate().toString()
+                );
+            } catch (Exception e) {
+                log.error("Failed to evict cache and broadcast booking update", e);
+            }
+        } catch (Exception e) {
+            redisTemplate.delete(lockKey);
+            throw e;
+        }
+
+        return toResponse(booking);
+    }
+
+    private User findOrCreateGuestCustomer(CreateGuestBookingRequest request) {
+        if (request.getCustomerPhone() != null && !request.getCustomerPhone().isBlank()) {
+            Optional<User> byPhone = userRepository.findByPhone(request.getCustomerPhone());
+            if (byPhone.isPresent()) {
+                return byPhone.get();
+            }
+        }
+
+        if (request.getCustomerEmail() != null && !request.getCustomerEmail().isBlank()) {
+            Optional<User> byEmail = userRepository.findByEmail(request.getCustomerEmail());
+            if (byEmail.isPresent()) {
+                return byEmail.get();
+            }
+        }
+
+        Role customerRole = roleRepository.findByCode("CUSTOMER")
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy role CUSTOMER"));
+
+        String phone = request.getCustomerPhone().trim();
+        String email = (request.getCustomerEmail() != null && !request.getCustomerEmail().isBlank())
+                ? request.getCustomerEmail().trim()
+                : "guest_" + UUID.randomUUID() + "@guest.local";
+        String username = "guest_" + UUID.randomUUID();
+
+        User user = User.builder()
+                .username(username)
+                .email(email)
+                .passwordHash(passwordEncoder.encode("Guest@" + UUID.randomUUID()))
+                .fullName(request.getCustomerName())
+                .phone(phone)
+                .status(com.example.salonflow.entity.enums.UserStatus.ACTIVE)
+                .build();
+
+        user = userRepository.save(user);
+
+        UserRole userRole = UserRole.builder()
+                .id(new UserRoleId(user.getId(), customerRole.getId()))
+                .user(user)
+                .role(customerRole)
+                .assignedAt(LocalDateTime.now())
+                .build();
+        userRoleRepository.save(userRole);
+
+        return user;
     }
 @Override
 @Transactional

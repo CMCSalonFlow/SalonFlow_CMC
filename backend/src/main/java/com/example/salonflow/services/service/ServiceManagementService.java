@@ -20,6 +20,8 @@ public interface ServiceManagementService {
 
     List<ServiceResponse> getByBranch(Long branchId);
 
+    List<ServiceResponse> getByBranchActiveOnly(Long branchId);
+
     ServiceResponse getById(Long branchId, Long serviceId);
 
     ServiceResponse update(

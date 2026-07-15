@@ -39,6 +39,14 @@ public class ServiceManagementController {
                 serviceManagementService.getByBranch(branchId));
     }
 
+    @GetMapping("/public")
+    public ResponseEntity<List<ServiceResponse>> getPublicByBranch(
+            @PathVariable Long branchId
+    ) {
+        return ResponseEntity.ok(
+                serviceManagementService.getByBranchActiveOnly(branchId));
+    }
+
     @GetMapping("/{serviceId}")
     public ResponseEntity<ServiceResponse> getById(
             @PathVariable Long branchId,

@@ -1,6 +1,7 @@
 package com.example.salonflow.services.service;
 
 import com.example.salonflow.dto.booking.AvailabilityResponse;
+import com.example.salonflow.dto.booking.CreateGuestBookingRequest;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.dto.booking.CancellationResult;
@@ -16,6 +17,9 @@ public interface BookingService {
 
     // Tạo mới một lịch hẹn đặt chỗ tại chi nhánh
     BookingResponse create(Long branchId, CreateBookingRequest request);
+
+    // Tạo booking cho guest, không cần customerId và không cần đăng nhập
+    BookingResponse createGuestBooking(Long branchId, CreateGuestBookingRequest request);
 
     // Lấy danh sách lịch hẹn đặt chỗ của chi nhánh
     List<BookingResponse> getByBranch(Long branchId);
