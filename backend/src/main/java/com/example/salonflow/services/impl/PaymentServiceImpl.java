@@ -10,6 +10,8 @@ import com.example.salonflow.entity.enums.PaymentStatus;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.PaymentRepository;
 import com.example.salonflow.services.service.PaymentService;
+import com.example.salonflow.services.service.EmailService;
+import com.example.salonflow.services.service.InvoicePdfService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,6 +40,8 @@ public class PaymentServiceImpl implements PaymentService {
 
     private final BookingRepository bookingRepository;
     private final PaymentRepository paymentRepository;
+    private final InvoicePdfService invoicePdfService;
+    private final EmailService emailService;
 
     @Value("${vnpay.tmn-code}")
     private String tmnCode;
@@ -221,6 +225,15 @@ public class PaymentServiceImpl implements PaymentService {
             if ("00".equals(responseCode)) {
                 payment.setStatus(PaymentStatus.SUCCESS);
                 booking.setStatus(BookingStatus.CONFIRMED);
+
+                try {
+                    String invoiceUrl = invoicePdfService.generateInvoice(booking);
+                    emailService.sendInvoiceEmail(booking, invoiceUrl);
+                    log.info("Invoice created: {}", invoiceUrl);
+                } catch (Exception ex) {
+                    log.error("Generate invoice failed", ex);
+                }
+                
             } else {
                 payment.setStatus(PaymentStatus.FAILED);
                 booking.setStatus(BookingStatus.CANCELLED);
@@ -310,6 +323,15 @@ public class PaymentServiceImpl implements PaymentService {
             if ("00".equals(responseCode)) {
                 payment.setStatus(PaymentStatus.SUCCESS);
                 booking.setStatus(BookingStatus.CONFIRMED);
+
+                try {
+                    String invoiceUrl = invoicePdfService.generateInvoice(booking);
+                    emailService.sendInvoiceEmail(booking, invoiceUrl);
+                    log.info("Invoice created: {}", invoiceUrl);
+                } catch (Exception ex) {
+                    log.error("Generate invoice failed", ex);
+                }
+
             } else {
                 payment.setStatus(PaymentStatus.FAILED);
                 booking.setStatus(BookingStatus.CANCELLED);

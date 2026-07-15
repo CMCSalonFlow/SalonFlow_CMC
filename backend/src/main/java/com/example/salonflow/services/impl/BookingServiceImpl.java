@@ -547,6 +547,8 @@ if (request.getCustomerId() != null) {
                 .depositAmount(booking.getDepositAmount())
                 .totalDurationMinutes(booking.getTotalDurationMinutes())
                 .notes(booking.getNotes())
+                .invoiceUrl(booking.getInvoiceUrl())
+                .invoiceGeneratedAt(booking.getInvoiceGeneratedAt())
                 .items(itemResponses)
                 .build();
     }

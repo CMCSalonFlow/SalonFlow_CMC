@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Hóa đơn</title>
+
+    <style>
+        body{
+            font-family: Arial, Helvetica, sans-serif;
+            color:#333;
+            padding:40px;
+        }
+
+        .header{
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            border-bottom:2px solid #333;
+            padding-bottom:20px;
+            margin-bottom:25px;
+        }
+
+        .logo{
+            width:90px;
+            height:90px;
+            object-fit:contain;
+        }
+
+        h1{
+            margin:0;
+        }
+
+        table{
+            width:100%;
+            border-collapse:collapse;
+            margin-top:20px;
+        }
+
+        table th,
+        table td{
+            border:1px solid #ddd;
+            padding:10px;
+        }
+
+        table th{
+            background:#f3f3f3;
+        }
+
+        .right{
+            text-align:right;
+        }
+
+        .summary{
+            width:320px;
+            margin-left:auto;
+            margin-top:20px;
+        }
+
+        .summary td{
+            border:none;
+            padding:6px;
+        }
+
+        .footer{
+            margin-top:60px;
+            text-align:center;
+            color:#777;
+            font-size:13px;
+        }
+    </style>
+
+</head>
+
+<body>
+
+<div class="header">
+
+    <div>
+
+        <h1>{{salonName}}</h1>
+
+        <p>{{salonAddress}}</p>
+
+        <p>{{salonPhone}}</p>
+
+    </div>
+
+    <img class="logo" src="{{logoUrl}}">
+
+</div>
+
+<h2>HÓA ĐƠN THANH TOÁN</h2>
+
+<p><b>Mã đặt lịch:</b> {{bookingCode}}</p>
+
+<p><b>Khách hàng:</b> {{customerName}}</p>
+
+<p><b>SĐT:</b> {{customerPhone}}</p>
+
+<p><b>Ngày:</b> {{bookingDate}}</p>
+
+<table>
+
+    <thead>
+
+    <tr>
+        <th>Dịch vụ</th>
+        <th>SL</th>
+        <th>Đơn giá</th>
+        <th>Thành tiền</th>
+    </tr>
+
+    </thead>
+
+    <tbody>
+
+    {{#each services}}
+
+    <tr>
+
+        <td>{{name}}</td>
+
+        <td class="right">{{quantity}}</td>
+
+        <td class="right">{{price}}</td>
+
+        <td class="right">{{total}}</td>
+
+    </tr>
+
+    {{/each}}
+
+    </tbody>
+
+</table>
+
+<table class="summary">
+
+    <tr>
+
+        <td>Tạm tính</td>
+
+        <td class="right">{{subTotal}}</td>
+
+    </tr>
+
+    <tr>
+
+        <td>Thuế</td>
+
+        <td class="right">{{tax}}</td>
+
+    </tr>
+
+    <tr>
+
+        <td><b>Tổng tiền</b></td>
+
+        <td class="right"><b>{{grandTotal}}</b></td>
+
+    </tr>
+
+</table>
+
+<div class="footer">
+
+    Cảm ơn quý khách đã sử dụng dịch vụ tại {{salonName}}
+
+</div>
+
+</body>
+</html>

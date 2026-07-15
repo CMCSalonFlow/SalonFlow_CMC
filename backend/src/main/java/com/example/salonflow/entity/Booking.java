@@ -6,6 +6,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -80,6 +81,10 @@ public class Booking extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String notes;
 
+    // URL hóa đơn PDF trên MinIO
+    @Column(name = "invoice_url")
+    private String invoiceUrl;
+
     // Chi tiết danh sách dịch vụ lẻ hoặc combo tương ứng với lượt đặt lịch này
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
@@ -100,4 +105,8 @@ public class Booking extends BaseEntity {
      */
     @Column(name = "slot_key", length = 255)
     private String slotKey;
+
+    @Column(name = "invoice_generated_at")
+    private LocalDateTime invoiceGeneratedAt;
+
 }

@@ -41,3 +41,7 @@ build/
 # Các biến thể của env
 .env.*
 !.env.example
+
+node_modules/
+*.pdf
+scripts/sample.json

@@ -33,7 +33,7 @@ public class MediaServiceImpl implements MediaService {
 
     
     @Override
-    //@Transactional
+    @Transactional
     public UploadResponse upload(MultipartFile file) {
 
         ImageValidator.validate(file);
@@ -92,13 +92,11 @@ public class MediaServiceImpl implements MediaService {
                     .originalFileName(file.getOriginalFilename())
                     .build();
 
-                    System.out.println("1. BEFORE MINIO");
-                System.out.println("2. AFTER MINIO");
-                System.out.println("3. BEFORE SAVE");
+                    
 
             media = repository.save(media);
 
-            System.out.println("4. AFTER SAVE ID = " + media.getId());
+
             // 7. Response
             return UploadResponse.builder()
                     .id(media.getId())
@@ -134,4 +132,61 @@ public class MediaServiceImpl implements MediaService {
             throw new BadRequestException("Delete failed");
         }
     }
+
+    @Override
+    @Transactional
+    public String uploadInvoice(File pdfFile, Long bookingId) {
+
+    try (FileInputStream input = new FileInputStream(pdfFile)) {
+
+       String objectName =
+        "invoice/"
+        + LocalDate.now().getYear()
+        + "/"
+        + LocalDate.now().getMonthValue()
+        + "/"
+        + bookingId
+        + "-"
+        + UUID.randomUUID()
+        + ".pdf";
+
+        minioClient.putObject(
+                PutObjectArgs.builder()
+                        .bucket(properties.getBucketName())
+                        .object(objectName)
+                        .stream(input, pdfFile.length(), -1)
+                        .contentType("application/pdf")
+                        .build()
+        );
+
+        String url =
+                properties.getEndpoint()
+                        + "/"
+                        + properties.getBucketName()
+                        + "/"
+                        + objectName;
+
+        MediaFile media = MediaFile.builder()
+                .objectName(objectName)
+                .originalFileName("invoice-" + bookingId + ".pdf")
+                .contentType("application/pdf")
+                .fileSize(pdfFile.length())
+                .provider("MINIO")
+                .bucket(properties.getBucketName())
+                .url(url)
+                .build();
+
+        repository.save(media);
+
+        return url;
+
+    } catch (Exception e) {
+
+        throw new BadRequestException(
+                "Upload invoice failed: " + e.getMessage()
+        );
+
+    }
+
+ }
 }

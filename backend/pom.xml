@@ -155,6 +155,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.github.jknack</groupId>
+            <artifactId>handlebars</artifactId>
+            <version>4.4.0</version>
+        </dependency>
+
         <!-- H2 in-memory DB cho test (thay PostgreSQL) -->
         <dependency>
             <groupId>com.h2database</groupId>
