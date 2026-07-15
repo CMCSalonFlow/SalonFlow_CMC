@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+
 /**
  * RecurringBookingServiceImpl
  *
@@ -44,6 +46,7 @@ public class RecurringBookingServiceImpl implements RecurringBookingService {
     private final ServiceRepository serviceRepository;
     private final BranchRepository branchRepository;
     private final StaffRepository staffRepository;
+    private final StringRedisTemplate redisTemplate;
 
     /**
      * Giới hạn tối đa số lần lặp — tránh user chọn end_date quá xa
@@ -211,6 +214,7 @@ public class RecurringBookingServiceImpl implements RecurringBookingService {
 
             booking = bookingRepository.save(booking);
             createdBookingIds.add(booking.getId());
+            evictAvailabilityCache(branch.getId(), decision.getDate());
         }
 
         log.info("[RecurringBooking] Tạo xong: recurringId={} created={} skipped={}",
@@ -270,6 +274,7 @@ public class RecurringBookingServiceImpl implements RecurringBookingService {
             if (isFuture && isCancellable) {
                 booking.setStatus(BookingStatus.CANCELLED);
                 bookingRepository.save(booking);
+                evictAvailabilityCache(recurringBooking.getBranch().getId(), booking.getBookingDate());
             }
         }
 
@@ -365,5 +370,18 @@ public class RecurringBookingServiceImpl implements RecurringBookingService {
         return branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Branch not found: " + branchId));
+    }
+
+    private void evictAvailabilityCache(Long branchId, LocalDate date) {
+        try {
+            String pattern = String.format("availability:branch:%d:staff:*:date:%s:duration:*", branchId, date.toString());
+            java.util.Set<String> keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.info("Evicted {} availability cache keys for branch {} and date {}", keys.size(), branchId, date);
+            }
+        } catch (Exception e) {
+            log.error("Failed to evict availability cache", e);
+        }
     }
 }

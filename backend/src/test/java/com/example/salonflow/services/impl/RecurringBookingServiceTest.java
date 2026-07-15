@@ -20,6 +20,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+
 /**
  * Unit test cho RecurringBookingServiceImpl.
  * Tập trung vào: generate ngày lặp đúng pattern, detect conflict,
@@ -34,6 +36,7 @@ class RecurringBookingServiceTest {
     @Mock private ServiceRepository serviceRepository;
     @Mock private BranchRepository branchRepository;
     @Mock private StaffRepository staffRepository;
+    @Mock private StringRedisTemplate redisTemplate;
 
     private RecurringBookingServiceImpl service;
 
@@ -50,7 +53,8 @@ class RecurringBookingServiceTest {
                 userRepository,
                 serviceRepository,
                 branchRepository,
-                staffRepository
+                staffRepository,
+                redisTemplate
         );
     }
 
