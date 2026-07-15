@@ -4,6 +4,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -45,6 +46,9 @@ public class BookingResponse {
     private BigDecimal depositAmount;
     private Integer totalDurationMinutes;
     private String notes;
+
+    private String invoiceUrl;
+    private LocalDateTime invoiceGeneratedAt;
 
     // Chi tiết danh sách dịch vụ trong đơn đặt lịch
     private List<BookingItemResponse> items;
