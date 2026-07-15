@@ -6,6 +6,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 /**
  * Thực thể lưu trữ thông tin giao dịch thanh toán trực tuyến.
@@ -44,6 +45,18 @@ public class Payment extends BaseEntity {
 
     @Column(name = "gateway_transaction_id", length = 255)
     private String gatewayTransactionId;
+
+    @Column(name = "gateway_transaction_date", length = 32)
+    private String gatewayTransactionDate;
+
+    @Column(name = "refund_transaction_id", length = 255)
+    private String refundTransactionId;
+
+    @Column(name = "refund_amount", precision = 12, scale = 2)
+    private BigDecimal refundAmount;
+
+    @Column(name = "refunded_at")
+    private Instant refundedAt;
 
     @Column(name = "payment_url", columnDefinition = "TEXT")
     private String paymentUrl;

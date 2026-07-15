@@ -10,6 +10,7 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 
+import java.math.BigDecimal;
 import java.util.Map;
 
 @Service
@@ -94,7 +95,8 @@ public void sendCancellationEmail(Booking booking, CancellationResult result) {
     String subject = "Thông báo hủy lịch hẹn #" + booking.getId();
     String body = "Lịch hẹn của bạn đã bị hủy.\n" +
                   "Lý do: " + (result.isFreeCancel() ? "Hủy miễn phí" : "Có phí hủy") + "\n" +
-                  "Số tiền phí: " + result.getFeeAmount() + " VND";
+                  "Số tiền phí: " + result.getFeeAmount() + " VND\n" +
+                  "Số tiền hoàn: " + (result.getRefundAmount() != null ? result.getRefundAmount() : BigDecimal.ZERO) + " VND";
 
     sendEmail(booking.getCustomer().getEmail(), subject, body);
 }

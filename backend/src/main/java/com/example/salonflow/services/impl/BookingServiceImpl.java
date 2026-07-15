@@ -7,11 +7,14 @@ import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.dto.booking.BookingItemResponse;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
+import com.example.salonflow.entity.enums.PaymentStatus;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.BookingService;
 import com.example.salonflow.services.service.EmailService;
+import com.example.salonflow.services.service.PaymentService;
+import com.example.salonflow.dto.payment.PaymentResponse;
 import com.example.salonflow.util.SecurityUtil;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
@@ -57,6 +60,8 @@ public class BookingServiceImpl implements BookingService {
     private final BranchHourRepository branchHourRepository;
     private final CancellationPolicyRepository cancellationPolicyRepository; // ← Thêm
     private final EmailService emailService; // ← Thêm nếu chưa có
+    private final PaymentRepository paymentRepository;
+    private final PaymentService paymentService;
     private final ShiftRepository shiftRepository;
     private final StaffOffDayRepository staffOffDayRepository;
     private final BookingWebSocketHandler bookingWebSocketHandler;
@@ -569,7 +574,7 @@ if (request.getCustomerId() != null) {
 
         return depositAmount;
     }
-       @Override
+@Override
 @Transactional
 public CancellationResult cancelBooking(Long bookingId, String reason) {
     Booking booking = bookingRepository.findById(bookingId)
@@ -585,14 +590,44 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
 
     CancellationResult result = calculateCancellationFee(booking, policy);
 
+    PaymentResponse refundedPayment = null;
+    if (result.isFreeCancel()) {
+        BigDecimal refundableAmount = result.getRefundAmount();
+        boolean hasSuccessfulVnpayPayment = paymentRepository
+                .findFirstByBookingIdAndPaymentMethodAndStatusOrderByCreatedAtDesc(
+                        bookingId,
+                        com.example.salonflow.entity.enums.PaymentMethod.VNPAY,
+                        com.example.salonflow.entity.enums.PaymentStatus.SUCCESS
+                )
+                .isPresent();
+
+        if (hasSuccessfulVnpayPayment && refundableAmount != null && refundableAmount.compareTo(BigDecimal.ZERO) > 0) {
+            refundedPayment = paymentService.refundDeposit(bookingId, refundableAmount, reason);
+            result.setRefundAmount(refundedPayment.getRefundAmount());
+            result.setMessage("Hủy miễn phí theo chính sách, đã hoàn tiền " + refundableAmount + " VND qua VNPay");
+        } else {
+            result.setRefundAmount(BigDecimal.ZERO);
+        }
+    }
+
+    paymentRepository.findByBookingId(bookingId).stream()
+            .filter(payment -> payment.getStatus() == PaymentStatus.PENDING)
+            .forEach(payment -> {
+                payment.setStatus(PaymentStatus.CANCELLED);
+                paymentRepository.save(payment);
+            });
+
     booking.setStatus(BookingStatus.CANCELLED);
     if (reason != null && !reason.trim().isEmpty()) {
         booking.setNotes(reason);
     }
     bookingRepository.save(booking);
 
-    // TODO: Gửi email sau khi hoàn thiện EmailService
-    // emailService.sendCancellationEmail(booking, result);
+    try {
+        emailService.sendCancellationEmail(booking, result);
+    } catch (Exception e) {
+        log.error("Failed to send cancellation email for booking {}", bookingId, e);
+    }
 
     // Evict cache and broadcast WebSocket update
     try {
@@ -618,22 +653,25 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
     private CancellationResult calculateCancellationFee(Booking booking, CancellationPolicy policy) {
         LocalDateTime bookingTime = booking.getBookingDate().atTime(booking.getStartTime());
         long hoursUntilBooking = java.time.Duration.between(LocalDateTime.now(), bookingTime).toHours();
+        BigDecimal depositAmount = booking.getDepositAmount() != null ? booking.getDepositAmount() : BigDecimal.ZERO;
 
         if (hoursUntilBooking >= policy.getFreeCancelHours()) {
             return CancellationResult.builder()
                     .success(true)
                     .feeAmount(BigDecimal.ZERO)
+                    .refundAmount(depositAmount)
                     .isFreeCancel(true)
                     .message("Hủy miễn phí theo chính sách")
                     .build();
         } else {
             BigDecimal fee = booking.getTotalPrice()
                     .multiply(policy.getFeePercentage())
-                    .divide(BigDecimal.valueOf(100), 2, BigDecimal.ROUND_HALF_UP);
+                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
             return CancellationResult.builder()
                     .success(true)
                     .feeAmount(fee)
+                    .refundAmount(BigDecimal.ZERO)
                     .isFreeCancel(false)
                     .message("Hủy có phí: " + fee + " VND (" + policy.getFeePercentage() + "%)")
                     .build();
