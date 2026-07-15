@@ -44,6 +44,7 @@ public class BookingResponse {
     private String status;
     private BigDecimal totalPrice;
     private BigDecimal depositAmount;
+    private BigDecimal remainingAmount;
     private Integer totalDurationMinutes;
     private String notes;
 

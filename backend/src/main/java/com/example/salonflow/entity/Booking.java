@@ -85,6 +85,8 @@ public class Booking extends BaseEntity {
     @Column(name = "invoice_url")
     private String invoiceUrl;
 
+    @Column(name = "remaining_amount", precision = 12, scale = 2)
+    private BigDecimal remainingAmount;
     // Chi tiết danh sách dịch vụ lẻ hoặc combo tương ứng với lượt đặt lịch này
     @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

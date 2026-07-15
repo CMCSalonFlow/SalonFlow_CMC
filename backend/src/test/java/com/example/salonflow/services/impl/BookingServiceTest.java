@@ -9,6 +9,8 @@ import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.entity.enums.ShiftStatus;
 import com.example.salonflow.exception.BusinessException;
+import com.example.salonflow.pricing.BookingPricingResult;
+import com.example.salonflow.pricing.BookingPricingService;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.websocket.BookingWebSocketHandler;
 import org.junit.jupiter.api.BeforeEach;
@@ -80,6 +82,9 @@ class BookingServiceTest {
 
         @Mock
         private ValueOperations<String, String> valueOperations;
+
+        @Mock
+        private BookingPricingService bookingPricingService;
 
         @InjectMocks
         private BookingServiceImpl bookingService;
@@ -171,7 +176,14 @@ class BookingServiceTest {
 
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
                 when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
-                when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
+                BookingPricingResult pricingResult = BookingPricingResult.builder()
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .depositAmount(BigDecimal.valueOf(8000.00))
+                                .remainingAmount(BigDecimal.valueOf(72000.00))
+                                .totalDurationMinutes(30)
+                                .services(List.of(service1))
+                                .build();
+                when(bookingPricingService.calculate(eq(1L), eq(List.of(11L)), any())).thenReturn(pricingResult);
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
                 when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
 
@@ -210,7 +222,14 @@ class BookingServiceTest {
 
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
                 when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
-                when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
+                BookingPricingResult pricingResult = BookingPricingResult.builder()
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .depositAmount(BigDecimal.ZERO)
+                                .remainingAmount(BigDecimal.valueOf(80000.00))
+                                .totalDurationMinutes(30)
+                                .services(List.of(service1))
+                                .build();
+                when(bookingPricingService.calculate(eq(1L), eq(List.of(11L)), any())).thenReturn(pricingResult);
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
                 when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
 
@@ -237,7 +256,14 @@ class BookingServiceTest {
 
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
                 when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
-                when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
+                BookingPricingResult pricingResult = BookingPricingResult.builder()
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .depositAmount(BigDecimal.ZERO)
+                                .remainingAmount(BigDecimal.valueOf(80000.00))
+                                .totalDurationMinutes(30)
+                                .services(List.of(service1))
+                                .build();
+                when(bookingPricingService.calculate(eq(1L), eq(List.of(11L)), any())).thenReturn(pricingResult);
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
 
                 // Trả về cả thợ A và thợ B
@@ -274,7 +300,14 @@ class BookingServiceTest {
         void getAvailability_shouldScanCorrectSlots() {
                 LocalDate date = LocalDate.of(2026, 7, 1);
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
-                when(serviceRepository.findAllById(List.of(11L))).thenReturn(List.of(service1));
+                BookingPricingResult pricingResult = BookingPricingResult.builder()
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .depositAmount(BigDecimal.ZERO)
+                                .remainingAmount(BigDecimal.valueOf(80000.00))
+                                .totalDurationMinutes(30)
+                                .services(List.of(service1))
+                                .build();
+                when(bookingPricingService.calculate(eq(1L), eq(List.of(11L)), any())).thenReturn(pricingResult);
                 when(staffRepository.findByBranchId(1L)).thenReturn(List.of(staff1));
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
                 when(shiftRepository.findByUserIdAndShiftDate(eq(6L), eq(date)))
