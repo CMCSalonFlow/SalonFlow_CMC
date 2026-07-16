@@ -46,6 +46,10 @@ public class OAuth2AuthenticationSuccessHandler
                                 authResponse.getUsername(),
                                 StandardCharsets.UTF_8
                         )
+                        + "&fullName=" + URLEncoder.encode(
+                                authResponse.getFullName() != null ? authResponse.getFullName() : "",
+                                StandardCharsets.UTF_8
+                        )
                         + "&email=" + URLEncoder.encode(
                                 authResponse.getEmail(),
                                 StandardCharsets.UTF_8
