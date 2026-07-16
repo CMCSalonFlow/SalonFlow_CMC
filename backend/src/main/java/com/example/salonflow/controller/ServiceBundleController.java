@@ -40,6 +40,14 @@ public class ServiceBundleController {
                 serviceBundleService.getByBranch(branchId));
     }
 
+    @GetMapping("/public")
+    public ResponseEntity<List<BundleResponse>> getPublicByBranch(
+            @PathVariable Long branchId
+    ) {
+        return ResponseEntity.ok(
+                serviceBundleService.getByBranchActiveOnly(branchId));
+    }
+
     @GetMapping("/{bundleId}")
     public ResponseEntity<BundleResponse> getById(
             @PathVariable Long branchId,

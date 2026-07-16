@@ -1,6 +1,7 @@
 package com.example.salonflow.controller;
 
 import com.example.salonflow.dto.booking.AvailabilityResponse;
+import com.example.salonflow.dto.booking.CreateGuestBookingRequest;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.dto.booking.LockSlotRequest;
@@ -35,6 +36,15 @@ public class BookingController {
             @Valid @RequestBody CreateBookingRequest request
     ) {
         return ResponseEntity.ok(bookingService.create(branchId, request));
+    }
+
+    // API POST public: Khách vãng lai tạo booking không cần đăng nhập
+    @PostMapping("/api/v1/branches/{branchId}/guest-bookings")
+    public ResponseEntity<BookingResponse> createGuestBooking(
+            @PathVariable Long branchId,
+            @Valid @RequestBody CreateGuestBookingRequest request
+    ) {
+        return ResponseEntity.ok(bookingService.createGuestBooking(branchId, request));
     }
 
     // API GET: Lấy toàn bộ danh sách lịch hẹn của chi nhánh

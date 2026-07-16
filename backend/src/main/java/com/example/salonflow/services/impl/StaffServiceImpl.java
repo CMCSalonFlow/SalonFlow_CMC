@@ -2,6 +2,7 @@ package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.service.ServiceResponse;
 import com.example.salonflow.dto.staff.CreateStaffRequest;
+import com.example.salonflow.dto.staff.PublicStaffResponse;
 import com.example.salonflow.dto.staff.StaffResponse;
 import com.example.salonflow.dto.staff.UpdateStaffRequest;
 import com.example.salonflow.entity.Branch;
@@ -133,6 +134,18 @@ public class StaffServiceImpl implements StaffService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<PublicStaffResponse> getPublicByBranch(Long branchId) {
+        if (!branchRepository.existsById(branchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
+        }
+
+        return staffRepository.findByBranchId(branchId).stream()
+                .map(this::toPublicResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public StaffResponse getById(Long branchId, Long staffId) {
         // Lấy thông tin nhân viên theo id và branchId để đảm bảo nhân viên thuộc chi
         // nhánh đó
@@ -241,6 +254,17 @@ public class StaffServiceImpl implements StaffService {
                 .userId(staff.getUserId())
                 .email(email)
                 .phone(phone)
+                .build();
+    }
+
+    private PublicStaffResponse toPublicResponse(Staff staff) {
+        return PublicStaffResponse.builder()
+                .id(staff.getId())
+                .branchId(staff.getBranch().getId())
+                .name(staff.getName())
+                .avatarUrl(staff.getAvatarUrl())
+                .bio(staff.getBio())
+                .specialties(staff.getSpecialties())
                 .build();
     }
 }

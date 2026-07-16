@@ -89,6 +89,17 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
     }
 
     @Override
+    public List<ServiceResponse> getByBranchActiveOnly(Long branchId) {
+
+        ensureBranchExists(branchId);
+
+        return serviceRepository.findByBranchIdAndIsActiveTrue(branchId)
+                .stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    @Override
     public ServiceResponse getById(Long branchId, Long serviceId) {
 
         SalonService service = findOwnedService(branchId, serviceId);
