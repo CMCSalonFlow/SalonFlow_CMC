@@ -28,4 +28,9 @@ public class MediaController {
     public void delete(@PathVariable Long id) {
         mediaService.delete(id);
     }
+
+    @GetMapping("/invoice")
+    public String getInvoiceUrl(@RequestParam String objectName) {
+    return mediaService.getInvoiceUrl(objectName);
+}
 }

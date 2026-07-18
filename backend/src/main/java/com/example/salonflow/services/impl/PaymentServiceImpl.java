@@ -401,6 +401,7 @@ public class PaymentServiceImpl implements PaymentService {
                 .paymentUrl(payment.getPaymentUrl())
                 .refundAmount(payment.getRefundAmount())
                 .refundTransactionId(payment.getRefundTransactionId())
+                .invoiceUrl(payment.getBooking().getInvoiceUrl())
                 .refundedAt(payment.getRefundedAt())
                 .build();
     }

@@ -65,14 +65,14 @@ public class InvoicePdfServiceImpl implements InvoicePdfService {
             throw new RuntimeException("Invoice PDF not found.");
         }
 
-        // Upload PDF lên MinIO
-        String invoiceUrl = mediaService.uploadInvoice(
-                pdfFile.toFile(),
-                booking.getId()
-        );
+       // Upload PDF lên MinIO
+        String objectName = mediaService.uploadInvoice(
+        pdfFile.toFile(),
+        booking.getId()
+);
 
-        // Lưu URL hóa đơn vào Booking
-        booking.setInvoiceUrl(invoiceUrl);
+        // Chỉ lưu objectName vào DB
+        booking.setInvoiceUrl(objectName);
         booking.setInvoiceGeneratedAt(LocalDateTime.now());
 
         bookingRepository.save(booking);
@@ -82,7 +82,8 @@ public class InvoicePdfServiceImpl implements InvoicePdfService {
         Files.deleteIfExists(jsonFile);
         Files.deleteIfExists(tempDir);
 
-        // Trả về URL hóa đơn
-        return invoiceUrl;
+        // Trả về objectName
+        return objectName;
+
     }
 }

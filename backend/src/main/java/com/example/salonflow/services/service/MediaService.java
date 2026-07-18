@@ -12,4 +12,7 @@ public interface MediaService {
     void delete(Long mediaId);
 
     String uploadInvoice(File pdfFile, Long bookingId);
+
+    // Sinh Presigned URL từ objectName
+    String getInvoiceUrl(String objectName);
 }

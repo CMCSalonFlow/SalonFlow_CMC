@@ -11,6 +11,9 @@ import com.example.salonflow.services.service.MediaService;
 import com.example.salonflow.util.ImageValidator;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.GetPresignedObjectUrlArgs;
+import io.minio.http.Method;
+import java.util.concurrent.TimeUnit;
 import lombok.RequiredArgsConstructor;
 import net.coobird.thumbnailator.Thumbnails;
 import org.springframework.stereotype.Service;
@@ -159,26 +162,21 @@ public class MediaServiceImpl implements MediaService {
                         .build()
         );
 
-        String url =
-                properties.getEndpoint()
-                        + "/"
-                        + properties.getBucketName()
-                        + "/"
-                        + objectName;
+        String url = generatePresignedUrl(objectName);
 
-        MediaFile media = MediaFile.builder()
-                .objectName(objectName)
-                .originalFileName("invoice-" + bookingId + ".pdf")
-                .contentType("application/pdf")
-                .fileSize(pdfFile.length())
-                .provider("MINIO")
-                .bucket(properties.getBucketName())
-                .url(url)
-                .build();
+       MediaFile media = MediaFile.builder()
+        .objectName(objectName)
+        .originalFileName("invoice-" + bookingId + ".pdf")
+        .contentType("application/pdf")
+        .fileSize(pdfFile.length())
+        .provider("MINIO")
+        .bucket(properties.getBucketName())
+        .url(objectName) // hoặc để null nếu không dùng cột này
+        .build();
 
         repository.save(media);
 
-        return url;
+        return objectName;
 
     } catch (Exception e) {
 
@@ -189,4 +187,23 @@ public class MediaServiceImpl implements MediaService {
     }
 
  }
+ private String generatePresignedUrl(String objectName) {
+    try {
+        return minioClient.getPresignedObjectUrl(
+                GetPresignedObjectUrlArgs.builder()
+                        .bucket(properties.getBucketName())
+                        .object(objectName)
+                        .method(Method.GET)
+                        .expiry(7, TimeUnit.DAYS)
+                        .build()
+        );
+    } catch (Exception e) {
+        throw new BadRequestException("Cannot create presigned url: " + e.getMessage());
+    }
+ }
+
+    @Override
+    public String getInvoiceUrl(String objectName) {
+    return generatePresignedUrl(objectName);
+}
 }
