@@ -15,13 +15,15 @@ import com.example.salonflow.pricing.BookingPricingResult;
 import com.example.salonflow.pricing.BookingPricingService;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.BookingService;
-import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.PaymentService;
 import com.example.salonflow.dto.payment.PaymentResponse;
 import com.example.salonflow.util.SecurityUtil;
+import com.example.salonflow.notification.BookingNotificationEvent;
+import com.example.salonflow.notification.BookingNotificationType;
 import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,7 +45,6 @@ import com.example.salonflow.entity.enums.ShiftStatus;
 import com.example.salonflow.websocket.BookingWebSocketHandler;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 /**
  * Lớp triển khai các nghiệp vụ liên quan đến Đặt lịch hẹn (BookingService).
@@ -63,13 +64,13 @@ public class BookingServiceImpl implements BookingService {
     private final ServiceBundleRepository serviceBundleRepository;
     private final BranchHourRepository branchHourRepository;
     private final CancellationPolicyRepository cancellationPolicyRepository; // ← Thêm
-    private final EmailService emailService; // ← Thêm nếu chưa có
     private final PaymentRepository paymentRepository;
     private final PaymentService paymentService;
     private final ShiftRepository shiftRepository;
     private final StaffOffDayRepository staffOffDayRepository;
     private final BookingWebSocketHandler bookingWebSocketHandler;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -410,6 +411,102 @@ public class BookingServiceImpl implements BookingService {
         return depositAmount;
     }
 
+    private void publishBookingCreatedEvent(Booking booking) {
+        publishBookingNotification(
+                booking,
+                BookingNotificationType.BOOKING_CREATED,
+                "Đặt lịch thành công #" + booking.getId(),
+                "Lịch hẹn của bạn vào " + booking.getBookingDate() + " lúc " + booking.getStartTime()
+                        + " đã được tạo thành công."
+        );
+    }
+
+    private void publishBookingCancelledEvent(Booking booking, String reason, CancellationResult result) {
+        StringBuilder message = new StringBuilder()
+                .append("Lịch hẹn của bạn vào ")
+                .append(booking.getBookingDate())
+                .append(" lúc ")
+                .append(booking.getStartTime())
+                .append(" đã bị hủy.");
+
+        if (reason != null && !reason.trim().isEmpty()) {
+            message.append(" Lý do: ").append(reason.trim()).append(".");
+        }
+
+        if (result != null && result.getRefundAmount() != null) {
+            message.append(" Số tiền hoàn lại: ").append(result.getRefundAmount()).append(" VND.");
+        }
+
+        publishBookingNotification(
+                booking,
+                BookingNotificationType.BOOKING_CANCELLED,
+                "Lịch hẹn #" + booking.getId() + " đã bị hủy",
+                message.toString()
+        );
+    }
+
+    private void publishBookingNotification(
+            Booking booking,
+            BookingNotificationType type,
+            String title,
+            String message
+    ) {
+        try {
+            List<Long> recipientUserIds = new ArrayList<>();
+            recipientUserIds.add(booking.getCustomer().getId());
+            if (booking.getAssignedStaff() != null && booking.getAssignedStaff().getUserId() != null
+                    && !booking.getAssignedStaff().getUserId().equals(booking.getCustomer().getId())) {
+                recipientUserIds.add(booking.getAssignedStaff().getUserId());
+            }
+
+            java.util.Map<String, Object> payload = new java.util.LinkedHashMap<>();
+            payload.put("bookingId", booking.getId());
+            payload.put("branchId", booking.getBranch() != null ? booking.getBranch().getId() : null);
+            payload.put("branchName", booking.getBranch() != null ? booking.getBranch().getName() : null);
+            payload.put("customerId", booking.getCustomer() != null ? booking.getCustomer().getId() : null);
+            payload.put("customerName", booking.getCustomer() != null ? booking.getCustomer().getFullName() : null);
+            payload.put("assignedStaffId", booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null);
+            payload.put("assignedStaffUserId", booking.getAssignedStaff() != null ? booking.getAssignedStaff().getUserId() : null);
+            payload.put("status", booking.getStatus() != null ? booking.getStatus().name() : null);
+            payload.put("bookingDate", booking.getBookingDate());
+            payload.put("startTime", booking.getStartTime());
+            payload.put("endTime", booking.getEndTime());
+            payload.put("totalPrice", booking.getTotalPrice());
+            payload.put("depositAmount", booking.getDepositAmount());
+            payload.put("remainingAmount", booking.getRemainingAmount());
+            payload.put("totalDurationMinutes", booking.getTotalDurationMinutes());
+            payload.put("notes", booking.getNotes());
+            payload.put("items", booking.getItems() != null
+                    ? booking.getItems().stream().map(item -> {
+                        java.util.Map<String, Object> itemPayload = new java.util.LinkedHashMap<>();
+                        itemPayload.put("serviceId", item.getService() != null ? item.getService().getId() : null);
+                        itemPayload.put("bundleId", item.getBundle() != null ? item.getBundle().getId() : null);
+                        itemPayload.put("price", item.getPrice());
+                        itemPayload.put("durationMinutes", item.getDurationMinutes());
+                        return itemPayload;
+                    }).toList()
+                    : List.of());
+
+            if (type == BookingNotificationType.BOOKING_CANCELLED) {
+                payload.put("cancellationReason", message);
+            }
+
+            String payloadJson = objectMapper.writeValueAsString(payload);
+            applicationEventPublisher.publishEvent(new BookingNotificationEvent(
+                    booking.getId(),
+                    booking.getBranch() != null ? booking.getBranch().getId() : null,
+                    booking.getCustomer() != null ? booking.getCustomer().getId() : null,
+                    recipientUserIds,
+                    type,
+                    title,
+                    message,
+                    payloadJson
+            ));
+        } catch (Exception e) {
+            log.error("Failed to publish booking notification event for booking {}", booking.getId(), e);
+        }
+    }
+
     private BookingResponse createBookingInternal(
             Long branchId,
             User customer,
@@ -573,6 +670,8 @@ public class BookingServiceImpl implements BookingService {
             }
             booking.setItems(items);
 
+            publishBookingCreatedEvent(booking);
+
             try {
                 String pattern = String.format("availability:branch:%d:staff:*:date:%s:duration:*",
                         branchId,
@@ -691,12 +790,7 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
         booking.setNotes(reason);
     }
     bookingRepository.save(booking);
-
-    try {
-        emailService.sendCancellationEmail(booking, result);
-    } catch (Exception e) {
-        log.error("Failed to send cancellation email for booking {}", bookingId, e);
-    }
+    publishBookingCancelledEvent(booking, reason, result);
 
     // Evict cache and broadcast WebSocket update
     try {
