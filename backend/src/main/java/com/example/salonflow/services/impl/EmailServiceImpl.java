@@ -148,6 +148,11 @@ public class EmailServiceImpl implements EmailService {
         sendEmail(booking.getCustomer().getEmail(), subject, body);
     }
 
+    @Override
+    public void sendNotificationEmail(String to, String subject, String body) {
+        sendEmail(to, subject, body);
+    }
+
     private void sendEmail(String to, String subject, String body) {
 
         try {
