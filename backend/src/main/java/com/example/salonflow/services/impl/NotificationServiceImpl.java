@@ -77,6 +77,15 @@ public class NotificationServiceImpl implements NotificationService {
                 inAppSender.send(notification);
             }
 
+            NotificationSender pushSender = senders.get(NotificationChannel.PUSH);
+            if (pushSender != null) {
+                try {
+                    pushSender.send(notification);
+                } catch (Exception e) {
+                    log.error("Failed to prepare push notification for notification id={}", notification.getId(), e);
+                }
+            }
+
             if (event.type().name().equals("BOOKING_CREATED") || event.type().name().equals("BOOKING_CANCELLED")) {
                 NotificationSender emailSender = senders.get(NotificationChannel.EMAIL);
                 if (emailSender != null) {
