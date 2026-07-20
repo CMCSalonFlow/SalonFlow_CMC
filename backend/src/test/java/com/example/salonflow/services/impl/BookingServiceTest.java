@@ -20,6 +20,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -86,6 +87,9 @@ class BookingServiceTest {
         @Mock
         private BookingPricingService bookingPricingService;
 
+        @Mock
+        private ApplicationEventPublisher applicationEventPublisher;
+
         @InjectMocks
         private BookingServiceImpl bookingService;
 
@@ -124,6 +128,9 @@ class BookingServiceTest {
                                 .isActive(true)
                                 .images(new ArrayList<>())
                                 .build();
+
+                lenient().when(serviceRepository.findAllById(any()))
+                                .thenReturn(List.of(service1));
 
                 staff1 = Staff.builder()
                                 .id(6L)
@@ -176,14 +183,6 @@ class BookingServiceTest {
 
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
                 when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
-                BookingPricingResult pricingResult = BookingPricingResult.builder()
-                                .totalPrice(BigDecimal.valueOf(80000.00))
-                                .depositAmount(BigDecimal.valueOf(8000.00))
-                                .remainingAmount(BigDecimal.valueOf(72000.00))
-                                .totalDurationMinutes(30)
-                                .services(List.of(service1))
-                                .build();
-                when(bookingPricingService.calculate(eq(1L), eq(List.of(11L)), any())).thenReturn(pricingResult);
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
                 when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
 
@@ -222,14 +221,6 @@ class BookingServiceTest {
 
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
                 when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
-                BookingPricingResult pricingResult = BookingPricingResult.builder()
-                                .totalPrice(BigDecimal.valueOf(80000.00))
-                                .depositAmount(BigDecimal.ZERO)
-                                .remainingAmount(BigDecimal.valueOf(80000.00))
-                                .totalDurationMinutes(30)
-                                .services(List.of(service1))
-                                .build();
-                when(bookingPricingService.calculate(eq(1L), eq(List.of(11L)), any())).thenReturn(pricingResult);
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
                 when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
 
@@ -256,14 +247,6 @@ class BookingServiceTest {
 
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
                 when(userRepository.findById(2L)).thenReturn(Optional.of(customer));
-                BookingPricingResult pricingResult = BookingPricingResult.builder()
-                                .totalPrice(BigDecimal.valueOf(80000.00))
-                                .depositAmount(BigDecimal.ZERO)
-                                .remainingAmount(BigDecimal.valueOf(80000.00))
-                                .totalDurationMinutes(30)
-                                .services(List.of(service1))
-                                .build();
-                when(bookingPricingService.calculate(eq(1L), eq(List.of(11L)), any())).thenReturn(pricingResult);
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
 
                 // Trả về cả thợ A và thợ B

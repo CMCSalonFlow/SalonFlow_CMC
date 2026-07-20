@@ -45,3 +45,6 @@ build/
 node_modules/
 *.pdf
 scripts/sample.json
+
+# firebase
+src/main/resources/firebase/**
