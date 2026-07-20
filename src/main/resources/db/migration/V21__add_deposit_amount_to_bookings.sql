@@ -1,2 +1,0 @@
-ALTER TABLE bookings
-ADD COLUMN IF NOT EXISTS deposit_amount DECIMAL(12,2);

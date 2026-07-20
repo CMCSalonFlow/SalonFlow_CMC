@@ -36,4 +36,6 @@ public interface BookingService {
     CancellationResult cancelBooking(Long bookingId, String reason);
 
     void cancelUnpaidBookings();
+
+    BookingResponse completeBooking(Long bookingId);
 }

@@ -79,6 +79,7 @@ public class BookingServiceImpl implements BookingService {
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
     private final BookingPricingService bookingPricingService;
+    private final com.example.salonflow.services.service.LoyaltyPointService loyaltyPointService;
 
     @Override
     @Transactional
@@ -941,5 +942,29 @@ public BookingResponse createWalkInBooking(
                 log.error("Loi khi tu dong huy booking ID: {}", booking.getId(), e);
             }
         }
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse completeBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn với id: " + bookingId));
+
+        if (booking.getStatus() == BookingStatus.COMPLETED) {
+            return toResponse(booking);
+        }
+
+        booking.setStatus(BookingStatus.COMPLETED);
+        booking = bookingRepository.save(booking);
+
+        if (booking.getCustomer() != null) {
+            loyaltyPointService.earnPointsForBooking(
+                    booking.getCustomer().getId(),
+                    booking.getTotalPrice(),
+                    "BOOKING:" + booking.getId()
+            );
+        }
+
+        return toResponse(booking);
     }
 }

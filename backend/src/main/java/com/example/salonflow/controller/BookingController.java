@@ -125,4 +125,9 @@ public class BookingController {
                 )
         );
     }
+
+    @PutMapping("/api/v1/bookings/{bookingId}/complete")
+    public ResponseEntity<BookingResponse> completeBooking(@PathVariable Long bookingId) {
+        return ResponseEntity.ok(bookingService.completeBooking(bookingId));
+    }
 }
