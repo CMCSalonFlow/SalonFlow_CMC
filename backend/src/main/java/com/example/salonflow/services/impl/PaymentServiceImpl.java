@@ -218,16 +218,18 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("So tien khong khop");
         }
 
+        Booking booking = payment.getBooking();
+
         // Check order status
         if (payment.getStatus() == PaymentStatus.PENDING) {
             String responseCode = params.get("vnp_ResponseCode");
-            Booking booking = payment.getBooking();
             if ("00".equals(responseCode)) {
                 payment.setStatus(PaymentStatus.SUCCESS);
                 booking.setStatus(BookingStatus.CONFIRMED);
 
                 try {
                     String invoiceUrl = invoicePdfService.generateInvoice(booking);
+                    booking.setInvoiceUrl(invoiceUrl);
                     emailService.sendInvoiceEmail(booking, invoiceUrl);
                     log.info("Invoice created: {}", invoiceUrl);
                 } catch (Exception ex) {
@@ -240,11 +242,21 @@ public class PaymentServiceImpl implements PaymentService {
             }
             payment.setGatewayTransactionId(params.get("vnp_TransactionNo"));
             payment.setGatewayTransactionDate(extractGatewayTransactionDate(params));
-            paymentRepository.save(payment);
-            bookingRepository.save(booking);
+            booking = bookingRepository.save(booking);
+            payment.setBooking(booking);
+            payment = paymentRepository.save(payment);
+        } else {
+            if (booking != null) {
+                booking = bookingRepository.findById(booking.getId()).orElse(booking);
+                payment.setBooking(booking);
+            }
         }
 
-        return mapToResponse(payment);
+        PaymentResponse response = mapToResponse(payment);
+        if (booking != null && booking.getInvoiceUrl() != null) {
+            response.setInvoiceUrl(booking.getInvoiceUrl());
+        }
+        return response;
     }
 
     @Override
@@ -326,6 +338,7 @@ public class PaymentServiceImpl implements PaymentService {
 
                 try {
                     String invoiceUrl = invoicePdfService.generateInvoice(booking);
+                    booking.setInvoiceUrl(invoiceUrl);
                     emailService.sendInvoiceEmail(booking, invoiceUrl);
                     log.info("Invoice created: {}", invoiceUrl);
                 } catch (Exception ex) {
@@ -338,8 +351,9 @@ public class PaymentServiceImpl implements PaymentService {
             }
             payment.setGatewayTransactionId(params.get("vnp_TransactionNo"));
             payment.setGatewayTransactionDate(extractGatewayTransactionDate(params));
+            booking = bookingRepository.save(booking);
+            payment.setBooking(booking);
             paymentRepository.save(payment);
-            bookingRepository.save(booking);
 
             response.put("RspCode", "00");
             response.put("Message", "Confirm Success");
@@ -392,16 +406,23 @@ public class PaymentServiceImpl implements PaymentService {
     }
 
     private PaymentResponse mapToResponse(Payment payment) {
+        String invoiceUrl = null;
+        Long bookingId = null;
+        if (payment.getBooking() != null) {
+            bookingId = payment.getBooking().getId();
+            invoiceUrl = payment.getBooking().getInvoiceUrl();
+        }
+
         return PaymentResponse.builder()
                 .paymentId(payment.getId())
-                .bookingId(payment.getBooking().getId())
+                .bookingId(bookingId)
                 .paymentMethod(payment.getPaymentMethod())
                 .amount(payment.getAmount())
                 .status(payment.getStatus())
                 .paymentUrl(payment.getPaymentUrl())
                 .refundAmount(payment.getRefundAmount())
                 .refundTransactionId(payment.getRefundTransactionId())
-                .invoiceUrl(payment.getBooking().getInvoiceUrl())
+                .invoiceUrl(invoiceUrl)
                 .refundedAt(payment.getRefundedAt())
                 .build();
     }

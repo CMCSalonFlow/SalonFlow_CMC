@@ -17,64 +17,69 @@ public class InvoiceMapper {
     public InvoiceDto toDto(Booking booking) {
 
         Branch branch = booking.getBranch();
-        Salon salon = branch.getSalon();
+        Salon salon = branch != null ? branch.getSalon() : null;
 
-        List<InvoiceItemDto> items = booking.getItems()
-                .stream()
-                .map(this::toItemDto)
-                .toList();
+        List<InvoiceItemDto> items = (booking.getItems() != null)
+                ? booking.getItems().stream().map(this::toItemDto).toList()
+                : List.of();
 
-        double subTotal = booking.getTotalPrice().doubleValue();
-
+        double subTotal = booking.getTotalPrice() != null ? booking.getTotalPrice().doubleValue() : 0.0;
         double tax = 0;
-
         double total = subTotal + tax;
 
+        String customerName = "Khách hàng";
+        String customerPhone = "";
+        if (booking.getCustomer() != null) {
+            if (booking.getCustomer().getFullName() != null && !booking.getCustomer().getFullName().isBlank()) {
+                customerName = booking.getCustomer().getFullName();
+            } else if (booking.getCustomer().getUsername() != null && !booking.getCustomer().getUsername().isBlank()) {
+                customerName = booking.getCustomer().getUsername();
+            } else if (booking.getCustomer().getEmail() != null) {
+                customerName = booking.getCustomer().getEmail();
+            }
+            if (booking.getCustomer().getPhone() != null) {
+                customerPhone = booking.getCustomer().getPhone();
+            }
+        }
+
+        LocalDateTime bookingTime = LocalDateTime.now();
+        if (booking.getBookingDate() != null && booking.getStartTime() != null) {
+            bookingTime = LocalDateTime.of(booking.getBookingDate(), booking.getStartTime());
+        }
+
         return InvoiceDto.builder()
-
-                // salon
-                .salonName(salon.getName())
-                .salonAddress(branch.getAddress())
-                .salonPhone(branch.getPhone())
+                .salonName(salon != null ? salon.getName() : "SalonFlow")
+                .salonAddress(branch != null ? branch.getAddress() : "")
+                .salonPhone(branch != null ? branch.getPhone() : "")
                 .salonLogo(null)
-
-                // booking
                 .bookingId(booking.getId())
-                .bookingTime(LocalDateTime.of(
-                        booking.getBookingDate(),
-                        booking.getStartTime()
-                ))
-
-                // customer
-                .customerName(booking.getCustomer().getFullName())
-                .customerPhone(booking.getCustomer().getPhone())
-
-                // services
+                .bookingTime(bookingTime)
+                .customerName(customerName)
+                .customerPhone(customerPhone)
                 .items(items)
-
-                // money
                 .subTotal(subTotal)
                 .tax(tax)
                 .total(total)
-
                 .build();
     }
 
     private InvoiceItemDto toItemDto(BookingItem item) {
 
-        String serviceName;
+        String serviceName = "Dịch vụ";
 
-        if (item.getService() != null) {
+        if (item.getService() != null && item.getService().getName() != null) {
             serviceName = item.getService().getName();
-        } else {
+        } else if (item.getBundle() != null && item.getBundle().getName() != null) {
             serviceName = item.getBundle().getName();
         }
+
+        double price = item.getPrice() != null ? item.getPrice().doubleValue() : 0.0;
 
         return InvoiceItemDto.builder()
                 .serviceName(serviceName)
                 .quantity(1)
-                .unitPrice(item.getPrice().doubleValue())
-                .totalPrice(item.getPrice().doubleValue())
+                .unitPrice(price)
+                .totalPrice(price)
                 .build();
     }
 

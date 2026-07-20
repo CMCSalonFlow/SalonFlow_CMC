@@ -25,8 +25,11 @@ import java.io.*;
 import java.time.LocalDate;
 import java.util.UUID;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class MediaServiceImpl implements MediaService {
 
     private final MinioClient minioClient;
@@ -140,53 +143,48 @@ public class MediaServiceImpl implements MediaService {
     @Transactional
     public String uploadInvoice(File pdfFile, Long bookingId) {
 
-    try (FileInputStream input = new FileInputStream(pdfFile)) {
+        try (FileInputStream input = new FileInputStream(pdfFile)) {
 
-       String objectName =
-        "invoice/"
-        + LocalDate.now().getYear()
-        + "/"
-        + LocalDate.now().getMonthValue()
-        + "/"
-        + bookingId
-        + "-"
-        + UUID.randomUUID()
-        + ".pdf";
+            String objectName =
+                    "invoice/"
+                            + LocalDate.now().getYear()
+                            + "/"
+                            + LocalDate.now().getMonthValue()
+                            + "/"
+                            + bookingId
+                            + "-"
+                            + UUID.randomUUID()
+                            + ".pdf";
 
-        minioClient.putObject(
-                PutObjectArgs.builder()
-                        .bucket(properties.getBucketName())
-                        .object(objectName)
-                        .stream(input, pdfFile.length(), -1)
-                        .contentType("application/pdf")
-                        .build()
-        );
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(properties.getBucketName())
+                            .object(objectName)
+                            .stream(input, pdfFile.length(), -1)
+                            .contentType("application/pdf")
+                            .build()
+            );
 
-        String url = generatePresignedUrl(objectName);
+            MediaFile media = MediaFile.builder()
+                    .objectName(objectName)
+                    .originalFileName("invoice-" + bookingId + ".pdf")
+                    .contentType("application/pdf")
+                    .fileSize(pdfFile.length())
+                    .provider("MINIO")
+                    .bucket(properties.getBucketName())
+                    .url(objectName)
+                    .build();
 
-       MediaFile media = MediaFile.builder()
-        .objectName(objectName)
-        .originalFileName("invoice-" + bookingId + ".pdf")
-        .contentType("application/pdf")
-        .fileSize(pdfFile.length())
-        .provider("MINIO")
-        .bucket(properties.getBucketName())
-        .url(objectName) // hoặc để null nếu không dùng cột này
-        .build();
+            repository.save(media);
 
-        repository.save(media);
+            return objectName;
 
-        return objectName;
-
-    } catch (Exception e) {
-
-        throw new BadRequestException(
-                "Upload invoice failed: " + e.getMessage()
-        );
-
+        } catch (Exception e) {
+            log.error("Upload invoice failed: {}", e.getMessage());
+            throw new BadRequestException("Upload invoice failed: " + e.getMessage());
+        }
     }
 
- }
  private String generatePresignedUrl(String objectName) {
     try {
         return minioClient.getPresignedObjectUrl(

@@ -30,16 +30,34 @@ const Handlebars = require("handlebars");
         const templateSource =
             fs.readFileSync(templatePath, "utf8");
 
-        const template =
-            Handlebars.compile(templateSource);
+        const template = Handlebars.compile(templateSource);
 
-        const html = template(data);
+        const normalizedData = {
+            ...data,
+            salonName: data.salonName || "SalonFlow",
+            salonAddress: data.salonAddress || "",
+            salonPhone: data.salonPhone || "",
+            bookingCode: data.bookingCode || ("#BK" + (data.bookingId || "")),
+            customerName: data.customerName || "Khách hàng",
+            customerPhone: data.customerPhone || "",
+            bookingDate: data.bookingDate || (data.bookingTime ? data.bookingTime.toString().replace("T", " ") : ""),
+            grandTotal: (data.total || data.grandTotal || 0).toLocaleString("vi-VN") + " VND",
+            subTotal: (data.subTotal || 0).toLocaleString("vi-VN") + " VND",
+            tax: (data.tax || 0).toLocaleString("vi-VN") + " VND",
+            services: (data.items || data.services || []).map(item => ({
+                name: item.serviceName || item.name || "Dịch vụ",
+                quantity: item.quantity || 1,
+                price: (item.unitPrice || item.price || 0).toLocaleString("vi-VN") + " VND",
+                total: (item.totalPrice || item.total || 0).toLocaleString("vi-VN") + " VND"
+            }))
+        };
+
+        const html = template(normalizedData);
 
         // Mở Chrome Headless
         const browser = await puppeteer.launch({
-
-            headless: true
-
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
         });
 
         const page = await browser.newPage();

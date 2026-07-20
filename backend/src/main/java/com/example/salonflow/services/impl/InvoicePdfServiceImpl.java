@@ -15,8 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 
+import lombok.extern.slf4j.Slf4j;
+
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class InvoicePdfServiceImpl implements InvoicePdfService {
 
     private final ObjectMapper objectMapper;
@@ -56,9 +59,11 @@ public class InvoicePdfServiceImpl implements InvoicePdfService {
         Process process = pb.start();
 
         int exitCode = process.waitFor();
+        String processOutput = new String(process.getInputStream().readAllBytes());
 
         if (exitCode != 0) {
-            throw new RuntimeException("Generate invoice PDF failed.");
+            log.error("Generate invoice PDF node process failed with code {}: {}", exitCode, processOutput);
+            throw new RuntimeException("Generate invoice PDF failed: " + processOutput);
         }
 
         if (!Files.exists(pdfFile)) {
