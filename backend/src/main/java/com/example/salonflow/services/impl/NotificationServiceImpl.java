@@ -22,6 +22,8 @@ import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
+import com.example.salonflow.websocket.NotificationWebSocketHandler;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -31,6 +33,7 @@ public class NotificationServiceImpl implements NotificationService {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final List<NotificationSender> notificationSenders;
+    private final NotificationWebSocketHandler notificationWebSocketHandler;
 
     private Map<NotificationChannel, NotificationSender> senderMap() {
         Map<NotificationChannel, NotificationSender> map = new EnumMap<>(NotificationChannel.class);
@@ -72,6 +75,23 @@ public class NotificationServiceImpl implements NotificationService {
 
             notification = notificationRepository.save(notification);
 
+            // Trim old notifications exceeding 100 per recipient
+            try {
+                notificationRepository.trimOldNotifications(recipientId);
+            } catch (Exception ex) {
+                log.warn("Failed to trim notifications for userId={}: {}", recipientId, ex.getMessage());
+            }
+
+            NotificationResponse response = toResponse(notification);
+            long unreadCount = countUnread(recipientId);
+
+            // Real-time WebSocket emission
+            try {
+                notificationWebSocketHandler.sendNotificationToUser(recipientId, response, unreadCount);
+            } catch (Exception ex) {
+                log.error("Failed to emit WebSocket notification for userId={}: {}", recipientId, ex.getMessage());
+            }
+
             NotificationSender inAppSender = senders.get(NotificationChannel.IN_APP);
             if (inAppSender != null) {
                 inAppSender.send(notification);
@@ -104,6 +124,7 @@ public class NotificationServiceImpl implements NotificationService {
     public List<NotificationResponse> getMyNotifications(Long userId) {
         return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(userId)
                 .stream()
+                .limit(100)
                 .map(this::toResponse)
                 .toList();
     }
@@ -129,19 +150,32 @@ public class NotificationServiceImpl implements NotificationService {
         return toResponse(notification);
     }
 
+    @Override
+    @Transactional
+    public void markAllAsRead(Long userId) {
+        notificationRepository.markAllAsReadByRecipientId(userId, java.time.Instant.now());
+    }
+
     private NotificationResponse toResponse(Notification notification) {
+        Long recipientId = notification.getRecipient() != null ? notification.getRecipient().getId() : null;
+        boolean isRead = notification.getStatus() == NotificationStatus.READ;
         return NotificationResponse.builder()
                 .id(notification.getId())
-                .recipientId(notification.getRecipient() != null ? notification.getRecipient().getId() : null)
+                .recipientId(recipientId)
+                .userId(recipientId)
                 .bookingId(notification.getBooking() != null ? notification.getBooking().getId() : null)
                 .channel(notification.getChannel() != null ? notification.getChannel().name() : null)
                 .status(notification.getStatus() != null ? notification.getStatus().name() : null)
+                .isRead(isRead)
                 .title(notification.getTitle())
                 .message(notification.getMessage())
+                .body(notification.getMessage())
                 .payloadJson(notification.getPayloadJson())
+                .data(notification.getPayloadJson())
                 .sourceType(notification.getSourceType())
                 .sourceId(notification.getSourceId())
                 .eventType(notification.getEventType())
+                .type(notification.getEventType())
                 .readAt(notification.getReadAt())
                 .createdAt(notification.getCreatedAt())
                 .build();

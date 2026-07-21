@@ -47,6 +47,13 @@ public class NotificationController {
         return ResponseEntity.ok(notificationService.markAsRead(userId, notificationId));
     }
 
+    @PostMapping("/read-all")
+    public ResponseEntity<Map<String, String>> markAllAsRead() {
+        Long userId = SecurityUtils.getCurrentUserId();
+        notificationService.markAllAsRead(userId);
+        return ResponseEntity.ok(Map.of("message", "Đã đánh dấu tất cả thông báo là đã đọc."));
+    }
+
     @GetMapping("/fcm-tokens")
     public ResponseEntity<List<FcmTokenResponse>> getMyFcmTokens() {
         Long userId = SecurityUtils.getCurrentUserId();
