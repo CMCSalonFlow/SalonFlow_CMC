@@ -699,15 +699,16 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private User findOrCreateGuestCustomer(CreateGuestBookingRequest request) {
-        if (request.getCustomerPhone() != null && !request.getCustomerPhone().isBlank()) {
-            Optional<User> byPhone = userRepository.findByPhone(request.getCustomerPhone());
+        String phoneStr = (request.getCustomerPhone() != null) ? request.getCustomerPhone().trim() : "";
+        if (!phoneStr.isBlank()) {
+            Optional<User> byPhone = userRepository.findFirstByPhoneOrderByCreatedAtDesc(phoneStr);
             if (byPhone.isPresent()) {
                 return byPhone.get();
             }
         }
 
         if (request.getCustomerEmail() != null && !request.getCustomerEmail().isBlank()) {
-            Optional<User> byEmail = userRepository.findByEmail(request.getCustomerEmail());
+            Optional<User> byEmail = userRepository.findByEmail(request.getCustomerEmail().trim());
             if (byEmail.isPresent()) {
                 return byEmail.get();
             }
@@ -856,11 +857,12 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
         CreateWalkInBookingRequest request,
         Branch branch
 ) {
+    String phoneStr = (request.getCustomerPhone() != null) ? request.getCustomerPhone().trim() : "";
 
     // Nếu số điện thoại đã tồn tại thì dùng luôn
-    User existedUser = userRepository
-            .findByPhone(request.getCustomerPhone())
-            .orElse(null);
+    User existedUser = !phoneStr.isBlank() 
+            ? userRepository.findFirstByPhoneOrderByCreatedAtDesc(phoneStr).orElse(null)
+            : null;
 
     if (existedUser != null) {
         return existedUser;
