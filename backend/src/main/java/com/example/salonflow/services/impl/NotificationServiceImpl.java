@@ -95,6 +95,15 @@ public class NotificationServiceImpl implements NotificationService {
                         log.error("Failed to send email notification for notification id={}", notification.getId(), e);
                     }
                 }
+
+                NotificationSender zaloSender = senders.get(NotificationChannel.ZALO);
+                if (zaloSender != null) {
+                    try {
+                        zaloSender.send(notification);
+                    } catch (Exception e) {
+                        log.error("Failed to send Zalo notification for notification id={}", notification.getId(), e);
+                    }
+                }
             }
         }
     }
