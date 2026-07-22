@@ -10,12 +10,19 @@ import org.springframework.web.reactive.function.client.WebClient;
 public class AiConfig {
 
     @Bean
-    public WebClient aiWebClient(
+    public WebClient openAiWebClient(
             WebClient.Builder builder,
             AiProperties properties
     ) {
         return builder
                 .baseUrl(properties.getBaseUrl())
+                .build();
+    }
+
+    @Bean
+    public WebClient huggingFaceWebClient(WebClient.Builder builder) {
+        return builder
+                .baseUrl("https://api-inference.huggingface.co")
                 .build();
     }
 }
