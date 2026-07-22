@@ -4,6 +4,7 @@ import com.example.salonflow.dto.booking.CancellationResult;
 import com.example.salonflow.entity.Booking;
 import com.example.salonflow.services.service.EmailService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class EmailServiceImpl implements EmailService {
 
     @Value("${resend.api-key}")
@@ -116,6 +118,15 @@ public class EmailServiceImpl implements EmailService {
 
     @Override
     public void sendInvoiceEmail(Booking booking, String invoiceUrl) {
+        if (booking == null || booking.getCustomer() == null || booking.getCustomer().getEmail() == null) {
+            return;
+        }
+
+        String recipientEmail = booking.getCustomer().getEmail().trim();
+        if (recipientEmail.isBlank() || recipientEmail.endsWith("@walkin.local") || recipientEmail.endsWith("@guest.local")) {
+            log.info("Skip sending invoice email to dummy guest/walkin email: {}", recipientEmail);
+            return;
+        }
 
         String subject = "Thanh toán thành công - SalonFlow";
 
@@ -145,7 +156,7 @@ public class EmailServiceImpl implements EmailService {
                 invoiceUrl
         );
 
-        sendEmail(booking.getCustomer().getEmail(), subject, body);
+        sendEmail(recipientEmail, subject, body);
     }
 
     @Override

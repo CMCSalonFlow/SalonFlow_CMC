@@ -16,6 +16,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByPhone(String phone);
 
+    Optional<User> findFirstByPhoneOrderByCreatedAtDesc(String phone);
+
+    java.util.List<User> findAllByPhone(String phone);
+
     @Query("""
             SELECT u FROM User u
             LEFT JOIN FETCH u.userRoles ur
