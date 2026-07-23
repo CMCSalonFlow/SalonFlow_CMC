@@ -29,14 +29,20 @@ public class ZaloZnsServiceImpl implements ZaloZnsService {
     public boolean sendBookingCreatedZns(Booking booking, User customer) {
         String templateId = zaloProperties.getTemplate().getBookingCreated();
         Map<String, Object> templateData = new HashMap<>();
-        templateData.put("customer_name", customer != null && customer.getFullName() != null ? customer.getFullName() : "Khách hàng");
+        templateData.put("customer_name",
+                customer != null && customer.getFullName() != null ? customer.getFullName() : "Khách hàng");
         templateData.put("booking_code", "BK-" + booking.getId());
-        templateData.put("booking_time", booking.getBookingDate() != null && booking.getStartTime() != null ?
-                booking.getBookingDate().atTime(booking.getStartTime()).format(DATE_FORMATTER) : "Giờ đã chọn");
+        templateData.put("booking_time",
+                booking.getBookingDate() != null && booking.getStartTime() != null
+                        ? booking.getBookingDate().atTime(booking.getStartTime()).format(DATE_FORMATTER)
+                        : "Giờ đã chọn");
         templateData.put("salon_name", booking.getBranch() != null ? booking.getBranch().getName() : "SalonFlow");
-        templateData.put("salon_address", booking.getBranch() != null && booking.getBranch().getAddress() != null ?
-                booking.getBranch().getAddress() : "Chi nhánh SalonFlow");
-        templateData.put("price", booking.getTotalPrice() != null ? booking.getTotalPrice().toString() + " VND" : "0 VND");
+        templateData.put("salon_address",
+                booking.getBranch() != null && booking.getBranch().getAddress() != null
+                        ? booking.getBranch().getAddress()
+                        : "Chi nhánh SalonFlow");
+        templateData.put("price",
+                booking.getTotalPrice() != null ? booking.getTotalPrice().toString() + " VND" : "0 VND");
 
         String phone = extractPhone(customer);
         return sendZnsMessage(phone, templateId, templateData, "DAT_LICH_THANH_CONG");
@@ -46,13 +52,18 @@ public class ZaloZnsServiceImpl implements ZaloZnsService {
     public boolean sendAppointmentReminderZns(Booking booking, User customer) {
         String templateId = zaloProperties.getTemplate().getAppointmentReminder();
         Map<String, Object> templateData = new HashMap<>();
-        templateData.put("customer_name", customer != null && customer.getFullName() != null ? customer.getFullName() : "Khách hàng");
+        templateData.put("customer_name",
+                customer != null && customer.getFullName() != null ? customer.getFullName() : "Khách hàng");
         templateData.put("booking_code", "BK-" + booking.getId());
-        templateData.put("booking_time", booking.getBookingDate() != null && booking.getStartTime() != null ?
-                booking.getBookingDate().atTime(booking.getStartTime()).format(DATE_FORMATTER) : "Giờ hẹn");
+        templateData.put("booking_time",
+                booking.getBookingDate() != null && booking.getStartTime() != null
+                        ? booking.getBookingDate().atTime(booking.getStartTime()).format(DATE_FORMATTER)
+                        : "Giờ hẹn");
         templateData.put("salon_name", booking.getBranch() != null ? booking.getBranch().getName() : "SalonFlow");
-        templateData.put("salon_address", booking.getBranch() != null && booking.getBranch().getAddress() != null ?
-                booking.getBranch().getAddress() : "Chi nhánh SalonFlow");
+        templateData.put("salon_address",
+                booking.getBranch() != null && booking.getBranch().getAddress() != null
+                        ? booking.getBranch().getAddress()
+                        : "Chi nhánh SalonFlow");
 
         String phone = extractPhone(customer);
         return sendZnsMessage(phone, templateId, templateData, "NHAC_LICH_HEN");
@@ -62,7 +73,8 @@ public class ZaloZnsServiceImpl implements ZaloZnsService {
     public boolean sendBookingCancelledZns(Booking booking, User customer, String cancelReason) {
         String templateId = zaloProperties.getTemplate().getBookingCancelled();
         Map<String, Object> templateData = new HashMap<>();
-        templateData.put("customer_name", customer != null && customer.getFullName() != null ? customer.getFullName() : "Khách hàng");
+        templateData.put("customer_name",
+                customer != null && customer.getFullName() != null ? customer.getFullName() : "Khách hàng");
         templateData.put("booking_code", "BK-" + booking.getId());
         templateData.put("cancel_reason", cancelReason != null ? cancelReason : "Thay đổi kế hoạch");
         templateData.put("salon_name", booking.getBranch() != null ? booking.getBranch().getName() : "SalonFlow");
@@ -73,8 +85,8 @@ public class ZaloZnsServiceImpl implements ZaloZnsService {
 
     @Override
     public boolean sendTestZns(String phone, String templateId, String customerName) {
-        String targetTemplateId = templateId != null && !templateId.isEmpty() ?
-                templateId : zaloProperties.getTemplate().getBookingCreated();
+        String targetTemplateId = templateId != null && !templateId.isEmpty() ? templateId
+                : zaloProperties.getTemplate().getBookingCreated();
         Map<String, Object> templateData = new HashMap<>();
         templateData.put("customer_name", customerName != null ? customerName : "Khách hàng thử nghiệm");
         templateData.put("booking_code", "TEST-9999");
@@ -85,17 +97,43 @@ public class ZaloZnsServiceImpl implements ZaloZnsService {
         return sendZnsMessage(phone, targetTemplateId, templateData, "TEST_ZNS");
     }
 
-    private boolean sendZnsMessage(String rawPhone, String templateId, Map<String, Object> templateData, String eventName) {
+    private boolean sendZnsMessage(String rawPhone, String templateId, Map<String, Object> templateData,
+            String eventName) {
         String formattedPhone = formatPhone(rawPhone);
 
         if (zaloProperties.isMockEnable()) {
-            log.info("==================================================================");
-            log.info("📢 [ZALO ZNS MOCK SENDER] Gửi tin nhắn ZNS Giả Lập!");
-            log.info("📌 Sự kiện: {}", eventName);
-            log.info("📞 SĐT nhận: {} (Gốc: {})", formattedPhone, rawPhone);
-            log.info("🆔 Template ID: {}", templateId);
-            log.info("📝 Dữ liệu mẫu (Template Data): {}", templateData);
-            log.info("==================================================================");
+            String customerName = String.valueOf(templateData.getOrDefault("customer_name", "Quý khách"));
+            String bookingCode = String.valueOf(templateData.getOrDefault("booking_code", "-"));
+            String bookingTime = String.valueOf(templateData.getOrDefault("booking_time", "-"));
+            String salonName = String.valueOf(templateData.getOrDefault("salon_name", "SalonFlow"));
+            String salonAddress = String.valueOf(templateData.getOrDefault("salon_address", "-"));
+            String price = templateData.containsKey("price") ? String.valueOf(templateData.get("price")) : null;
+            String cancelReason = templateData.containsKey("cancel_reason") ? String.valueOf(templateData.get("cancel_reason")) : null;
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("\n┌─────────────────────────────────────────────────────────────┐\n");
+            sb.append("│                📱 ZALO OFFICIAL ACCOUNT (ZNS)              │\n");
+            sb.append("├─────────────────────────────────────────────────────────────┤\n");
+            sb.append("│ Kính gửi    : ").append(customerName).append("\n");
+            sb.append("│ Sự kiện     : ").append(eventName).append("\n");
+            sb.append("│ SĐT Nhận    : ").append(formattedPhone).append(" (Gốc: ").append(rawPhone).append(")\n");
+            sb.append("│ Template ID : ").append(templateId).append("\n");
+            sb.append("├─────────────────────────────────────────────────────────────┤\n");
+            sb.append("│ 💈 Salon    : ").append(salonName).append("\n");
+            if (!"-".equals(salonAddress)) {
+                sb.append("│ 📍 Địa chỉ  : ").append(salonAddress).append("\n");
+            }
+            sb.append("│ 🔖 Mã lịch  : ").append(bookingCode).append("\n");
+            sb.append("│ ⏰ Thời gian: ").append(bookingTime).append("\n");
+            if (price != null) {
+                sb.append("│ 💰 Tổng tiền: ").append(price).append("\n");
+            }
+            if (cancelReason != null) {
+                sb.append("│ ⚠️ Lý do hủy: ").append(cancelReason).append("\n");
+            }
+            sb.append("└─────────────────────────────────────────────────────────────┘");
+
+            log.info(sb.toString());
             return true;
         }
 
@@ -113,7 +151,8 @@ public class ZaloZnsServiceImpl implements ZaloZnsService {
             body.put("tracking_id", "TRK-" + System.currentTimeMillis());
 
             HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-            ResponseEntity<Map> response = restTemplate.postForEntity(zaloProperties.getZnsSendUrl(), request, Map.class);
+            ResponseEntity<Map> response = restTemplate.postForEntity(zaloProperties.getZnsSendUrl(), request,
+                    Map.class);
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<String, Object> respBody = response.getBody();
