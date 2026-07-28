@@ -1,5 +1,6 @@
 package com.example.salonflow.controller;
 
+import com.example.salonflow.dto.review.BranchRatingSummaryResponse;
 import com.example.salonflow.dto.review.CreateReviewRequest;
 import com.example.salonflow.dto.review.ReviewResponse;
 import com.example.salonflow.dto.review.SalonRatingSummaryResponse;
@@ -69,6 +70,31 @@ public class ReviewController {
             @PathVariable("salonId") Long salonId
     ) {
         SalonRatingSummaryResponse summary = reviewService.getSalonReviewSummary(salonId);
+        return ResponseEntity.ok(summary);
+    }
+
+    /**
+     * API GET /api/v1/branches/{branchId}/reviews
+     * Lấy danh sách đánh giá của Chi nhánh.
+     */
+    @GetMapping("/branches/{branchId}/reviews")
+    public ResponseEntity<Page<ReviewResponse>> getReviewsByBranchId(
+            @PathVariable("branchId") Long branchId,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
+    ) {
+        Page<ReviewResponse> page = reviewService.getReviewsByBranchId(branchId, pageable);
+        return ResponseEntity.ok(page);
+    }
+
+    /**
+     * API GET /api/v1/branches/{branchId}/review-summary
+     * Lấy thống kê điểm số trung bình và phân bố sao của Chi nhánh.
+     */
+    @GetMapping("/branches/{branchId}/review-summary")
+    public ResponseEntity<BranchRatingSummaryResponse> getBranchReviewSummary(
+            @PathVariable("branchId") Long branchId
+    ) {
+        BranchRatingSummaryResponse summary = reviewService.getBranchReviewSummary(branchId);
         return ResponseEntity.ok(summary);
     }
 }

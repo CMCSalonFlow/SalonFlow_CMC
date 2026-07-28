@@ -1,5 +1,6 @@
 package com.example.salonflow.services.service;
 
+import com.example.salonflow.dto.review.BranchRatingSummaryResponse;
 import com.example.salonflow.dto.review.CreateReviewRequest;
 import com.example.salonflow.dto.review.ReviewResponse;
 import com.example.salonflow.dto.review.SalonRatingSummaryResponse;
@@ -17,4 +18,6 @@ public interface ReviewService {
     Page<ReviewResponse> getReviewsByBranchId(Long branchId, Pageable pageable);
 
     SalonRatingSummaryResponse getSalonReviewSummary(Long salonId);
+
+    BranchRatingSummaryResponse getBranchReviewSummary(Long branchId);
 }

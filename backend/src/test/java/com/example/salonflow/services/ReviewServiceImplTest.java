@@ -6,6 +6,7 @@ import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.BusinessAccessDeniedException;
 import com.example.salonflow.repository.BookingRepository;
+import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ReviewRepository;
 import com.example.salonflow.repository.SalonRepository;
 import com.example.salonflow.services.impl.ReviewServiceImpl;
@@ -35,6 +36,9 @@ class ReviewServiceImplTest {
 
     @Mock
     private SalonRepository salonRepository;
+
+    @Mock
+    private BranchRepository branchRepository;
 
     @InjectMocks
     private ReviewServiceImpl reviewService;
@@ -74,6 +78,8 @@ class ReviewServiceImplTest {
             r.setId(999L);
             return r;
         });
+        when(branchRepository.findById(50L)).thenReturn(Optional.of(branch));
+        when(salonRepository.findById(10L)).thenReturn(Optional.of(salon));
 
         ReviewResponse response = reviewService.createReview(1L, request, 100L);
 
@@ -85,6 +91,8 @@ class ReviewServiceImplTest {
 
         verify(bookingRepository, times(1)).save(booking);
         verify(reviewRepository, times(1)).save(any(Review.class));
+        verify(branchRepository, times(1)).save(branch);
+        verify(salonRepository, times(1)).save(salon);
     }
 
     @Test

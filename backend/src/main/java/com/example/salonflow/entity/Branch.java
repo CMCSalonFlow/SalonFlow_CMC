@@ -3,6 +3,7 @@ package com.example.salonflow.entity;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -33,6 +34,14 @@ public class Branch extends BaseEntity {
 
     @Column(name = "is_active")
     private Boolean isActive;
+
+    @Column(name = "rating_average", precision = 3, scale = 2)
+    @Builder.Default
+    private BigDecimal ratingAverage = BigDecimal.ZERO;
+
+    @Column(name = "rating_count")
+    @Builder.Default
+    private Integer ratingCount = 0;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "salon_id", nullable = false)

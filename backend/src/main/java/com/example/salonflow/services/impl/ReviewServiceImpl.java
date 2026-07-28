@@ -1,5 +1,6 @@
 package com.example.salonflow.services.impl;
 
+import com.example.salonflow.dto.review.BranchRatingSummaryResponse;
 import com.example.salonflow.dto.review.CreateReviewRequest;
 import com.example.salonflow.dto.review.ReviewResponse;
 import com.example.salonflow.dto.review.SalonRatingSummaryResponse;
@@ -8,6 +9,7 @@ import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.BusinessAccessDeniedException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.BookingRepository;
+import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ReviewRepository;
 import com.example.salonflow.repository.SalonRepository;
 import com.example.salonflow.services.service.ReviewService;
@@ -30,6 +32,7 @@ public class ReviewServiceImpl implements ReviewService {
     private final ReviewRepository reviewRepository;
     private final BookingRepository bookingRepository;
     private final SalonRepository salonRepository;
+    private final BranchRepository branchRepository;
 
     @Override
     @Transactional
@@ -86,7 +89,10 @@ public class ReviewServiceImpl implements ReviewService {
         booking.setReviewedAt(LocalDateTime.now());
         bookingRepository.save(booking);
 
-        // Recalculate average rating & rating count of salon
+        // 1. Recalculate average rating & rating count of branch
+        updateBranchRatingSummary(branch.getId());
+
+        // 2. Recalculate average rating & rating count of salon (based on branch averages)
         updateSalonRatingSummary(salon.getId());
 
         return mapToResponse(savedReview);
@@ -123,8 +129,8 @@ public class ReviewServiceImpl implements ReviewService {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId));
 
-        Double avg = reviewRepository.calculateAverageRatingBySalonId(salonId);
-        Long count = reviewRepository.countBySalonId(salonId);
+        Double avg = branchRepository.calculateAverageBranchRatingBySalonId(salonId);
+        Long count = branchRepository.sumRatingCountBySalonId(salonId);
 
         BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         long totalReviews = count != null ? count : 0L;
@@ -151,15 +157,65 @@ public class ReviewServiceImpl implements ReviewService {
                 .build();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public BranchRatingSummaryResponse getBranchReviewSummary(Long branchId) {
+        if (!branchRepository.existsById(branchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy Chi nhánh với ID: " + branchId);
+        }
+
+        Double avg = reviewRepository.calculateAverageRatingByBranchId(branchId);
+        Long count = reviewRepository.countByBranchId(branchId);
+
+        BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        long totalReviews = count != null ? count : 0L;
+
+        Map<Integer, Long> distribution = new HashMap<>();
+        for (int i = 1; i <= 5; i++) {
+            distribution.put(i, 0L);
+        }
+
+        List<Object[]> rawDistribution = reviewRepository.countRatingDistributionByBranchId(branchId);
+        for (Object[] row : rawDistribution) {
+            Integer star = (Integer) row[0];
+            Long cnt = (Long) row[1];
+            if (star != null && star >= 1 && star <= 5) {
+                distribution.put(star, cnt);
+            }
+        }
+
+        return BranchRatingSummaryResponse.builder()
+                .branchId(branchId)
+                .averageRating(averageRating)
+                .totalReviews(totalReviews)
+                .ratingDistribution(distribution)
+                .build();
+    }
+
+    private void updateBranchRatingSummary(Long branchId) {
+        Branch branch = branchRepository.findById(branchId).orElse(null);
+        if (branch == null) return;
+
+        Double avg = reviewRepository.calculateAverageRatingByBranchId(branchId);
+        Long count = reviewRepository.countByBranchId(branchId);
+
+        BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        int totalReviews = count != null ? count.intValue() : 0;
+
+        branch.setRatingAverage(averageRating);
+        branch.setRatingCount(totalReviews);
+        branchRepository.save(branch);
+    }
+
     private void updateSalonRatingSummary(Long salonId) {
         Salon salon = salonRepository.findById(salonId).orElse(null);
         if (salon == null) return;
 
-        Double avg = reviewRepository.calculateAverageRatingBySalonId(salonId);
-        Long count = reviewRepository.countBySalonId(salonId);
+        Double avg = branchRepository.calculateAverageBranchRatingBySalonId(salonId);
+        Long countSum = branchRepository.sumRatingCountBySalonId(salonId);
 
         BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
-        int totalReviews = count != null ? count.intValue() : 0;
+        int totalReviews = countSum != null ? countSum.intValue() : 0;
 
         salon.setRatingAverage(averageRating);
         salon.setRatingCount(totalReviews);

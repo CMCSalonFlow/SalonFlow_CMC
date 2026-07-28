@@ -6,8 +6,12 @@
 ALTER TABLE bookings
 ADD COLUMN reviewed_at TIMESTAMPTZ NULL;
 
--- 2. Bổ sung cột rating_average và rating_count vào bảng salons
+-- 2. Bổ sung cột rating_average và rating_count vào bảng salons và branches
 ALTER TABLE salons
+ADD COLUMN rating_average NUMERIC(3, 2) NOT NULL DEFAULT 0.00,
+ADD COLUMN rating_count INT NOT NULL DEFAULT 0;
+
+ALTER TABLE branches
 ADD COLUMN rating_average NUMERIC(3, 2) NOT NULL DEFAULT 0.00,
 ADD COLUMN rating_count INT NOT NULL DEFAULT 0;
 

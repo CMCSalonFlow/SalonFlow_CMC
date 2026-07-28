@@ -60,7 +60,7 @@ public class BranchSearchMapper {
         );
         document.setMinPrice(minPrice);
         document.setMaxPrice(maxPrice);
-        document.setAverageRating(0d);
+        document.setAverageRating(branch.getRatingAverage() != null ? branch.getRatingAverage().doubleValue() : 0d);
         document.setActive(branch.getIsActive());
         return document;
     }
