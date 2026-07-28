@@ -38,4 +38,6 @@ public interface BookingService {
     void cancelUnpaidBookings();
 
     BookingResponse completeBooking(Long bookingId);
+
+    BookingResponse confirmBooking(Long bookingId);
 }

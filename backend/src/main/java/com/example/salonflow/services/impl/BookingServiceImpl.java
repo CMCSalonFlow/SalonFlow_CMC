@@ -265,10 +265,15 @@ public class BookingServiceImpl implements BookingService {
                 // 2. Kiểm tra ca làm việc (Shift) phải phủ kín slot
                 List<Shift> shifts = staffShiftsMap.get(staff.getId());
                 boolean coveredByShift = false;
-                for (Shift shift : shifts) {
-                    if (!slotStart.isBefore(shift.getStartTime()) && !slotEnd.isAfter(shift.getEndTime())) {
-                        coveredByShift = true;
-                        break;
+                if (shifts == null || shifts.isEmpty()) {
+                    // Nếu chưa được xếp ca làm việc riêng -> Mặc định phục vụ theo giờ mở cửa chi nhánh
+                    coveredByShift = !slotStart.isBefore(openTime) && !slotEnd.isAfter(closeTime);
+                } else {
+                    for (Shift shift : shifts) {
+                        if (!slotStart.isBefore(shift.getStartTime()) && !slotEnd.isAfter(shift.getEndTime())) {
+                            coveredByShift = true;
+                            break;
+                        }
                     }
                 }
                 if (!coveredByShift) {
@@ -330,6 +335,10 @@ public class BookingServiceImpl implements BookingService {
 
     // Kiểm tra xem một nhân viên có được cấp phép làm toàn bộ các dịch vụ yêu cầu hay không
     private boolean isStaffQualified(Staff staff, List<SalonService> requiredServices) {
+        if (staff.getServices() == null || staff.getServices().isEmpty()) {
+            // Nếu chưa gán danh mục dịch vụ riêng cho nhân viên -> Mặc định làm được tất cả dịch vụ chi nhánh
+            return true;
+        }
         List<Long> allowedServiceIds = staff.getServices().stream()
                 .map(SalonService::getId)
                 .toList();
@@ -691,6 +700,10 @@ public class BookingServiceImpl implements BookingService {
             } catch (Exception e) {
                 log.error("Failed to evict cache and broadcast booking update", e);
             }
+        } catch (org.springframework.dao.DataIntegrityViolationException e) {
+            redisTemplate.delete(lockKey);
+            log.warn("Trùng lặp dữ liệu lịch hẹn khi lưu DB: {}", e.getMessage());
+            throw new BusinessException("Khung giờ đặt lịch này vừa được người khác đăng ký hoặc dữ liệu đã tồn tại trong hệ thống. Vui lòng chọn khung giờ khác.");
         } catch (Exception e) {
             redisTemplate.delete(lockKey);
             throw e;
@@ -874,9 +887,11 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
                     new ResourceNotFoundException(
                             "Không tìm thấy role CUSTOMER"));
 
+    String uniqueSuffix = System.currentTimeMillis() + "_" + java.util.UUID.randomUUID().toString().substring(0, 6);
+
     User user = User.builder()
-            .username("walkin_" + System.currentTimeMillis())
-            .email("walkin_" + System.currentTimeMillis() + "@walkin.local")
+            .username("walkin_" + uniqueSuffix)
+            .email("walkin_" + uniqueSuffix + "@walkin.local")
             .passwordHash(passwordEncoder.encode("WalkIn@123"))
             .fullName(request.getCustomerName())
             .phone(request.getCustomerPhone())
@@ -892,11 +907,12 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
             .assignedAt(LocalDateTime.now())
             .build();
 
-    user.getUserRoles().add(userRole);
+    userRoleRepository.save(userRole);
 
     CustomerProfile profile = CustomerProfile.builder()
             .user(user)
             .salon(branch.getSalon())
+            .membershipCode("MEM_" + uniqueSuffix)
             .build();
 
     customerProfileRepository.save(profile);
@@ -967,6 +983,25 @@ public BookingResponse createWalkInBooking(
                     "BOOKING:" + booking.getId()
             );
         }
+
+        return toResponse(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse confirmBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn với id: " + bookingId));
+
+        booking.setStatus(BookingStatus.CONFIRMED);
+        booking = bookingRepository.save(booking);
+
+        publishBookingNotification(
+                booking,
+                BookingNotificationType.BOOKING_CONFIRMED,
+                "Lịch hẹn #" + booking.getId() + " đã được xác nhận",
+                "Lịch hẹn của bạn vào " + booking.getBookingDate() + " lúc " + booking.getStartTime() + " đã được xác nhận thành công."
+        );
 
         return toResponse(booking);
     }

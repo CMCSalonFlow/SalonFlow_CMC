@@ -592,4 +592,65 @@ public class PaymentServiceImpl implements PaymentService {
             return "";
         }
     }
+
+    @Override
+    @Transactional
+    public PaymentResponse processPosCashPayment(com.example.salonflow.dto.payment.PosCashPaymentRequest request) {
+        Long staffId = com.example.salonflow.security.SecurityUtils.getCurrentUserId();
+
+        Booking booking = bookingRepository.findById(request.getBookingId())
+                .orElseThrow(() -> new com.example.salonflow.exception.ResourceNotFoundException(
+                        "Không tìm thấy lịch hẹn ID: " + request.getBookingId()));
+
+        BigDecimal cashAmount = request.getAmount() != null ? request.getAmount() : booking.getTotalPrice();
+
+        // Kiểm tra nếu đơn này đã được thanh toán tiền mặt thành công trước đó thì trả về thông tin đã có (Idempotent)
+        java.util.Optional<Payment> existingOpt = paymentRepository.findByBookingId(booking.getId())
+                .stream()
+                .filter(p -> p.getPaymentMethod() == PaymentMethod.CASH && p.getStatus() == PaymentStatus.SUCCESS)
+                .findFirst();
+
+        if (existingOpt.isPresent()) {
+            Payment existing = existingOpt.get();
+            return PaymentResponse.builder()
+                    .paymentId(existing.getId())
+                    .bookingId(booking.getId())
+                    .paymentMethod(PaymentMethod.CASH)
+                    .amount(existing.getAmount())
+                    .status(PaymentStatus.SUCCESS)
+                    .confirmedBy(existing.getConfirmedBy())
+                    .invoiceUrl(booking.getInvoiceUrl())
+                    .build();
+        }
+
+        Payment payment = Payment.builder()
+                .booking(booking)
+                .paymentMethod(PaymentMethod.CASH)
+                .amount(cashAmount)
+                .status(PaymentStatus.SUCCESS)
+                .confirmedBy(staffId)
+                .idempotencyKey("pos_cash_" + booking.getId() + "_" + System.currentTimeMillis())
+                .gatewayTransactionId("CASH_POS_" + System.currentTimeMillis())
+                .build();
+
+        payment = paymentRepository.save(payment);
+
+        if (booking.getStatus() == BookingStatus.PENDING) {
+            booking.setStatus(BookingStatus.CONFIRMED);
+            bookingRepository.save(booking);
+        }
+
+        log.info("Xác nhận thanh toán tiền mặt POS thành công cho Booking ID: {}, Số tiền: {}, Staff ID xác nhận: {}",
+                booking.getId(), cashAmount, staffId);
+
+        return PaymentResponse.builder()
+                .paymentId(payment.getId())
+                .bookingId(booking.getId())
+                .paymentMethod(PaymentMethod.CASH)
+                .amount(payment.getAmount())
+                .status(PaymentStatus.SUCCESS)
+                .confirmedBy(staffId)
+                .invoiceUrl(booking.getInvoiceUrl())
+                .build();
+    }
 }

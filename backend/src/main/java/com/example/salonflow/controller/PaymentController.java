@@ -60,4 +60,16 @@ public class PaymentController {
         Map<String, String> response = paymentService.verifyIpn(params);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Endpoint riêng xử lý Thanh toán Tiền Mặt tại quầy (POS Mode) do Staff xác nhận.
+     * Tạo bản ghi Payment (method=CASH, status=SUCCESS, confirmedBy=staffId), không qua cổng thanh toán.
+     */
+    @PostMapping("/pos/cash")
+    public ResponseEntity<PaymentResponse> processPosCashPayment(
+            @Valid @RequestBody com.example.salonflow.dto.payment.PosCashPaymentRequest request
+    ) {
+        PaymentResponse response = paymentService.processPosCashPayment(request);
+        return ResponseEntity.ok(response);
+    }
 }
