@@ -37,6 +37,7 @@ import static org.mockito.Mockito.when;
     "spring.flyway.enabled=false",
     "spring.data.redis.host=localhost",
     "spring.data.redis.port=6379",
+    "app.notification.email.enabled=false",
     "resend.api-key=mock-api-key",
     "resend.from=mock-from",
     "spring.security.oauth2.client.registration.google.client-id=mock-id",

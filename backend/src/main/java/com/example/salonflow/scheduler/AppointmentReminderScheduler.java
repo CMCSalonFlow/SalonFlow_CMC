@@ -2,16 +2,20 @@ package com.example.salonflow.scheduler;
 
 import com.example.salonflow.entity.Booking;
 import com.example.salonflow.entity.enums.BookingStatus;
+import com.example.salonflow.notification.BookingNotificationEvent;
+import com.example.salonflow.notification.BookingNotificationType;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.services.service.ZaloZnsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Component
@@ -21,35 +25,78 @@ public class AppointmentReminderScheduler {
 
     private final BookingRepository bookingRepository;
     private final ZaloZnsService zaloZnsService;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final StringRedisTemplate redisTemplate;
 
     /**
-     * Runs every 15 minutes to send ZNS appointment reminders for bookings in the next 2 hours.
+     * Chạy mỗi 15 phút và gửi nhắc lịch cho booking sẽ diễn ra trong 24 giờ tới.
      */
     @Scheduled(cron = "0 */15 * * * *")
     @Transactional(readOnly = true)
     public void sendAppointmentReminders() {
-        log.info("Running scheduled task to send Zalo ZNS appointment reminders...");
+        log.info("Running scheduled task for 24h appointment reminders...");
 
-        LocalDate today = LocalDate.now();
-        LocalTime now = LocalTime.now();
-        LocalTime targetWindow = now.plusHours(2);
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime from = now.plusHours(24);
+        LocalDateTime to = from.plusMinutes(15);
 
-        // Find upcoming confirmed bookings for today within next 2 hours
         List<Booking> upcomingBookings = bookingRepository.findAll().stream()
-                .filter(b -> b.getStatus() == BookingStatus.CONFIRMED || b.getStatus() == BookingStatus.PENDING)
-                .filter(b -> today.equals(b.getBookingDate()))
-                .filter(b -> b.getStartTime() != null && b.getStartTime().isAfter(now) && b.getStartTime().isBefore(targetWindow))
+                .filter(b -> b.getStatus() == BookingStatus.PENDING || b.getStatus() == BookingStatus.CONFIRMED)
+                .filter(b -> b.getBookingDate() != null && b.getStartTime() != null)
+                .filter(b -> {
+                    LocalDateTime bookingTime = b.getBookingDate().atTime(b.getStartTime());
+                    return !bookingTime.isBefore(from) && bookingTime.isBefore(to);
+                })
                 .toList();
 
         for (Booking booking : upcomingBookings) {
+            if (booking.getCustomer() == null || booking.getCustomer().getId() == null) {
+                continue;
+            }
+
+            String reminderKey = "email:reminder:24h:booking:" + booking.getId();
+            Boolean firstTime = redisTemplate.opsForValue().setIfAbsent(reminderKey, "1", Duration.ofDays(2));
+            if (Boolean.FALSE.equals(firstTime)) {
+                continue;
+            }
+
             try {
-                if (booking.getCustomer() != null) {
+                publishReminderEvent(booking);
+                if (booking.getCustomer().getPhone() != null && !booking.getCustomer().getPhone().isBlank()) {
                     zaloZnsService.sendAppointmentReminderZns(booking, booking.getCustomer());
-                    log.info("Successfully processed appointment reminder for booking ID={}", booking.getId());
                 }
+                log.info("Processed 24h reminder for booking ID={}", booking.getId());
             } catch (Exception e) {
-                log.error("Failed to send appointment reminder for booking ID={}: {}", booking.getId(), e.getMessage());
+                redisTemplate.delete(reminderKey);
+                log.error("Failed to process appointment reminder for booking ID={}: {}", booking.getId(), e.getMessage());
             }
         }
+    }
+
+    private void publishReminderEvent(Booking booking) {
+        applicationEventPublisher.publishEvent(
+                new BookingNotificationEvent(
+                        booking.getId(),
+                        booking.getBranch() != null ? booking.getBranch().getId() : null,
+                        booking.getCustomer() != null ? booking.getCustomer().getId() : null,
+                        List.of(booking.getCustomer().getId()),
+                        BookingNotificationType.APPOINTMENT_REMINDER,
+                        "Nhắc lịch hẹn #" + booking.getId(),
+                        "Lịch hẹn của bạn sẽ diễn ra trong 24 giờ tới.",
+                        """
+                        {
+                          "bookingId": %d,
+                          "bookingDate": "%s",
+                          "startTime": "%s",
+                          "branchName": "%s"
+                        }
+                        """.formatted(
+                                booking.getId(),
+                                booking.getBookingDate(),
+                                booking.getStartTime(),
+                                booking.getBranch() != null ? booking.getBranch().getName() : ""
+                        )
+                )
+        );
     }
 }

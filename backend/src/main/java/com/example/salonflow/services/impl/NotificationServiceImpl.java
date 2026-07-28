@@ -106,7 +106,9 @@ public class NotificationServiceImpl implements NotificationService {
                 }
             }
 
-            if (event.type().name().equals("BOOKING_CREATED") || event.type().name().equals("BOOKING_CANCELLED")) {
+            if (event.type().name().equals("BOOKING_CREATED")
+                    || event.type().name().equals("BOOKING_CANCELLED")
+                    || event.type().name().equals("APPOINTMENT_REMINDER")) {
                 NotificationSender emailSender = senders.get(NotificationChannel.EMAIL);
                 if (emailSender != null) {
                     try {
