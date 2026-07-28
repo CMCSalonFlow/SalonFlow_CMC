@@ -65,11 +65,11 @@ public class ReviewServiceImpl implements ReviewService {
 
         Review review = Review.builder()
                 .booking(booking)
-                .customer(booking.getCustomer())
+                .user(booking.getCustomer())
                 .salon(salon)
                 .branch(branch)
                 .rating(request.getRating())
-                .comment(request.getComment())
+                .content(request.getComment())
                 .build();
 
         if (request.getPhotos() != null && !request.getPhotos().isEmpty()) {
