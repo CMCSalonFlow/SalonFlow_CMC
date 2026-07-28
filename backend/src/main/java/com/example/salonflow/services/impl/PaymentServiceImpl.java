@@ -637,7 +637,16 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (booking.getStatus() == BookingStatus.PENDING) {
             booking.setStatus(BookingStatus.CONFIRMED);
-            bookingRepository.save(booking);
+            booking = bookingRepository.save(booking);
+        }
+
+        try {
+            String invoiceUrl = invoicePdfService.generateInvoice(booking);
+            booking.setInvoiceUrl(invoiceUrl);
+            emailService.sendInvoiceEmail(booking, invoiceUrl);
+            log.info("Invoice created for POS cash payment: {}", invoiceUrl);
+        } catch (Exception ex) {
+            log.error("Generate invoice failed for POS cash payment", ex);
         }
 
         log.info("Xác nhận thanh toán tiền mặt POS thành công cho Booking ID: {}, Số tiền: {}, Staff ID xác nhận: {}",
