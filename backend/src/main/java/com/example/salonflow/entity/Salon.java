@@ -4,6 +4,7 @@ import com.example.salonflow.entity.CancellationPolicy;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -54,4 +55,12 @@ public class Salon extends BaseEntity {
 
     @OneToOne(mappedBy = "salon", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     private CancellationPolicy cancellationPolicy;
+
+    @Column(name = "rating_average", precision = 3, scale = 2)
+    @Builder.Default
+    private BigDecimal ratingAverage = BigDecimal.ZERO;
+
+    @Column(name = "rating_count")
+    @Builder.Default
+    private Integer ratingCount = 0;
 }

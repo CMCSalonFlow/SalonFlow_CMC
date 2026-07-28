@@ -384,6 +384,7 @@ public class BookingServiceImpl implements BookingService {
                 .notes(booking.getNotes())
                 .invoiceUrl(booking.getInvoiceUrl())
                 .invoiceGeneratedAt(booking.getInvoiceGeneratedAt())
+                .reviewedAt(booking.getReviewedAt())
                 .items(itemResponses)
                 .build();
     }

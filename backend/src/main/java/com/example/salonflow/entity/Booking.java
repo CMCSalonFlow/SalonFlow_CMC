@@ -111,4 +111,7 @@ public class Booking extends BaseEntity {
     @Column(name = "invoice_generated_at")
     private LocalDateTime invoiceGeneratedAt;
 
+    @Column(name = "reviewed_at")
+    private LocalDateTime reviewedAt;
+
 }

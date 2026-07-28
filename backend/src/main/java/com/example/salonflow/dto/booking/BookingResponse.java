@@ -51,6 +51,8 @@ public class BookingResponse {
     private String invoiceUrl;
     private LocalDateTime invoiceGeneratedAt;
 
+    private LocalDateTime reviewedAt;
+
     // Chi tiết danh sách dịch vụ trong đơn đặt lịch
     private List<BookingItemResponse> items;
 }
