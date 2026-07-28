@@ -1,9 +1,6 @@
 package com.example.salonflow.controller;
 
-import com.example.salonflow.dto.review.BranchRatingSummaryResponse;
-import com.example.salonflow.dto.review.CreateReviewRequest;
-import com.example.salonflow.dto.review.ReviewResponse;
-import com.example.salonflow.dto.review.SalonRatingSummaryResponse;
+import com.example.salonflow.dto.review.*;
 import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.ReviewService;
 import jakarta.validation.Valid;
@@ -26,7 +23,6 @@ public class ReviewController {
     /**
      * API POST /api/v1/bookings/{id}/reviews
      * Tạo đánh giá cho đơn đặt lịch đã hoàn thành.
-     * Validate: chỉ customer đã đặt booking đó mới review được, trạng thái COMPLETED.
      */
     @PostMapping("/bookings/{id}/reviews")
     public ResponseEntity<ReviewResponse> createReview(
@@ -40,7 +36,7 @@ public class ReviewController {
 
     /**
      * API GET /api/v1/bookings/{id}/reviews
-     * Lấy chi tiết bài đánh giá của một booking (nếu đã đánh giá).
+     * Lấy chi tiết bài đánh giá của một booking.
      */
     @GetMapping("/bookings/{id}/reviews")
     public ResponseEntity<ReviewResponse> getReviewByBookingId(@PathVariable("id") Long bookingId) {
@@ -50,7 +46,7 @@ public class ReviewController {
 
     /**
      * API GET /api/v1/salons/{salonId}/reviews
-     * Lấy danh sách đánh giá của Salon (Phân trang với pagination).
+     * Lấy danh sách đánh giá của Salon (Phân trang).
      */
     @GetMapping("/salons/{salonId}/reviews")
     public ResponseEntity<Page<ReviewResponse>> getReviewsBySalonId(
@@ -96,5 +92,33 @@ public class ReviewController {
     ) {
         BranchRatingSummaryResponse summary = reviewService.getBranchReviewSummary(branchId);
         return ResponseEntity.ok(summary);
+    }
+
+    /**
+     * API POST /api/v1/reviews/{id}/reply
+     * Salon Owner phản hồi đánh giá (1 reply per review).
+     */
+    @PostMapping("/reviews/{id}/reply")
+    public ResponseEntity<ReviewResponse> replyReview(
+            @PathVariable("id") Long reviewId,
+            @Valid @RequestBody OwnerReplyReviewRequest request
+    ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        ReviewResponse response = reviewService.replyReview(reviewId, request, currentUserId);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * API POST /api/v1/reviews/{id}/report
+     * Báo cáo đánh giá vi phạm.
+     */
+    @PostMapping("/reviews/{id}/report")
+    public ResponseEntity<ReviewReportResponse> reportReview(
+            @PathVariable("id") Long reviewId,
+            @Valid @RequestBody ReportReviewRequest request
+    ) {
+        Long currentUserId = SecurityUtils.getCurrentUserId();
+        ReviewReportResponse response = reviewService.reportReview(reviewId, request, currentUserId);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 }
