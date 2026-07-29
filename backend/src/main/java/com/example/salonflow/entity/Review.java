@@ -77,6 +77,22 @@ public class Review extends BaseEntity {
     @Builder.Default
     private List<ReviewPhoto> photos = new ArrayList<>();
 
+    @Column(name = "owner_reply", columnDefinition = "TEXT")
+    private String ownerReply;
+
+    @Column(name = "owner_replied_at")
+    private Instant ownerRepliedAt;
+
+    @Column(name = "is_hidden", nullable = false)
+    @Builder.Default
+    private Boolean isHidden = false;
+
+    @Column(name = "hidden_at")
+    private Instant hiddenAt;
+
+    @Column(name = "hidden_reason", columnDefinition = "TEXT")
+    private String hiddenReason;
+
     // Alias methods for backwards compatibility with customer and comment field names
     public User getCustomer() {
         return user;

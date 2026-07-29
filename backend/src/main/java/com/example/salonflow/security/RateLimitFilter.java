@@ -34,9 +34,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final StringRedisTemplate redisTemplate;
 
     // ── Cấu hình giới hạn ────────────────────────────────────────
-    private static final int  GLOBAL_LIMIT     = 100;
-    private static final int  AUTH_LIMIT        = 5;
-    private static final int  OTP_LIMIT         = 3;
+    private static final int  GLOBAL_LIMIT     = 600; // Nâng từ 100 -> 600 request / 60s để tránh 429 khi reload nhanh
+    private static final int  AUTH_LIMIT        = 15;
+    private static final int  OTP_LIMIT         = 10;
     private static final long WINDOW_SECONDS    = 60L;
 
     @Override
@@ -46,9 +46,21 @@ public class RateLimitFilter extends OncePerRequestFilter {
             FilterChain         filterChain
     ) throws ServletException, IOException {
 
+        // ── 0. Bỏ qua preflight OPTIONS requests ─────────────────
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
         String ip     = resolveClientIp(request);
         String path   = request.getRequestURI();
         String method = request.getMethod();
+
+        // Bỏ qua rate limit đối với Localhost IP để dev/test reload mượt mà
+        if ("127.0.0.1".equals(ip) || "0:0:0:0:0:0:0:1".equals(ip) || "localhost".equals(ip)) {
+            filterChain.doFilter(request, response);
+            return;
+        }
 
         // ── 1. Xác định bucket và limit ──────────────────────────
         String bucket;

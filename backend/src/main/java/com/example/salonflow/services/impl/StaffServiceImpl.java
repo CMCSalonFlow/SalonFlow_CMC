@@ -126,8 +126,13 @@ public class StaffServiceImpl implements StaffService {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
         }
 
-        // Tìm danh sách nhân viên của chi nhánh và ánh xạ sang DTO trả về
+        // Tìm danh sách nhân viên đang hoạt động của chi nhánh và ánh xạ sang DTO trả về
         return staffRepository.findByBranchId(branchId).stream()
+                .filter(staff -> {
+                    if (staff.getUserId() == null) return true;
+                    User user = userRepository.findById(staff.getUserId()).orElse(null);
+                    return user != null && user.getStatus() == UserStatus.ACTIVE;
+                })
                 .map(this::toResponse)
                 .toList();
     }
@@ -140,6 +145,11 @@ public class StaffServiceImpl implements StaffService {
         }
 
         return staffRepository.findByBranchId(branchId).stream()
+                .filter(staff -> {
+                    if (staff.getUserId() == null) return true;
+                    User user = userRepository.findById(staff.getUserId()).orElse(null);
+                    return user != null && user.getStatus() == UserStatus.ACTIVE;
+                })
                 .map(this::toPublicResponse)
                 .toList();
     }

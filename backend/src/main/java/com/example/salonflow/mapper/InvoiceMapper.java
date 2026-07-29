@@ -73,7 +73,14 @@ public class InvoiceMapper {
             serviceName = item.getBundle().getName();
         }
 
-        double price = item.getPrice() != null ? item.getPrice().doubleValue() : 0.0;
+        double price = 0.0;
+        if (item.getPrice() != null && item.getPrice().doubleValue() > 0) {
+            price = item.getPrice().doubleValue();
+        } else if (item.getService() != null && item.getService().getPrice() != null) {
+            price = item.getService().getPrice().doubleValue();
+        } else if (item.getBundle() != null && item.getBundle().getPrice() != null) {
+            price = item.getBundle().getPrice().doubleValue();
+        }
 
         return InvoiceItemDto.builder()
                 .serviceName(serviceName)

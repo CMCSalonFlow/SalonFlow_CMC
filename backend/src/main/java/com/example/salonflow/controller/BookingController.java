@@ -130,4 +130,9 @@ public class BookingController {
     public ResponseEntity<BookingResponse> completeBooking(@PathVariable Long bookingId) {
         return ResponseEntity.ok(bookingService.completeBooking(bookingId));
     }
+
+    @PutMapping("/api/v1/bookings/{bookingId}/confirm")
+    public ResponseEntity<BookingResponse> confirmBooking(@PathVariable Long bookingId) {
+        return ResponseEntity.ok(bookingService.confirmBooking(bookingId));
+    }
 }

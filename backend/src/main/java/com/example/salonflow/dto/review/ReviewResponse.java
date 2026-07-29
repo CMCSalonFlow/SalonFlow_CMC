@@ -34,5 +34,15 @@ public class ReviewResponse {
 
     private List<String> photos;
 
+    private String ownerReply;
+
+    private Instant ownerRepliedAt;
+
+    private Boolean isHidden;
+
+    private Instant hiddenAt;
+
+    private String hiddenReason;
+
     private Instant createdAt;
 }

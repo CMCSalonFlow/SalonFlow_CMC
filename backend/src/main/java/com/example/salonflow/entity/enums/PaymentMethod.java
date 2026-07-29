@@ -6,5 +6,7 @@ package com.example.salonflow.entity.enums;
 public enum PaymentMethod {
     VNPAY,
     MOMO,
-    ZALOPAY
+    ZALOPAY,
+    CASH,
+    PAY_AT_COUNTER
 }

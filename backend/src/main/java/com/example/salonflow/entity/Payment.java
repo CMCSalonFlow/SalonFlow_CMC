@@ -60,4 +60,7 @@ public class Payment extends BaseEntity {
 
     @Column(name = "payment_url", columnDefinition = "TEXT")
     private String paymentUrl;
+
+    @Column(name = "confirmed_by")
+    private Long confirmedBy;
 }

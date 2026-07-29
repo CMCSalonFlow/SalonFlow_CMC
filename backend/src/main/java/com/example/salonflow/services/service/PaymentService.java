@@ -32,4 +32,9 @@ public interface PaymentService {
      * Hoàn tiền cho khoản deposit đã thanh toán qua VNPay.
      */
     PaymentResponse refundDeposit(Long bookingId, BigDecimal refundAmount, String reason);
+
+    /**
+     * Xử lý thanh toán tiền mặt tại quầy (POS Mode) bỏ qua các cổng trực tuyến.
+     */
+    PaymentResponse processPosCashPayment(com.example.salonflow.dto.payment.PosCashPaymentRequest request);
 }

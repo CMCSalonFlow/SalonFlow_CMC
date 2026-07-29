@@ -22,5 +22,6 @@ public class PaymentResponse {
     private BigDecimal refundAmount;
     private String refundTransactionId;
     private Instant refundedAt;
-     private String invoiceUrl;
+    private String invoiceUrl;
+    private Long confirmedBy;
 }
