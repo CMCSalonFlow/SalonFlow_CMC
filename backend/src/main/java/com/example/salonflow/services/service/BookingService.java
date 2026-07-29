@@ -39,5 +39,7 @@ public interface BookingService {
 
     BookingResponse completeBooking(Long bookingId);
 
+    BookingResponse checkInBooking(Long bookingId);
+
     BookingResponse confirmBooking(Long bookingId);
 }

@@ -222,7 +222,7 @@ public class BookingServiceImpl implements BookingService {
         }
 
         // 4. Lấy tất cả lịch hẹn hoạt động trong ngày của chi nhánh để tối ưu hóa kiểm tra chéo trong bộ nhớ
-        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.COMPLETED);
         List<Booking> branchBookings = bookingRepository.findByBranchIdAndBookingDateAndStatusIn(branchId, date, activeStatuses);
 
         // Pre-fetch off-days and scheduled shifts for qualified staff
@@ -576,7 +576,7 @@ public class BookingServiceImpl implements BookingService {
 
         Staff preferredStaff = null;
         Staff assignedStaff = null;
-        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.COMPLETED);
+        List<BookingStatus> activeStatuses = List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN, BookingStatus.COMPLETED);
 
         if (preferredStaffId != null) {
             preferredStaff = staffRepository.findByIdAndBranchId(preferredStaffId, branchId)
@@ -973,6 +973,10 @@ public BookingResponse createWalkInBooking(
             return toResponse(booking);
         }
 
+        if (booking.getStatus() != BookingStatus.CHECKED_IN) {
+            throw new BusinessException("Chỉ booking đã check-in mới được chuyển sang COMPLETED");
+        }
+
         booking.setStatus(BookingStatus.COMPLETED);
         booking = bookingRepository.save(booking);
 
@@ -984,6 +988,30 @@ public BookingResponse createWalkInBooking(
             );
         }
 
+        publishBookingCompletedEvent(booking);
+        broadcastBookingUpdateSafely(booking);
+
+        return toResponse(booking);
+    }
+
+    @Override
+    @Transactional
+    public BookingResponse checkInBooking(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn với id: " + bookingId));
+
+        if (booking.getStatus() == BookingStatus.CHECKED_IN) {
+            return toResponse(booking);
+        }
+
+        if (booking.getStatus() != BookingStatus.CONFIRMED) {
+            throw new BusinessException("Chỉ booking đã CONFIRMED mới được check-in");
+        }
+
+        booking.setStatus(BookingStatus.CHECKED_IN);
+        booking = bookingRepository.save(booking);
+        broadcastBookingUpdateSafely(booking);
+
         return toResponse(booking);
     }
 
@@ -992,6 +1020,14 @@ public BookingResponse createWalkInBooking(
     public BookingResponse confirmBooking(Long bookingId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn với id: " + bookingId));
+
+        if (booking.getStatus() == BookingStatus.CONFIRMED) {
+            return toResponse(booking);
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING) {
+            throw new BusinessException("Chỉ booking đang PENDING mới được xác nhận");
+        }
 
         booking.setStatus(BookingStatus.CONFIRMED);
         booking = bookingRepository.save(booking);
@@ -1003,6 +1039,29 @@ public BookingResponse createWalkInBooking(
                 "Lịch hẹn của bạn vào " + booking.getBookingDate() + " lúc " + booking.getStartTime() + " đã được xác nhận thành công."
         );
 
+        broadcastBookingUpdateSafely(booking);
+
         return toResponse(booking);
+    }
+
+    private void publishBookingCompletedEvent(Booking booking) {
+        publishBookingNotification(
+                booking,
+                BookingNotificationType.BOOKING_COMPLETED,
+                "Lịch hẹn #" + booking.getId() + " đã hoàn thành",
+                "Lịch hẹn của bạn vào " + booking.getBookingDate() + " lúc " + booking.getStartTime() + " đã được đánh dấu hoàn thành."
+        );
+    }
+
+    private void broadcastBookingUpdateSafely(Booking booking) {
+        try {
+            bookingWebSocketHandler.broadcastBookingUpdate(
+                    booking.getBranch() != null ? booking.getBranch().getId() : null,
+                    booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null,
+                    booking.getBookingDate() != null ? booking.getBookingDate().toString() : null
+            );
+        } catch (Exception e) {
+            log.error("Failed to broadcast booking update for booking {}", booking.getId(), e);
+        }
     }
 }

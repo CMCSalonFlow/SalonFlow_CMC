@@ -88,6 +88,9 @@ class BookingServiceTest {
         private BookingPricingService bookingPricingService;
 
         @Mock
+        private com.example.salonflow.services.service.LoyaltyPointService loyaltyPointService;
+
+        @Mock
         private ApplicationEventPublisher applicationEventPublisher;
 
         @InjectMocks
@@ -313,5 +316,75 @@ class BookingServiceTest {
                 assertThat(response.getAvailableStartTimes()).contains(LocalTime.of(8, 0), LocalTime.of(8, 30));
                 assertThat(response.getAvailableStartTimes()).doesNotContain(LocalTime.of(9, 0), LocalTime.of(9, 30));
                 assertThat(response.getAvailableStartTimes()).contains(LocalTime.of(10, 0), LocalTime.of(10, 30));
+        }
+
+        @Test
+        @DisplayName("✅ Check-in chỉ cho booking CONFIRMED")
+        void checkInBooking_whenConfirmed_shouldMoveToCheckedIn() {
+                Booking booking = Booking.builder()
+                                .id(60L)
+                                .branch(branch)
+                                .customer(customer)
+                                .assignedStaff(staff1)
+                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .startTime(LocalTime.of(9, 0))
+                                .endTime(LocalTime.of(9, 30))
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .status(BookingStatus.CONFIRMED)
+                                .build();
+
+                when(bookingRepository.findById(60L)).thenReturn(Optional.of(booking));
+                when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                BookingResponse response = bookingService.checkInBooking(60L);
+
+                assertThat(response.getStatus()).isEqualTo(BookingStatus.CHECKED_IN.name());
+        }
+
+        @Test
+        @DisplayName("✅ Complete chỉ cho booking đã CHECKED_IN")
+        void completeBooking_whenCheckedIn_shouldMoveToCompleted() {
+                Booking booking = Booking.builder()
+                                .id(61L)
+                                .branch(branch)
+                                .customer(customer)
+                                .assignedStaff(staff1)
+                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .startTime(LocalTime.of(9, 0))
+                                .endTime(LocalTime.of(9, 30))
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .status(BookingStatus.CHECKED_IN)
+                                .build();
+
+                when(bookingRepository.findById(61L)).thenReturn(Optional.of(booking));
+                when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                BookingResponse response = bookingService.completeBooking(61L);
+
+                assertThat(response.getStatus()).isEqualTo(BookingStatus.COMPLETED.name());
+                verify(loyaltyPointService, times(1))
+                                .earnPointsForBooking(eq(2L), eq(BigDecimal.valueOf(80000.00)), eq("BOOKING:61"));
+        }
+
+        @Test
+        @DisplayName("🚫 Không cho complete khi booking chưa check-in")
+        void completeBooking_whenConfirmed_shouldThrowBusinessException() {
+                Booking booking = Booking.builder()
+                                .id(62L)
+                                .branch(branch)
+                                .customer(customer)
+                                .assignedStaff(staff1)
+                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .startTime(LocalTime.of(9, 0))
+                                .endTime(LocalTime.of(9, 30))
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .status(BookingStatus.CONFIRMED)
+                                .build();
+
+                when(bookingRepository.findById(62L)).thenReturn(Optional.of(booking));
+
+                assertThatThrownBy(() -> bookingService.completeBooking(62L))
+                                .isInstanceOf(BusinessException.class)
+                                .hasMessageContaining("check-in");
         }
 }
