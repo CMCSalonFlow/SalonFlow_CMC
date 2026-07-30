@@ -413,7 +413,6 @@ public class ReviewServiceImpl implements ReviewService {
 
         return ReviewResponse.builder()
                 .id(review.getId())
-                .bookingId(review.getBooking() != null ? review.getBooking().getId() : null)
                 .customerId(customer != null ? customer.getId() : null)
                 .customerName(customer != null ? customer.getFullName() : null)
                 .customerAvatar(customer != null ? customer.getAvatarUrl() : null)
@@ -424,10 +423,6 @@ public class ReviewServiceImpl implements ReviewService {
                 .comment(review.getComment())
                 .photos(photoUrls)
                 .ownerReply(review.getOwnerReply())
-                .ownerRepliedAt(review.getOwnerRepliedAt())
-                .isHidden(review.getIsHidden())
-                .hiddenAt(review.getHiddenAt())
-                .hiddenReason(review.getHiddenReason())
                 .createdAt(review.getCreatedAt())
                 .build();
     }

@@ -110,23 +110,17 @@ public class ReviewAdminServiceImpl implements ReviewAdminService {
                 .id(review.getId())
                 .userId(review.getUser() != null ? review.getUser().getId() : null)
                 .userName(review.getUser() != null ? review.getUser().getFullName() : null)
-                .bookingId(review.getBooking() != null ? review.getBooking().getId() : null)
                 .branchId(review.getBranch() != null ? review.getBranch().getId() : null)
                 .branchName(review.getBranch() != null ? review.getBranch().getName() : null)
-                .staffId(review.getStaff() != null ? review.getStaff().getId() : null)
-                .staffName(review.getStaff() != null ? review.getStaff().getName() : null)
                 .rating(review.getRating())
-                .title(review.getTitle())
-                .content(review.getContent())
                 .sentiment(review.getSentiment() != null ? review.getSentiment().name() : null)
                 .sentimentConfidence(review.getSentimentConfidence())
                 .sentimentStatus(review.getSentimentStatus() != null ? review.getSentimentStatus().name() : null)
-                .sentimentProvider(review.getSentimentProvider())
-                .sentimentAnalyzedAt(review.getSentimentAnalyzedAt())
-                .sentimentError(review.getSentimentError())
+                .title(review.getTitle())
+                .content(review.getContent())
+                .comment(review.getComment())
+                .ownerReply(review.getOwnerReply())
                 .createdAt(review.getCreatedAt())
-                .updatedAt(review.getUpdatedAt())
-                .sentimentBadgeColor(resolveBadgeColor(review))
                 .build();
     }
 
@@ -136,34 +130,17 @@ public class ReviewAdminServiceImpl implements ReviewAdminService {
         detail.setId(item.getId());
         detail.setUserId(item.getUserId());
         detail.setUserName(item.getUserName());
-        detail.setBookingId(item.getBookingId());
         detail.setBranchId(item.getBranchId());
         detail.setBranchName(item.getBranchName());
-        detail.setStaffId(item.getStaffId());
-        detail.setStaffName(item.getStaffName());
         detail.setRating(item.getRating());
-        detail.setTitle(item.getTitle());
-        detail.setContent(item.getContent());
         detail.setSentiment(item.getSentiment());
         detail.setSentimentConfidence(item.getSentimentConfidence());
         detail.setSentimentStatus(item.getSentimentStatus());
-        detail.setSentimentProvider(item.getSentimentProvider());
-        detail.setSentimentAnalyzedAt(item.getSentimentAnalyzedAt());
-        detail.setSentimentError(item.getSentimentError());
+        detail.setTitle(item.getTitle());
+        detail.setContent(item.getContent());
+        detail.setComment(item.getComment());
+        detail.setOwnerReply(item.getOwnerReply());
         detail.setCreatedAt(item.getCreatedAt());
-        detail.setUpdatedAt(item.getUpdatedAt());
-        detail.setSentimentBadgeColor(item.getSentimentBadgeColor());
         return detail;
-    }
-
-    private String resolveBadgeColor(Review review) {
-        if (review.getSentiment() == null) {
-            return "gray";
-        }
-        return switch (review.getSentiment()) {
-            case POSITIVE -> "green";
-            case NEUTRAL -> "yellow";
-            case NEGATIVE -> "red";
-        };
     }
 }

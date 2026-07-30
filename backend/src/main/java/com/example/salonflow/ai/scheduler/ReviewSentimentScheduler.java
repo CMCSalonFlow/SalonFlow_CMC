@@ -22,7 +22,7 @@ public class ReviewSentimentScheduler {
         trigger();
     }
 
-    @Scheduled(fixedDelayString = "${app.ai.review.scan-interval-ms:30000}")
+    @Scheduled(fixedDelayString = "${app.ai.review.scan-interval-ms:1800000}")
     public void scheduledTrigger() {
         trigger();
     }
