@@ -2,8 +2,9 @@ package com.example.salonflow.ai.dto.hair;
 
 public record HairVisionAnalysisRequest(
         Long mediaId,
-        String imageUrl,
+        String imageDataUrl,
         String mimeType,
-        String originalFileName
+        String originalFileName,
+        Long fileSize
 ) {
 }

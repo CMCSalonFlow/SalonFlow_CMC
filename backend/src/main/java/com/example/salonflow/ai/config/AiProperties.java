@@ -18,6 +18,7 @@ public class AiProperties {
     private Integer ragTopK = 5;
     private Integer conversationTtlMinutes = 1440;
     private ReviewProperties review = new ReviewProperties();
+    private HairProperties hair = new HairProperties();
 
     @Data
     public static class ReviewProperties {
@@ -36,6 +37,30 @@ public class AiProperties {
         private Integer batchSize = 20;
         private Long scanIntervalMs = 30000L;
         private Double lowConfidenceThreshold = 0.55;
+    }
+
+    @Data
+    public static class HairProperties {
+        private boolean enabled = true;
+        private String provider = "openai";
+        private String openaiModel = "gpt-4.1-mini";
+        private String openaiSystemPrompt = """
+                You are a hair analysis assistant for a salon recommendation system.
+                Analyze the user's hair image and return JSON only with these keys:
+                faceShape, hairTexture, hairLength, hairDensity, currentStyle, confidence.
+                Allowed values:
+                - faceShape: oval, round, square, heart, diamond, rectangle, triangle, oblong, unknown
+                - hairTexture: straight, wavy, curly, coily, fine, thick, unknown
+                - hairLength: short, medium, long, very_long, unknown
+                - hairDensity: low, medium, high, unknown
+                currentStyle should be a short descriptive label or unknown.
+                confidence must be a number from 0 to 1.
+                If uncertain, use unknown.
+                Do not add any extra keys or explanation.
+                """;
+        private String apiKey;
+        private Integer maxOutputTokens = 500;
+        private Double temperature = 0.0;
     }
 }
 
