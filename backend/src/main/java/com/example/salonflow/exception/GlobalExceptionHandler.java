@@ -141,4 +141,16 @@ public class GlobalExceptionHandler {
                         null
                 ));
         }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<Map<String, Object>> handleTooManyRequests(
+            TooManyRequestsException ex
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(errorBody(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        ex.getMessage(),
+                        null
+                ));
+    }
 }

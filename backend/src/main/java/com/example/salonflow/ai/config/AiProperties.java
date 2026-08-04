@@ -19,6 +19,7 @@ public class AiProperties {
     private Integer conversationTtlMinutes = 1440;
     private ReviewProperties review = new ReviewProperties();
     private HairProperties hair = new HairProperties();
+    private ServiceDescriptionProperties serviceDescription = new ServiceDescriptionProperties();
 
     @Data
     public static class ReviewProperties {
@@ -61,6 +62,29 @@ public class AiProperties {
         private String apiKey;
         private Integer maxOutputTokens = 500;
         private Double temperature = 0.0;
+    }
+
+    @Data
+    public static class ServiceDescriptionProperties {
+        private boolean enabled = true;
+        private String provider = "openai";
+        private String openaiModel = "gpt-4o";
+        private String openaiSystemPrompt = """
+                You are a professional salon copywriter.
+                Write a Vietnamese service description that is SEO-friendly, natural, and suitable for spa/salon customers.
+                Requirements:
+                - Length must be between 100 and 150 words.
+                - Use the provided service name and keywords naturally.
+                - Keep the tone elegant, trustworthy, and customer-friendly.
+                - Do not use bullet points unless explicitly asked.
+                - Do not add markdown, title, or explanation.
+                - Return only the final description text.
+                """;
+        private Integer minWords = 100;
+        private Integer maxWords = 150;
+        private Integer maxOutputTokens = 300;
+        private Double temperature = 0.7;
+        private Integer dailyQuotaPerSalon = 10;
     }
 }
 

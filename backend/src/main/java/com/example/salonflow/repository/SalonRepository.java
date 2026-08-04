@@ -14,6 +14,7 @@ public interface SalonRepository extends JpaRepository<Salon, Long> {
     boolean existsByOwner(User owner);
 
     Optional<Salon> findFirstByOwnerId(Long ownerId);
+    Optional<Salon> findByIdAndOwnerId(Long id, Long ownerId);
         @Query("""
     SELECT s FROM Salon s
     LEFT JOIN FETCH s.photos p
