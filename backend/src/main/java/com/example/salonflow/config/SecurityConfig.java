@@ -45,16 +45,14 @@ public class SecurityConfig {
 
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider =
-                new DaoAuthenticationProvider(userDetailsService);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService);
         provider.setPasswordEncoder(passwordEncoder());
         return provider;
     }
 
     @Bean
     public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration config
-    ) throws Exception {
+            AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
 
@@ -63,71 +61,66 @@ public class SecurityConfig {
 
         http
 
-            // ================= CORS =================
-            .cors(cors -> cors.configurationSource(corsConfigurationSource))
+                // ================= CORS =================
+                .cors(cors -> cors.configurationSource(corsConfigurationSource))
 
-            // ================= CSRF (JWT disable) =================
-            .csrf(csrf -> csrf.disable())
+                // ================= CSRF (JWT disable) =================
+                .csrf(csrf -> csrf.disable())
 
-            // ================= SESSION STATELESS =================
-            .sessionManagement(session ->
-                    session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-            )
+                // ================= SESSION STATELESS =================
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-            // ================= AUTH RULES =================
-            .authorizeHttpRequests(auth -> auth
+                // ================= AUTH RULES =================
+                .authorizeHttpRequests(auth -> auth
 
-                    // public APIs
-                    .requestMatchers("/api/v1/auth/**").permitAll()
-                    .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
-                    .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                    .requestMatchers("/api/v1/branches/search").permitAll()
-                    .requestMatchers("/api/v1/salons/public").permitAll()
-                    .requestMatchers("/api/v1/branches/public").permitAll()
-                    .requestMatchers("/api/v1/branches/*/services/public").permitAll()
-                    .requestMatchers("/api/v1/branches/*/bundles/public").permitAll()
-                    .requestMatchers("/api/v1/branches/*/staff/public").permitAll()
-                    .requestMatchers("/api/v1/branches/*/staff/*/availability").permitAll()
-                    .requestMatchers("/api/v1/branches/*/guest-bookings").permitAll()
-                    .requestMatchers("/api/v1/payments/vnpay-callback", "/api/v1/payments/vnpay-ipn").permitAll()
+                        // public APIs
+                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/api/v1/branches/search").permitAll()
+                        .requestMatchers("/api/v1/salons/public").permitAll()
+                        .requestMatchers("/api/v1/branches/public").permitAll()
+                        .requestMatchers("/api/v1/branches/*/services/public").permitAll()
+                        .requestMatchers("/api/v1/branches/*/bundles/public").permitAll()
+                        .requestMatchers("/api/v1/branches/*/staff/public").permitAll()
+                        .requestMatchers("/api/v1/branches/*/staff/*/availability").permitAll()
+                        .requestMatchers("/api/v1/branches/*/guest-bookings").permitAll()
+                        .requestMatchers("/api/v1/payments/vnpay-callback", "/api/v1/payments/vnpay-ipn").permitAll()
 
-                    // media upload (tuỳ bạn có thể đổi authenticated)
-                    .requestMatchers("/api/v1/media/**").authenticated()
+                        // media upload (tuỳ bạn có thể đổi authenticated)
+                        .requestMatchers("/api/v1/media/**").authenticated()
 
-                    // categories public nếu cần
-                    .requestMatchers("/api/v1/categories/public").permitAll()
+                        // categories public nếu cần
+                        .requestMatchers("/api/v1/categories/public").permitAll()
 
-                    // others
-                    .anyRequest().authenticated()
-            )
+                        // others
+                        .anyRequest().authenticated())
 
-            // ================= DISABLE FORM LOGIN (FIX 302 ROOT CAUSE) =================
-            .formLogin(form -> form.disable())
-            .httpBasic(basic -> basic.disable())
+                // ================= DISABLE FORM LOGIN (FIX 302 ROOT CAUSE) =================
+                .formLogin(form -> form.disable())
+                .httpBasic(basic -> basic.disable())
 
-            // ================= EXCEPTION HANDLING (FIX 302 → 401 JSON) =================
-            .exceptionHandling(ex -> ex
-                    .authenticationEntryPoint((request, response, authException) -> {
-                        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                        response.setContentType("application/json");
-                        response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
-                    })
-            )
+                // ================= EXCEPTION HANDLING (FIX 302 → 401 JSON) =================
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                            response.setContentType("application/json");
+                            response.getWriter().write("{\"error\":\"UNAUTHORIZED\"}");
+                        }))
 
-            // ================= PROVIDER =================
-            .authenticationProvider(authenticationProvider())
+                // ================= PROVIDER =================
+                .authenticationProvider(authenticationProvider())
 
-            // ================= FILTER CHAIN =================
-            .addFilterBefore(securityHeadersFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(branchContextFilter, JwtAuthenticationFilter.class)
+                // ================= FILTER CHAIN =================
+                .addFilterBefore(securityHeadersFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(branchContextFilter, JwtAuthenticationFilter.class)
 
-            // ================= OAUTH2 =================
-            .oauth2Login(oauth2 -> oauth2
-                    .successHandler(oauth2SuccessHandler)
-                    .failureHandler(oauth2FailureHandler)
-            );
+                // ================= OAUTH2 =================
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(oauth2SuccessHandler)
+                        .failureHandler(oauth2FailureHandler));
 
         return http.build();
     }

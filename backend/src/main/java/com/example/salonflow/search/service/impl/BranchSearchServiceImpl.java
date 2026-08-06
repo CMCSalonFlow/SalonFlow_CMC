@@ -31,11 +31,9 @@ public class BranchSearchServiceImpl implements BranchSearchService {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow();
 
-        List<SalonService> services =
-                serviceRepository.findByBranchIdAndIsActiveTrue(branchId);
+        List<SalonService> services = serviceRepository.findByBranchIdAndIsActiveTrue(branchId);
 
-        BranchSearchDocument document =
-                mapper.toDocument(branch, services);
+        BranchSearchDocument document = mapper.toDocument(branch, services);
 
         searchRepository.save(document);
     }
@@ -52,8 +50,7 @@ public class BranchSearchServiceImpl implements BranchSearchService {
 
         searchRepository.deleteAll();
 
-        List<Branch> branches =
-                branchRepository.findAll();
+        List<Branch> branches = branchRepository.findAll();
 
         for (Branch branch : branches) {
 
