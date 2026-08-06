@@ -203,7 +203,9 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
                 String subject = "🔔 [SalonFlow] Nhắc Nhở Lịch Hẹn Sắp Tới Tại Salon";
                 String customerName = customer.getFullName() != null ? customer.getFullName() : (customer.getUsername() != null ? customer.getUsername() : "Quý khách");
                 String branchName = booking.getBranch() != null ? booking.getBranch().getName() : "Salon";
-                String timeStr = booking.getBookingTime() != null ? booking.getBookingTime().toString() : "";
+                String dateStr = booking.getBookingDate() != null ? booking.getBookingDate().toString() : "";
+                String startTimeStr = booking.getStartTime() != null ? booking.getStartTime().toString() : "";
+                String timeStr = (startTimeStr + " " + dateStr).trim();
 
                 String body = String.format(
                     "Xin chào %s,\n\n" +
