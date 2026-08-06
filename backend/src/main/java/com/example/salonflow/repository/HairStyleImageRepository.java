@@ -11,4 +11,6 @@ public interface HairStyleImageRepository extends JpaRepository<HairStyleImage, 
     List<HairStyleImage> findByHairStyleIdAndIsActiveTrueOrderByIsCoverDescDisplayOrderAscIdAsc(Long hairStyleId);
 
     Optional<HairStyleImage> findFirstByHairStyleIdAndIsCoverTrueAndIsActiveTrue(Long hairStyleId);
+
+    Optional<HairStyleImage> findByHairStyleIdAndMediaId(Long hairStyleId, Long mediaId);
 }

@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import com.example.salonflow.entity.MediaFile;
 public interface MediaFileRepository
         extends JpaRepository<MediaFile, Long> {
+
+    java.util.Optional<MediaFile> findByObjectName(String objectName);
 }
