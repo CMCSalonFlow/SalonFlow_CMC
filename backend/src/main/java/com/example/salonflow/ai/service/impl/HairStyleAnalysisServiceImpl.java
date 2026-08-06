@@ -12,6 +12,7 @@ import com.example.salonflow.entity.HairStyle;
 import com.example.salonflow.entity.HairStyleImage;
 import com.example.salonflow.entity.MediaFile;
 import com.example.salonflow.entity.User;
+import com.example.salonflow.entity.enums.hair.HairGender;
 import com.example.salonflow.entity.enums.hair.HairAnalysisStatus;
 import com.example.salonflow.exception.BadRequestException;
 import com.example.salonflow.exception.ResourceNotFoundException;
@@ -101,7 +102,11 @@ public class HairStyleAnalysisServiceImpl implements HairStyleAnalysisService {
         upsertCustomerProfile(user, analysisResult);
 
         HairStyleAnalysisResult analysisDto = toAnalysisDto(analysisResult);
-        List<HairStyleRecommendationItem> suggestions = hairStyleRecommendationService.recommend(analysisDto, 5);
+        List<HairStyleRecommendationItem> suggestions = hairStyleRecommendationService.recommend(
+                analysisDto,
+                request.gender(),
+                5
+        );
         return new HairStyleRecommendationResponse(
                 analysisResult.getId(),
                 analysisDto,
@@ -191,6 +196,9 @@ public class HairStyleAnalysisServiceImpl implements HairStyleAnalysisService {
         }
         if (request == null || request.mediaId() == null) {
             throw new BadRequestException("Media id is required");
+        }
+        if (request.gender() == null) {
+            throw new BadRequestException("Gender is required");
         }
     }
 

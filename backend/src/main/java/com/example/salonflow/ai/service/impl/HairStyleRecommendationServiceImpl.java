@@ -8,6 +8,7 @@ import com.example.salonflow.ai.dto.hair.HairStyleRecommendationItem;
 import com.example.salonflow.ai.service.HairStyleRecommendationService;
 import com.example.salonflow.entity.HairStyle;
 import com.example.salonflow.entity.HairStyleImage;
+import com.example.salonflow.entity.enums.hair.HairGender;
 import com.example.salonflow.entity.enums.hair.HairMaintenanceLevel;
 import com.example.salonflow.repository.HairStyleImageRepository;
 import com.example.salonflow.repository.HairStyleRepository;
@@ -35,12 +36,12 @@ public class HairStyleRecommendationServiceImpl implements HairStyleRecommendati
 
     @Override
     @Transactional(readOnly = true)
-    public List<HairStyleRecommendationItem> recommend(HairStyleAnalysisResult analysis, int limit) {
+    public List<HairStyleRecommendationItem> recommend(HairStyleAnalysisResult analysis, HairGender gender, int limit) {
         if (limit <= 0) {
             limit = 5;
         }
 
-        List<HairStyle> styles = hairStyleRepository.findByIsActiveTrueOrderByPopularityScoreDescSortOrderAscNameAsc();
+        List<HairStyle> styles = resolveStyles(gender);
         if (styles.isEmpty()) {
             return List.of();
         }
@@ -82,6 +83,13 @@ public class HairStyleRecommendationServiceImpl implements HairStyleRecommendati
         List<HairStyleRecommendationItem> result = new ArrayList<>(matched);
         result.addAll(fallback);
         return result.stream().limit(limit).toList();
+    }
+
+    private List<HairStyle> resolveStyles(HairGender gender) {
+        if (gender == null) {
+            return hairStyleRepository.findByIsActiveTrueOrderByPopularityScoreDescSortOrderAscNameAsc();
+        }
+        return hairStyleRepository.findByIsActiveTrueAndGenderOrderByPopularityScoreDescSortOrderAscNameAsc(gender);
     }
 
     private HairStyleCandidateScoreRequest toScoreRequest(HairStyleAnalysisResult analysis, HairStyle style) {

@@ -1,6 +1,7 @@
 package com.example.salonflow.entity;
 
 import com.example.salonflow.entity.enums.hair.HairDifficultyLevel;
+import com.example.salonflow.entity.enums.hair.HairGender;
 import com.example.salonflow.entity.enums.hair.HairMaintenanceLevel;
 import jakarta.persistence.*;
 import lombok.*;
@@ -30,6 +31,11 @@ public class HairStyle extends BaseEntity {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "gender", length = 20, nullable = false)
+    @Builder.Default
+    private HairGender gender = HairGender.UNISEX;
 
     @Column(name = "face_shape_tags", columnDefinition = "TEXT")
     private String faceShapeTags;

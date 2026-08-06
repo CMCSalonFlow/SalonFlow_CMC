@@ -5,6 +5,7 @@ import com.example.salonflow.entity.HairStyle;
 import com.example.salonflow.entity.HairStyleImage;
 import com.example.salonflow.entity.MediaFile;
 import com.example.salonflow.entity.enums.hair.HairDifficultyLevel;
+import com.example.salonflow.entity.enums.hair.HairGender;
 import com.example.salonflow.entity.enums.hair.HairMaintenanceLevel;
 import com.example.salonflow.exception.BadRequestException;
 import com.example.salonflow.repository.HairStyleImageRepository;
@@ -18,10 +19,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
-import java.io.File;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -52,14 +51,14 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        importArchive("men", properties.getManZipPath());
-        importArchive("women", properties.getWomenZipPath());
+        importArchive(HairGender.MEN, properties.getManZipPath());
+        importArchive(HairGender.WOMEN, properties.getWomenZipPath());
         log.info("Hair style seed import completed successfully");
     }
 
-    private void importArchive(String gender, String zipPath) throws Exception {
+    private void importArchive(HairGender archiveGender, String zipPath) throws Exception {
         if (!StringUtils.hasText(zipPath)) {
-            throw new BadRequestException("Hair style import zip path is missing for " + gender);
+            throw new BadRequestException("Hair style import zip path is missing for " + archiveGender);
         }
 
         Path path = Path.of(zipPath);
@@ -68,24 +67,23 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
         }
 
         List<HairStyleSeedItem> seeds = HairStyleSeedCatalog.all().stream()
-                .filter(item -> belongsToGender(item, gender))
+                .filter(item -> item.gender() == archiveGender)
                 .toList();
 
         if (seeds.isEmpty()) {
-            log.warn("No hair style seed items found for gender {}", gender);
+            log.warn("No hair style seed items found for gender {}", archiveGender);
             return;
         }
 
         try (ZipFile zipFile = new ZipFile(path.toFile())) {
             Map<String, List<ZipAsset>> assetsByPrefix = loadAssets(zipFile);
             for (HairStyleSeedItem seed : seeds) {
-                importStyle(gender, seed, assetsByPrefix);
+                importStyle(seed, assetsByPrefix);
             }
         }
     }
 
     private void importStyle(
-            String gender,
             HairStyleSeedItem seed,
             Map<String, List<ZipAsset>> assetsByPrefix
     ) throws Exception {
@@ -104,7 +102,8 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
         HairStyle style = hairStyleRepository.findByCode(seed.code()).orElseGet(HairStyle::new);
         style.setCode(seed.code());
         style.setName(seed.name());
-        style.setDescription(buildDescription(seed.name(), gender));
+        style.setGender(seed.gender());
+        style.setDescription(buildDescription(seed.name(), seed.gender()));
         style.setFaceShapeTags(deriveFaceShapeTags(seed.name()));
         style.setHairTextureTags(deriveTextureTags(seed.name()));
         style.setHairLengthTags(deriveLengthTags(seed.name()));
@@ -120,7 +119,7 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
 
         for (int index = 0; index < matches.size(); index++) {
             ZipAsset asset = matches.get(index);
-            String objectName = buildObjectName(gender, seed.code(), asset.fileName());
+            String objectName = buildObjectName(seed.gender(), seed.code(), asset.fileName());
             MediaFile media = mediaFileRepository.findByObjectName(objectName)
                     .orElseGet(() -> uploadAsset(objectName, asset));
 
@@ -199,34 +198,10 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
         return assets;
     }
 
-    private boolean belongsToGender(HairStyleSeedItem item, String gender) {
-        String code = item.code().toLowerCase(Locale.ROOT);
-        if ("men".equalsIgnoreCase(gender)) {
-            return !code.contains("butterfly")
-                    && !code.contains("lob")
-                    && !code.contains("bob")
-                    && !code.contains("pixie")
-                    && !code.contains("perm")
-                    && !code.contains("waves")
-                    && !code.contains("hime")
-                    && !code.contains("victoria");
-        }
-        return !("men".equalsIgnoreCase(gender)) && (
-                code.contains("butterfly")
-                        || code.contains("lob")
-                        || code.contains("bob")
-                        || code.contains("pixie")
-                        || code.contains("perm")
-                        || code.contains("waves")
-                        || code.contains("hime")
-                        || code.contains("victoria")
-        );
-    }
-
-    private String buildObjectName(String gender, String code, String fileName) {
+    private String buildObjectName(HairGender gender, String code, String fileName) {
         return properties.getObjectPrefix()
                 + "/"
-                + gender.toLowerCase(Locale.ROOT)
+                + gender.name().toLowerCase(Locale.ROOT)
                 + "/"
                 + code.toLowerCase(Locale.ROOT)
                 + "/"
@@ -300,8 +275,8 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
                 .replaceAll("\\s+", " ");
     }
 
-    private String buildDescription(String name, String gender) {
-        if ("men".equalsIgnoreCase(gender)) {
+    private String buildDescription(String name, HairGender gender) {
+        if (gender == HairGender.MEN) {
             return "Kiểu tóc " + name + " mang lại diện mạo gọn gàng, nam tính và hiện đại, phù hợp nhiều phong cách cá nhân khác nhau.";
         }
         return "Kiểu tóc " + name + " mang lại vẻ đẹp mềm mại, thời trang và nổi bật, giúp tôn nét thanh lịch của khách hàng.";

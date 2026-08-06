@@ -6,6 +6,7 @@ import com.example.salonflow.ai.dto.hair.HairStyleProfileResponse;
 import com.example.salonflow.ai.dto.hair.HairStyleRecommendationResponse;
 import com.example.salonflow.ai.service.HairStyleAnalysisService;
 import com.example.salonflow.security.SecurityUtils;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +24,7 @@ public class HairStyleAiController {
 
     @PostMapping("/analyze")
     public ResponseEntity<HairStyleRecommendationResponse> analyze(
-            @RequestBody HairStyleAnalyzeRequest request
+            @Valid @RequestBody HairStyleAnalyzeRequest request
     ) {
         Long userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(hairStyleAnalysisService.analyze(userId, request));

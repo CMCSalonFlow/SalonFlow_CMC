@@ -1,6 +1,7 @@
 package com.example.salonflow.repository;
 
 import com.example.salonflow.entity.HairStyle;
+import com.example.salonflow.entity.enums.hair.HairGender;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -11,4 +12,6 @@ public interface HairStyleRepository extends JpaRepository<HairStyle, Long> {
     Optional<HairStyle> findByCode(String code);
 
     List<HairStyle> findByIsActiveTrueOrderByPopularityScoreDescSortOrderAscNameAsc();
+
+    List<HairStyle> findByIsActiveTrueAndGenderOrderByPopularityScoreDescSortOrderAscNameAsc(HairGender gender);
 }
