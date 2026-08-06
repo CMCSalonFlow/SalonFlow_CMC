@@ -55,4 +55,7 @@ public class BookingResponse {
 
     // Chi tiết danh sách dịch vụ trong đơn đặt lịch
     private List<BookingItemResponse> items;
+
+    // AI dự đoán No-Show
+    private com.example.salonflow.ai.dto.noshow.NoShowPredictionDto noShowPrediction;
 }
