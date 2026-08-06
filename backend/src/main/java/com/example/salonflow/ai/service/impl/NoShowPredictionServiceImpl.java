@@ -6,6 +6,7 @@ import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
+import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.ZaloZnsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +37,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
     private final ZaloZnsService zaloZnsService;
+    private final EmailService emailService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -95,13 +97,13 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
             log.error("Không thể Serialize features Json", e);
         }
 
-        // 7. Auto Trigger gửi SMS / Zalo ZNS nếu Nguy cơ cao & Cấu hình cho phép & chưa gửi trước đó
+        // 7. Auto Trigger gửi Email / SMS / Zalo ZNS nếu Nguy cơ cao & Cấu hình cho phép & chưa gửi trước đó
         if (isWarning && Boolean.TRUE.equals(config.getAutoSendReminder()) && !Boolean.TRUE.equals(predictionLog.getSmsSent())) {
-            boolean sent = zaloZnsService.sendAppointmentReminderZns(booking, customer);
+            boolean sent = sendReminderToCustomer(booking, customer);
             if (sent) {
                 predictionLog.setSmsSent(true);
                 predictionLog.setSmsSentAt(LocalDateTime.now());
-                log.info("Đã tự động gửi Zalo ZNS nhắc nhở cho Booking nguy cơ cao ID: {}", booking.getId());
+                log.info("Đã tự động gửi Email/Zalo ZNS nhắc nhở cho Booking nguy cơ cao ID: {}", booking.getId());
             }
         }
 
@@ -181,7 +183,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Booking với ID: " + bookingId));
 
-        boolean sent = zaloZnsService.sendAppointmentReminderZns(booking, booking.getCustomer());
+        boolean sent = sendReminderToCustomer(booking, booking.getCustomer());
         if (sent) {
             Optional<NoShowPredictionLog> logOpt = predictionRepository.findByBookingId(bookingId);
             if (logOpt.isPresent()) {
@@ -192,6 +194,38 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
             }
         }
         return sent;
+    }
+
+    private boolean sendReminderToCustomer(Booking booking, User customer) {
+        boolean emailSent = false;
+        if (customer != null && customer.getEmail() != null && !customer.getEmail().isBlank()) {
+            try {
+                String subject = "🔔 [SalonFlow] Nhắc Nhở Lịch Hẹn Sắp Tới Tại Salon";
+                String customerName = customer.getFullName() != null ? customer.getFullName() : (customer.getUsername() != null ? customer.getUsername() : "Quý khách");
+                String branchName = booking.getBranch() != null ? booking.getBranch().getName() : "Salon";
+                String timeStr = booking.getBookingTime() != null ? booking.getBookingTime().toString() : "";
+
+                String body = String.format(
+                    "Xin chào %s,\n\n" +
+                    "SalonFlow xin gửi thông báo nhắc nhở về lịch hẹn sắp tới của quý khách:\n" +
+                    "- Mã Booking: #BK-%d\n" +
+                    "- Chi nhánh: %s\n" +
+                    "- Thời gian: %s\n\n" +
+                    "Nếu quý khách có thay đổi lịch trình, vui lòng truy cập ứng dụng SalonFlow hoặc liên hệ Salon để xác nhận/hủy lịch sớm.\n\n" +
+                    "Trân trọng,\nĐội ngũ SalonFlow",
+                    customerName, booking.getId(), branchName, timeStr
+                );
+
+                emailService.sendNotificationEmail(customer.getEmail(), subject, body);
+                emailSent = true;
+                log.info("Đã gửi Email nhắc nhở thành công tới {}", customer.getEmail());
+            } catch (Exception e) {
+                log.error("Lỗi khi gửi Email nhắc nhở:", e);
+            }
+        }
+
+        boolean znsSent = zaloZnsService.sendAppointmentReminderZns(booking, customer);
+        return emailSent || znsSent;
     }
 
     // --- PRIVATE HELPER METHODS ---
