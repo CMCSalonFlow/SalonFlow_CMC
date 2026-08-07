@@ -104,11 +104,11 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReviewResponse> getReviewsBySalonId(Long salonId, Pageable pageable) {
+    public Page<ReviewResponse> getReviewsBySalonId(Long salonId, Integer rating, Pageable pageable) {
         if (!salonRepository.existsById(salonId)) {
             throw new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId);
         }
-        return reviewRepository.findBySalonIdAndIsHiddenFalse(salonId, pageable)
+        return reviewRepository.findBySalonIdAndRatingAndIsHiddenFalse(salonId, rating, pageable)
                 .map(this::mapToResponse);
     }
 
@@ -125,8 +125,8 @@ public class ReviewServiceImpl implements ReviewService {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId));
 
-        Double avg = branchRepository.calculateAverageBranchRatingBySalonId(salonId);
-        Long count = branchRepository.sumRatingCountBySalonId(salonId);
+        Double avg = reviewRepository.calculateAverageRatingBySalonId(salonId);
+        Long count = reviewRepository.countBySalonId(salonId);
 
         BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         long totalReviews = count != null ? count : 0L;
@@ -391,8 +391,8 @@ public class ReviewServiceImpl implements ReviewService {
         Salon salon = salonRepository.findById(salonId).orElse(null);
         if (salon == null) return;
 
-        Double avg = branchRepository.calculateAverageBranchRatingBySalonId(salonId);
-        Long countSum = branchRepository.sumRatingCountBySalonId(salonId);
+        Double avg = reviewRepository.calculateAverageRatingBySalonId(salonId);
+        Long countSum = reviewRepository.countBySalonId(salonId);
 
         BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         int totalReviews = countSum != null ? countSum.intValue() : 0;
@@ -407,7 +407,12 @@ public class ReviewServiceImpl implements ReviewService {
 
         List<String> photoUrls = review.getPhotos() != null ?
                 review.getPhotos().stream()
-                        .map(ReviewPhoto::getPhotoUrl)
+                        .map(photo -> {
+                            if (photo.getMedia() != null && photo.getMedia().getUrl() != null && !photo.getMedia().getUrl().isBlank()) {
+                                return photo.getMedia().getUrl();
+                            }
+                            return photo.getPhotoUrl();
+                        })
                         .collect(Collectors.toList())
                 : Collections.emptyList();
 

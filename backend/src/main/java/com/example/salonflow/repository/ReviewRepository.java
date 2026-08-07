@@ -22,7 +22,11 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, JpaSpecif
 
     Page<Review> findBySalonId(Long salonId, Pageable pageable);
 
-    Page<Review> findBySalonIdAndIsHiddenFalse(Long salonId, Pageable pageable);
+    @Query("SELECT r FROM Review r WHERE (r.salon.id = :salonId OR r.branch.salon.id = :salonId) AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")
+    Page<Review> findBySalonIdAndIsHiddenFalse(@Param("salonId") Long salonId, Pageable pageable);
+
+    @Query("SELECT r FROM Review r WHERE (r.salon.id = :salonId OR r.branch.salon.id = :salonId) AND (:rating IS NULL OR r.rating = :rating) AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")
+    Page<Review> findBySalonIdAndRatingAndIsHiddenFalse(@Param("salonId") Long salonId, @Param("rating") Integer rating, Pageable pageable);
 
     Page<Review> findByBranchId(Long branchId, Pageable pageable);
 
@@ -30,13 +34,13 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, JpaSpecif
 
     Page<Review> findBySentimentStatusOrderByCreatedAtAsc(ReviewSentimentStatus sentimentStatus, Pageable pageable);
 
-    @Query("SELECT AVG(r.rating) FROM Review r WHERE r.salon.id = :salonId AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")
+    @Query("SELECT AVG(r.rating) FROM Review r WHERE (r.salon.id = :salonId OR r.branch.salon.id = :salonId) AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")
     Double calculateAverageRatingBySalonId(@Param("salonId") Long salonId);
 
-    @Query("SELECT COUNT(r) FROM Review r WHERE r.salon.id = :salonId AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")
+    @Query("SELECT COUNT(r) FROM Review r WHERE (r.salon.id = :salonId OR r.branch.salon.id = :salonId) AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")
     Long countBySalonId(@Param("salonId") Long salonId);
 
-    @Query("SELECT r.rating, COUNT(r) FROM Review r WHERE r.salon.id = :salonId AND (r.isHidden IS FALSE OR r.isHidden IS NULL) GROUP BY r.rating")
+    @Query("SELECT r.rating, COUNT(r) FROM Review r WHERE (r.salon.id = :salonId OR r.branch.salon.id = :salonId) AND (r.isHidden IS FALSE OR r.isHidden IS NULL) GROUP BY r.rating")
     List<Object[]> countRatingDistributionBySalonId(@Param("salonId") Long salonId);
 
     @Query("SELECT AVG(r.rating) FROM Review r WHERE r.branch.id = :branchId AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")

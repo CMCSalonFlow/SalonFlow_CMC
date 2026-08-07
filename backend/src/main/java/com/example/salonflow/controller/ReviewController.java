@@ -51,9 +51,10 @@ public class ReviewController {
     @GetMapping("/salons/{salonId}/reviews")
     public ResponseEntity<Page<ReviewResponse>> getReviewsBySalonId(
             @PathVariable("salonId") Long salonId,
+            @RequestParam(value = "rating", required = false) Integer rating,
             @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable
     ) {
-        Page<ReviewResponse> page = reviewService.getReviewsBySalonId(salonId, pageable);
+        Page<ReviewResponse> page = reviewService.getReviewsBySalonId(salonId, rating, pageable);
         return ResponseEntity.ok(page);
     }
 
