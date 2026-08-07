@@ -1,5 +1,6 @@
 package com.example.salonflow.ai.service.impl;
 
+import com.example.salonflow.ai.bootstrap.HairStyleSeedCatalog;
 import com.example.salonflow.ai.dto.hair.HairStyleAnalysisResult;
 import com.example.salonflow.ai.dto.hair.HairStyleCandidateScoreRequest;
 import com.example.salonflow.ai.dto.hair.HairStyleCandidateScoreResult;
@@ -89,7 +90,17 @@ public class HairStyleRecommendationServiceImpl implements HairStyleRecommendati
         if (gender == null) {
             return hairStyleRepository.findByIsActiveTrueOrderByPopularityScoreDescSortOrderAscNameAsc();
         }
-        return hairStyleRepository.findByIsActiveTrueAndGenderOrderByPopularityScoreDescSortOrderAscNameAsc(gender);
+        List<HairStyle> styles = hairStyleRepository
+                .findByIsActiveTrueAndGenderOrderByPopularityScoreDescSortOrderAscNameAsc(gender);
+        if (!styles.isEmpty()) {
+            return styles;
+        }
+
+        return hairStyleRepository.findByIsActiveTrueOrderByPopularityScoreDescSortOrderAscNameAsc().stream()
+                .filter(style -> HairStyleSeedCatalog.genderForCode(style.getCode())
+                        .map(seedGender -> seedGender == gender)
+                        .orElse(false))
+                .toList();
     }
 
     private HairStyleCandidateScoreRequest toScoreRequest(HairStyleAnalysisResult analysis, HairStyle style) {

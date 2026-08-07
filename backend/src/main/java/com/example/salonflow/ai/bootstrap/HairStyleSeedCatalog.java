@@ -3,6 +3,7 @@ package com.example.salonflow.ai.bootstrap;
 import com.example.salonflow.entity.enums.hair.HairGender;
 
 import java.util.List;
+import java.util.Optional;
 
 public final class HairStyleSeedCatalog {
 
@@ -49,6 +50,16 @@ public final class HairStyleSeedCatalog {
                 item(HairGender.WOMEN, "TOC_TEM_PIXIE", "Toc Tem Pixie", "toc-tem-pixie", 36, 0.81),
                 item(HairGender.WOMEN, "VICTORIA_BECKHAM_BOB", "Victoria Beckham Bob", "Victoria Beckham Bob", 37, 0.84)
         );
+    }
+
+    public static Optional<HairGender> genderForCode(String code) {
+        if (code == null || code.isBlank()) {
+            return Optional.empty();
+        }
+        return all().stream()
+                .filter(item -> item.code().equalsIgnoreCase(code))
+                .map(HairStyleSeedItem::gender)
+                .findFirst();
     }
 
     private static HairStyleSeedItem item(
