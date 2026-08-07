@@ -204,7 +204,7 @@ public class RecommendationServiceImpl implements RecommendationService {
         // Lấy thông tin entity chi tiết của dịch vụ
         List<SalonService> services = serviceRepository.findAllById(candidateServiceIds);
         Map<Long, SalonService> serviceMap = services.stream()
-                .filter(s -> Boolean.TRUE.equals(s.getIsActive()))
+                .filter(s -> s.getIsActive() == null || Boolean.TRUE.equals(s.getIsActive()))
                 .filter(s -> branchId == null || (s.getBranch() != null && s.getBranch().getId().equals(branchId)))
                 .collect(Collectors.toMap(SalonService::getId, s -> s));
 
@@ -246,10 +246,12 @@ public class RecommendationServiceImpl implements RecommendationService {
         } else {
             // Nếu CSDL chưa có booking nào, lấy danh sách dịch vụ active mặc định
             if (branchId != null) {
-                services = serviceRepository.findByBranchIdAndIsActiveTrue(branchId);
+                services = serviceRepository.findByBranchId(branchId).stream()
+                        .filter(s -> s.getIsActive() == null || Boolean.TRUE.equals(s.getIsActive()))
+                        .collect(Collectors.toList());
             } else {
                 services = serviceRepository.findAll().stream()
-                        .filter(s -> Boolean.TRUE.equals(s.getIsActive()))
+                        .filter(s -> s.getIsActive() == null || Boolean.TRUE.equals(s.getIsActive()))
                         .limit(limit)
                         .collect(Collectors.toList());
             }
