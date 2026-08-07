@@ -1,7 +1,9 @@
 package com.example.salonflow.dto.Salon;
 
+import com.example.salonflow.entity.SalonStatus;
 import lombok.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Getter
@@ -24,6 +26,18 @@ public class SalonResponse {
     private String website;
 
     private String logoUrl;
+
+    private SalonStatus status;
+
+    private String rejectionReason;
+
+    private LocalDateTime rejectedAt;
+
+    private LocalDateTime approvedAt;
+
+    private Boolean canAppeal;
+
+    private Long daysUntilAppeal;
 
     private List<SalonPhotoResponse> photos;
 }

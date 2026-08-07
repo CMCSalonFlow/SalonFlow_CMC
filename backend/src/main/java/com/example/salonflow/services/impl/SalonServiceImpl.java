@@ -5,24 +5,31 @@ import com.example.salonflow.entity.*;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
+import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.SalonService;
 import com.example.salonflow.util.SecurityUtil;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
+@Slf4j
 public class SalonServiceImpl implements SalonService {
 
         private final SalonRepository salonRepository;
         private final SalonPhotoRepository salonPhotoRepository;
         private final UserRepository userRepository;
         private final MediaFileRepository mediaFileRepository;
+        private final SalonApprovalAuditRepository auditRepository;
+        private final EmailService emailService;
 
         @Override
         public SalonResponse create(CreateSalonRequest request) {
@@ -50,16 +57,13 @@ public class SalonServiceImpl implements SalonService {
                                 .email(request.getEmail())
                                 .website(request.getWebsite())
                                 .logo(logo)
+                                .status(SalonStatus.PENDING)
                                 .build();
 
                 salon = salonRepository.save(salon);
 
                 savePhotos(salon, request.getPhotoMediaIds());
 
-                System.out.println("OWNER ID = " + owner.getId());
-
-                System.out.println(
-                                salonRepository.findByOwner(owner));
                 return mapToResponse(salon);
         }
 
@@ -108,7 +112,7 @@ public class SalonServiceImpl implements SalonService {
 
         private SalonResponse mapToResponse(Salon salon) {
 
-                List<SalonPhotoResponse> photoResponses = salon.getPhotos().stream()
+                List<SalonPhotoResponse> photoResponses = salon.getPhotos() == null ? List.of() : salon.getPhotos().stream()
                                 .map(photo -> {
                                         MediaFile media = photo.getMedia();
 
@@ -120,6 +124,17 @@ public class SalonServiceImpl implements SalonService {
                                 })
                                 .toList();
 
+                boolean canAppeal = false;
+                long daysUntilAppeal = 0;
+                if (salon.getStatus() == SalonStatus.REJECTED && salon.getRejectedAt() != null) {
+                        long daysBetween = ChronoUnit.DAYS.between(salon.getRejectedAt(), LocalDateTime.now());
+                        if (daysBetween >= 7) {
+                                canAppeal = true;
+                        } else {
+                                daysUntilAppeal = 7 - daysBetween;
+                        }
+                }
+
                 return SalonResponse.builder()
                                 .id(salon.getId())
                                 .name(salon.getName())
@@ -128,6 +143,12 @@ public class SalonServiceImpl implements SalonService {
                                 .email(salon.getEmail())
                                 .website(salon.getWebsite())
                                 .logoUrl(salon.getLogo() != null ? salon.getLogo().getUrl() : null)
+                                .status(salon.getStatus() != null ? salon.getStatus() : SalonStatus.PENDING)
+                                .rejectionReason(salon.getRejectionReason())
+                                .rejectedAt(salon.getRejectedAt())
+                                .approvedAt(salon.getApprovedAt())
+                                .canAppeal(canAppeal)
+                                .daysUntilAppeal(daysUntilAppeal)
                                 .photos(photoResponses)
                                 .build();
         }
@@ -220,6 +241,144 @@ public class SalonServiceImpl implements SalonService {
                                 .orElseThrow(() -> new ResourceNotFoundException("Salon not found"));
 
                 return mapToResponse(salon);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<SalonResponse> getByStatus(SalonStatus status) {
+                List<Salon> salons = salonRepository.findByStatus(status);
+                return salons.stream().map(this::mapToResponse).toList();
+        }
+
+        @Override
+        public SalonResponse approve(Long salonId, Long adminUserId) {
+                Salon salon = salonRepository.findById(salonId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId));
+                User admin = userRepository.findById(adminUserId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản Admin với ID: " + adminUserId));
+
+                salon.setStatus(SalonStatus.APPROVED);
+                salon.setApprovedAt(LocalDateTime.now());
+                salon.setRejectionReason(null);
+                salonRepository.save(salon);
+
+                SalonApprovalAudit audit = SalonApprovalAudit.builder()
+                                .salon(salon)
+                                .admin(admin)
+                                .action("APPROVE")
+                                .reason("Duyệt chấp thuận đăng ký salon.")
+                                .build();
+                auditRepository.save(audit);
+
+                try {
+                        emailService.sendSalonApprovedEmail(
+                                        salon.getOwner() != null ? salon.getOwner().getEmail() : salon.getEmail(),
+                                        salon.getName(),
+                                        salon.getOwner() != null ? salon.getOwner().getFullName() : "Chủ Salon"
+                        );
+                } catch (Exception e) {
+                        log.error("Lỗi gửi email duyệt salon: {}", e.getMessage());
+                }
+
+                return mapToResponse(salon);
+        }
+
+        @Override
+        public SalonResponse reject(Long salonId, RejectSalonRequest request, Long adminUserId) {
+                Salon salon = salonRepository.findById(salonId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId));
+                User admin = userRepository.findById(adminUserId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản Admin với ID: " + adminUserId));
+
+                String reason = request != null && request.getReason() != null ? request.getReason().trim() : "Hồ sơ chưa đạt tiêu chuẩn.";
+
+                salon.setStatus(SalonStatus.REJECTED);
+                salon.setRejectionReason(reason);
+                salon.setRejectedAt(LocalDateTime.now());
+                salonRepository.save(salon);
+
+                SalonApprovalAudit audit = SalonApprovalAudit.builder()
+                                .salon(salon)
+                                .admin(admin)
+                                .action("REJECT")
+                                .reason(reason)
+                                .build();
+                auditRepository.save(audit);
+
+                try {
+                        emailService.sendSalonRejectedEmail(
+                                        salon.getOwner() != null ? salon.getOwner().getEmail() : salon.getEmail(),
+                                        salon.getName(),
+                                        salon.getOwner() != null ? salon.getOwner().getFullName() : "Chủ Salon",
+                                        reason
+                        );
+                } catch (Exception e) {
+                        log.error("Lỗi gửi email từ chối salon: {}", e.getMessage());
+                }
+
+                return mapToResponse(salon);
+        }
+
+        @Override
+        public SalonResponse appeal(Long salonId) {
+                User owner = getCurrentUser();
+                Salon salon = salonRepository.findByOwner(owner)
+                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon của bạn."));
+
+                if (!salon.getId().equals(salonId)) {
+                        throw new BusinessException("Bạn không có quyền thực hiện thao tác trên salon này.");
+                }
+
+                if (salon.getStatus() != SalonStatus.REJECTED) {
+                        throw new BusinessException("Chỉ những Salon ở trạng thái Bị từ chối (REJECTED) mới có thể gửi lại đơn.");
+                }
+
+                if (salon.getRejectedAt() != null) {
+                        long daysBetween = ChronoUnit.DAYS.between(salon.getRejectedAt(), LocalDateTime.now());
+                        if (daysBetween < 7) {
+                                throw new BusinessException("Bạn chỉ có thể gửi lại đơn sau 7 ngày kể từ ngày bị từ chối. Còn lại " + (7 - daysBetween) + " ngày.");
+                        }
+                }
+
+                salon.setStatus(SalonStatus.PENDING);
+                salon.setRejectionReason(null);
+                salonRepository.save(salon);
+
+                SalonApprovalAudit audit = SalonApprovalAudit.builder()
+                                .salon(salon)
+                                .admin(owner)
+                                .action("APPEAL")
+                                .reason("Chủ salon nộp lại đơn đăng ký xét duyệt sau 7 ngày.")
+                                .build();
+                auditRepository.save(audit);
+
+                return mapToResponse(salon);
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<SalonApprovalAuditResponse> getAudits(Long salonId) {
+                List<SalonApprovalAudit> audits = auditRepository.findBySalonIdOrderByCreatedAtDesc(salonId);
+                return audits.stream().map(audit -> {
+                        return SalonApprovalAuditResponse.builder()
+                                        .id(audit.getId())
+                                        .salonId(audit.getSalon().getId())
+                                        .salonName(audit.getSalon().getName())
+                                        .adminId(audit.getAdmin() != null ? audit.getAdmin().getId() : null)
+                                        .adminName(audit.getAdmin() != null ? audit.getAdmin().getFullName() : null)
+                                        .adminEmail(audit.getAdmin() != null ? audit.getAdmin().getEmail() : null)
+                                        .action(audit.getAction())
+                                        .reason(audit.getReason())
+                                        .createdAt(audit.getCreatedAt())
+                                        .build();
+                }).toList();
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<SalonResponse> getPublicSalons() {
+                List<Salon> salons = salonRepository.findByStatus(SalonStatus.APPROVED);
+                return salons.stream().map(this::mapToResponse).toList();
         }
 
 }

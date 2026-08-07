@@ -1,8 +1,8 @@
 package com.example.salonflow.controller;
 
-import com.example.salonflow.dto.Salon.CreateSalonRequest;
-import com.example.salonflow.dto.Salon.SalonResponse;
-import com.example.salonflow.dto.Salon.UpdateSalonRequest;
+import com.example.salonflow.dto.Salon.*;
+import com.example.salonflow.entity.SalonStatus;
+import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.SalonService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +20,7 @@ public class SalonController {
     private final SalonService salonService;
 
     /**
-     * Salon Owner tạo salon
+     * Salon Owner tạo salon mới (Trạng thái mặc định: PENDING)
      */
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -52,6 +52,16 @@ public class SalonController {
     }
 
     /**
+     * Salon Owner gửi lại đơn đăng ký (Appeal) sau 7 ngày bị từ chối
+     */
+    @PostMapping("/me/appeal")
+    @PreAuthorize("hasRole('SALON_OWNER')")
+    public SalonResponse appealSalon() {
+        SalonResponse mySalon = salonService.getMine();
+        return salonService.appeal(mySalon.getId());
+    }
+
+    /**
      * Salon Owner xóa salon của mình
      */
     @DeleteMapping("/me")
@@ -71,11 +81,58 @@ public class SalonController {
     }
 
     /**
-     * Khách hàng xem danh sách tất cả salon công khai
+     * Super Admin lọc danh sách salon theo trạng thái (PENDING, APPROVED, REJECTED, SUSPENDED)
+     */
+    @GetMapping("/admin/by-status")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public List<SalonResponse> getSalonsByStatus(
+            @RequestParam("status") SalonStatus status
+    ) {
+        return salonService.getByStatus(status);
+    }
+
+    /**
+     * Super Admin duyệt đơn đăng ký Salon
+     */
+    @PostMapping("/admin/{id}/approve")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public SalonResponse approveSalon(
+            @PathVariable Long id
+    ) {
+        Long adminUserId = SecurityUtils.getCurrentUserId();
+        return salonService.approve(id, adminUserId);
+    }
+
+    /**
+     * Super Admin từ chối đơn đăng ký Salon kèm lý do
+     */
+    @PostMapping("/admin/{id}/reject")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public SalonResponse rejectSalon(
+            @PathVariable Long id,
+            @Valid @RequestBody RejectSalonRequest request
+    ) {
+        Long adminUserId = SecurityUtils.getCurrentUserId();
+        return salonService.reject(id, request, adminUserId);
+    }
+
+    /**
+     * Super Admin xem lịch sử Audit của Salon
+     */
+    @GetMapping("/admin/audits/{id}")
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    public List<SalonApprovalAuditResponse> getSalonAudits(
+            @PathVariable Long id
+    ) {
+        return salonService.getAudits(id);
+    }
+
+    /**
+     * Khách hàng xem danh sách tất cả salon công khai (chỉ những salon đã APPROVED)
      */
     @GetMapping("/public")
     public List<SalonResponse> getPublicSalons() {
-        return salonService.getAll();
+        return salonService.getPublicSalons();
     }
 
     /**
