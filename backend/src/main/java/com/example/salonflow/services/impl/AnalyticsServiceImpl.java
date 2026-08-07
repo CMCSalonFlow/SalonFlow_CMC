@@ -2,10 +2,12 @@ package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.analytics.*;
 import com.example.salonflow.entity.Booking;
+import com.example.salonflow.entity.BookingItem;
 import com.example.salonflow.entity.Branch;
 import com.example.salonflow.entity.Salon;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.repository.BookingItemRepository;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ReviewRepository;
@@ -20,9 +22,10 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
+import java.time.temporal.WeekFields;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,6 +36,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final SalonRepository salonRepository;
     private final BranchRepository branchRepository;
     private final BookingRepository bookingRepository;
+    private final BookingItemRepository bookingItemRepository;
     private final ReviewRepository reviewRepository;
 
     @Override
@@ -57,7 +61,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         LocalDate pastWeekStart = today.minusDays(7);
         LocalDate pastWeekEnd = today.minusDays(1);
 
-        // Fetch bookings for recent range (past week + today)
         List<Booking> rangeBookings;
         if (branchId != null) {
             rangeBookings = bookingRepository.findByBranchIdAndBookingDateBetween(branchId, pastWeekStart, today);
@@ -65,14 +68,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             rangeBookings = bookingRepository.findByBranchSalonIdAndBookingDateBetween(salon.getId(), pastWeekStart, today);
         }
 
-        // Group bookings by date
         Map<LocalDate, List<Booking>> bookingsByDate = rangeBookings.stream()
                 .collect(Collectors.groupingBy(Booking::getBookingDate));
 
         List<Booking> todayBookings = bookingsByDate.getOrDefault(today, List.of());
         List<Booking> yesterdayBookings = bookingsByDate.getOrDefault(yesterday, List.of());
 
-        // 1. Calculate Today KPIs
         BigDecimal todayRevenue = todayBookings.stream()
                 .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
                 .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
@@ -101,7 +102,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 ? Math.round(((double) completedCount / todayBookingsCount * 100.0) * 10.0) / 10.0
                 : 0.0;
 
-        // Ratings
         Double avgRating;
         Long totalReviews;
         if (branchId != null) {
@@ -129,7 +129,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .totalReviewCount(totalReviews)
                 .build();
 
-        // 2. 7-Day Sparkline Trend
         List<DailyTrendDto> last7DaysTrend = new ArrayList<>();
         for (LocalDate d = last7DaysStart; !d.isAfter(today); d = d.plusDays(1)) {
             List<Booking> dayList = bookingsByDate.getOrDefault(d, List.of());
@@ -150,8 +149,6 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     .build());
         }
 
-        // 3. Revenue Alert Calculation
-        // Past 7 days (excluding today)
         BigDecimal totalPast7DaysRevenue = BigDecimal.ZERO;
         for (LocalDate d = pastWeekStart; !d.isAfter(pastWeekEnd); d = d.plusDays(1)) {
             List<Booking> dayList = bookingsByDate.getOrDefault(d, List.of());
@@ -205,6 +202,298 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .last7DaysTrend(last7DaysTrend)
                 .revenueAlert(revenueAlert)
                 .build();
+    }
+
+    @Override
+    public RevenueAnalyticsResponse getSalonRevenueAnalytics(String period, LocalDate fromDate, LocalDate toDate, Long branchId) {
+        Long ownerId = SecurityUtils.getCurrentUserId();
+        Salon salon = salonRepository.findFirstByOwnerId(ownerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Salon của tài khoản này"));
+
+        String normalizedPeriod = period != null ? period.toLowerCase().trim() : "daily";
+        LocalDate today = LocalDate.now();
+
+        if (toDate == null) toDate = today;
+        if (fromDate == null) {
+            fromDate = switch (normalizedPeriod) {
+                case "weekly" -> toDate.minusWeeks(12);
+                case "monthly" -> LocalDate.of(toDate.getYear(), 1, 1);
+                case "yearly" -> toDate.minusYears(4);
+                default -> toDate.minusDays(30); // "daily"
+            };
+        }
+
+        // Previous year range for YoY comparison
+        LocalDate prevYearFrom = fromDate.minusYears(1);
+        LocalDate prevYearTo = toDate.minusYears(1);
+
+        // Fetch bookings for both current and previous year ranges
+        List<Booking> currentBookings;
+        List<Booking> prevYearBookings;
+        if (branchId != null) {
+            currentBookings = bookingRepository.findByBranchIdAndBookingDateBetween(branchId, fromDate, toDate);
+            prevYearBookings = bookingRepository.findByBranchIdAndBookingDateBetween(branchId, prevYearFrom, prevYearTo);
+        } else {
+            currentBookings = bookingRepository.findByBranchSalonIdAndBookingDateBetween(salon.getId(), fromDate, toDate);
+            prevYearBookings = bookingRepository.findByBranchSalonIdAndBookingDateBetween(salon.getId(), prevYearFrom, prevYearTo);
+        }
+
+        Map<LocalDate, List<Booking>> currentByDate = currentBookings.stream()
+                .collect(Collectors.groupingBy(Booking::getBookingDate));
+        Map<LocalDate, List<Booking>> prevByDate = prevYearBookings.stream()
+                .collect(Collectors.groupingBy(Booking::getBookingDate));
+
+        // Group timeline based on period
+        List<RevenueTimePointDto> timeline = buildTimeline(normalizedPeriod, fromDate, toDate, currentByDate, prevByDate);
+
+        // Find Peak Period (highest currentRevenue)
+        RevenueTimePointDto peakPoint = timeline.stream()
+                .max(Comparator.comparing(RevenueTimePointDto::getCurrentRevenue))
+                .orElse(null);
+
+        PeakPeriodDto peakPeriod = null;
+        if (peakPoint != null && peakPoint.getCurrentRevenue().compareTo(BigDecimal.ZERO) > 0) {
+            peakPoint.setIsPeakPeriod(true);
+            peakPeriod = PeakPeriodDto.builder()
+                    .label(peakPoint.getLabel())
+                    .date(peakPoint.getStartDate())
+                    .revenue(peakPoint.getCurrentRevenue())
+                    .bookingCount(peakPoint.getBookingCount())
+                    .build();
+        }
+
+        // Totals & Overall YoY Growth
+        BigDecimal totalRevenue = currentBookings.stream()
+                .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal totalPreviousYearRevenue = prevYearBookings.stream()
+                .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        Double overallYoYGrowthRate = calculateGrowthRate(totalRevenue, totalPreviousYearRevenue);
+
+        // Service Revenue Breakdown (Pie Chart)
+        List<BookingItem> items;
+        if (branchId != null) {
+            items = bookingItemRepository.findCompletedItemsByBranchIdAndDateRange(branchId, fromDate, toDate);
+        } else {
+            items = bookingItemRepository.findCompletedItemsBySalonIdAndDateRange(salon.getId(), fromDate, toDate);
+        }
+
+        List<ServiceRevenueBreakdownDto> serviceBreakdown = buildServiceBreakdown(items, totalRevenue);
+
+        return RevenueAnalyticsResponse.builder()
+                .period(normalizedPeriod)
+                .fromDate(fromDate)
+                .toDate(toDate)
+                .salonId(salon.getId())
+                .branchId(branchId)
+                .totalRevenue(totalRevenue)
+                .totalPreviousYearRevenue(totalPreviousYearRevenue)
+                .overallYoYGrowthRate(overallYoYGrowthRate)
+                .peakPeriod(peakPeriod)
+                .timeline(timeline)
+                .serviceBreakdown(serviceBreakdown)
+                .build();
+    }
+
+    private List<RevenueTimePointDto> buildTimeline(
+            String period,
+            LocalDate from,
+            LocalDate to,
+            Map<LocalDate, List<Booking>> currentByDate,
+            Map<LocalDate, List<Booking>> prevByDate
+    ) {
+        List<RevenueTimePointDto> timeline = new ArrayList<>();
+
+        if ("monthly".equalsIgnoreCase(period)) {
+            LocalDate curr = from.withDayOfMonth(1);
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MM/yyyy");
+            while (!curr.isAfter(to)) {
+                LocalDate monthEnd = curr.plusMonths(1).minusDays(1);
+                if (monthEnd.isAfter(to)) monthEnd = to;
+
+                BigDecimal currRev = sumRevenueInRange(currentByDate, curr, monthEnd);
+                BigDecimal prevRev = sumRevenueInRange(prevByDate, curr.minusYears(1), monthEnd.minusYears(1));
+                long bookings = countBookingsInRange(currentByDate, curr, monthEnd);
+
+                timeline.add(RevenueTimePointDto.builder()
+                        .label("Tháng " + curr.format(fmt))
+                        .startDate(curr)
+                        .endDate(monthEnd)
+                        .currentRevenue(currRev)
+                        .previousYearRevenue(prevRev)
+                        .yoyGrowthRate(calculateGrowthRate(currRev, prevRev))
+                        .bookingCount(bookings)
+                        .isPeakPeriod(false)
+                        .build());
+                curr = curr.plusMonths(1);
+            }
+        } else if ("weekly".equalsIgnoreCase(period)) {
+            LocalDate curr = from;
+            WeekFields weekFields = WeekFields.of(Locale.getDefault());
+            while (!curr.isAfter(to)) {
+                LocalDate weekEnd = curr.plusDays(6);
+                if (weekEnd.isAfter(to)) weekEnd = to;
+
+                int weekNum = curr.get(weekFields.weekOfWeekBasedYear());
+                BigDecimal currRev = sumRevenueInRange(currentByDate, curr, weekEnd);
+                BigDecimal prevRev = sumRevenueInRange(prevByDate, curr.minusYears(1), weekEnd.minusYears(1));
+                long bookings = countBookingsInRange(currentByDate, curr, weekEnd);
+
+                timeline.add(RevenueTimePointDto.builder()
+                        .label("Tuần " + weekNum + " (" + curr.format(DateTimeFormatter.ofPattern("dd/MM")) + ")")
+                        .startDate(curr)
+                        .endDate(weekEnd)
+                        .currentRevenue(currRev)
+                        .previousYearRevenue(prevRev)
+                        .yoyGrowthRate(calculateGrowthRate(currRev, prevRev))
+                        .bookingCount(bookings)
+                        .isPeakPeriod(false)
+                        .build());
+                curr = curr.plusDays(7);
+            }
+        } else if ("yearly".equalsIgnoreCase(period)) {
+            int startYear = from.getYear();
+            int endYear = to.getYear();
+            for (int year = startYear; year <= endYear; year++) {
+                LocalDate yrStart = LocalDate.of(year, 1, 1);
+                LocalDate yrEnd = LocalDate.of(year, 12, 31);
+
+                BigDecimal currRev = sumRevenueInRange(currentByDate, yrStart, yrEnd);
+                BigDecimal prevRev = sumRevenueInRange(prevByDate, yrStart.minusYears(1), yrEnd.minusYears(1));
+                long bookings = countBookingsInRange(currentByDate, yrStart, yrEnd);
+
+                timeline.add(RevenueTimePointDto.builder()
+                        .label("Năm " + year)
+                        .startDate(yrStart)
+                        .endDate(yrEnd)
+                        .currentRevenue(currRev)
+                        .previousYearRevenue(prevRev)
+                        .yoyGrowthRate(calculateGrowthRate(currRev, prevRev))
+                        .bookingCount(bookings)
+                        .isPeakPeriod(false)
+                        .build());
+            }
+        } else {
+            // "daily"
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("dd/MM");
+            for (LocalDate d = from; !d.isAfter(to); d = d.plusDays(1)) {
+                List<Booking> dayList = currentByDate.getOrDefault(d, List.of());
+                BigDecimal currRev = dayList.stream()
+                        .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                        .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                List<Booking> prevDayList = prevByDate.getOrDefault(d.minusYears(1), List.of());
+                BigDecimal prevRev = prevDayList.stream()
+                        .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                        .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                timeline.add(RevenueTimePointDto.builder()
+                        .label(d.format(fmt))
+                        .startDate(d)
+                        .endDate(d)
+                        .currentRevenue(currRev)
+                        .previousYearRevenue(prevRev)
+                        .yoyGrowthRate(calculateGrowthRate(currRev, prevRev))
+                        .bookingCount((long) dayList.size())
+                        .isPeakPeriod(false)
+                        .build());
+            }
+        }
+
+        return timeline;
+    }
+
+    private BigDecimal sumRevenueInRange(Map<LocalDate, List<Booking>> bookingsByDate, LocalDate start, LocalDate end) {
+        BigDecimal sum = BigDecimal.ZERO;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            List<Booking> list = bookingsByDate.getOrDefault(d, List.of());
+            BigDecimal dayRev = list.stream()
+                    .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                    .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            sum = sum.add(dayRev);
+        }
+        return sum;
+    }
+
+    private long countBookingsInRange(Map<LocalDate, List<Booking>> bookingsByDate, LocalDate start, LocalDate end) {
+        long count = 0;
+        for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
+            count += bookingsByDate.getOrDefault(d, List.of()).size();
+        }
+        return count;
+    }
+
+    private List<ServiceRevenueBreakdownDto> buildServiceBreakdown(List<BookingItem> items, BigDecimal totalRevenue) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Map<String, Object>> map = new HashMap<>();
+
+        for (BookingItem item : items) {
+            String name = "Khác";
+            String catName = "Dịch vụ chung";
+            Long serviceId = null;
+
+            if (item.getService() != null) {
+                name = item.getService().getName();
+                serviceId = item.getService().getId();
+                if (item.getService().getCategory() != null) {
+                    catName = item.getService().getCategory().getName();
+                }
+            } else if (item.getBundle() != null) {
+                name = "[Combo] " + item.getBundle().getName();
+            }
+
+            BigDecimal price = item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO;
+
+            Map<String, Object> data = map.computeIfAbsent(name, k -> {
+                Map<String, Object> m = new HashMap<>();
+                m.put("serviceName", k);
+                m.put("categoryName", "Dịch vụ chung");
+                m.put("serviceId", null);
+                m.put("revenue", BigDecimal.ZERO);
+                m.put("itemCount", 0L);
+                return m;
+            });
+
+            data.put("categoryName", catName);
+            if (serviceId != null) data.put("serviceId", serviceId);
+            data.put("revenue", ((BigDecimal) data.get("revenue")).add(price));
+            data.put("itemCount", ((Long) data.get("itemCount")) + 1);
+        }
+
+        List<ServiceRevenueBreakdownDto> result = new ArrayList<>();
+        for (Map<String, Object> entry : map.values()) {
+            BigDecimal rev = (BigDecimal) entry.get("revenue");
+            Double pct = 0.0;
+            if (totalRevenue != null && totalRevenue.compareTo(BigDecimal.ZERO) > 0) {
+                pct = rev.divide(totalRevenue, 4, RoundingMode.HALF_UP).multiply(BigDecimal.valueOf(100)).doubleValue();
+                pct = Math.round(pct * 10.0) / 10.0;
+            }
+
+            result.add(ServiceRevenueBreakdownDto.builder()
+                    .serviceId((Long) entry.get("serviceId"))
+                    .serviceName((String) entry.get("serviceName"))
+                    .categoryName((String) entry.get("categoryName"))
+                    .revenue(rev)
+                    .itemCount((Long) entry.get("itemCount"))
+                    .percentage(pct)
+                    .build());
+        }
+
+        // Sort descending by revenue
+        result.sort((a, b) -> b.getRevenue().compareTo(a.getRevenue()));
+
+        return result;
     }
 
     private Double calculateGrowthRate(BigDecimal current, BigDecimal previous) {
