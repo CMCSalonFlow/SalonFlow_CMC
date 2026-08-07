@@ -61,13 +61,18 @@ public class ReviewServiceImpl implements ReviewService {
 
         Branch branch = booking.getBranch();
         Salon salon = branch.getSalon();
+        Staff staff = booking.getAssignedStaff() != null ? booking.getAssignedStaff() : booking.getPreferredStaff();
+
+        String finalTitle = resolveReviewTitle(request.getTitle(), request.getRating());
 
         Review review = Review.builder()
                 .booking(booking)
                 .user(booking.getCustomer())
                 .salon(salon)
                 .branch(branch)
+                .staff(staff)
                 .rating(request.getRating())
+                .title(finalTitle)
                 .content(request.getComment())
                 .isHidden(false)
                 .build();
@@ -416,6 +421,11 @@ public class ReviewServiceImpl implements ReviewService {
                         .collect(Collectors.toList())
                 : Collections.emptyList();
 
+        Staff staff = review.getStaff();
+        String staffName = staff != null ? staff.getName() : null;
+
+        String finalTitle = resolveReviewTitle(review.getTitle(), review.getRating());
+
         return ReviewResponse.builder()
                 .id(review.getId())
                 .customerId(customer != null ? customer.getId() : null)
@@ -424,12 +434,30 @@ public class ReviewServiceImpl implements ReviewService {
                 .salonId(review.getSalon() != null ? review.getSalon().getId() : null)
                 .branchId(review.getBranch() != null ? review.getBranch().getId() : null)
                 .branchName(review.getBranch() != null ? review.getBranch().getName() : null)
+                .staffId(staff != null ? staff.getId() : null)
+                .staffName(staffName)
                 .rating(review.getRating())
+                .title(finalTitle)
                 .comment(review.getComment())
                 .photos(photoUrls)
                 .ownerReply(review.getOwnerReply())
                 .createdAt(review.getCreatedAt())
                 .build();
+    }
+
+    private String resolveReviewTitle(String inputTitle, Integer rating) {
+        if (inputTitle != null && !inputTitle.trim().isEmpty()) {
+            return inputTitle.trim();
+        }
+        if (rating == null) return "Nhận xét dịch vụ";
+        return switch (rating) {
+            case 5 -> "Rất hài lòng";
+            case 4 -> "Hài lòng";
+            case 3 -> "Bình thường";
+            case 2 -> "Chưa như mong đợi";
+            case 1 -> "Không hài lòng";
+            default -> "Nhận xét dịch vụ";
+        };
     }
 
     private ReviewReportResponse mapToReportResponse(ReviewReport report) {
