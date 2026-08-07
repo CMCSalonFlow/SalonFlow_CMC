@@ -119,4 +119,12 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
            "AND b.createdAt < :cutoffTime " +
            "AND EXISTS (SELECT p FROM Payment p WHERE p.booking = b AND p.status IN ('PENDING', 'FAILED'))")
     List<Booking> findUnpaidOnlineBookings(@Param("cutoffTime") java.time.Instant cutoffTime);
+
+    // Queries cho Analytics
+    List<Booking> findByBranchSalonIdAndBookingDateBetween(Long salonId, LocalDate startDate, LocalDate endDate);
+
+    List<Booking> findByBranchIdAndBookingDateBetween(Long branchId, LocalDate startDate, LocalDate endDate);
+
+    List<Booking> findByBranchSalonIdAndBookingDate(Long salonId, LocalDate date);
 }
+
