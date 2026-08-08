@@ -53,6 +53,20 @@ public class GlobalExceptionHandler {
                         null
                 ));
     }
+
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<Map<String, Object>> handleBadRequestException(
+            BadRequestException ex
+    ) {
+
+        return ResponseEntity.badRequest()
+                .body(errorBody(
+                        HttpStatus.BAD_REQUEST,
+                        ex.getMessage(),
+                        null
+                ));
+    }
+
         @ExceptionHandler(ResourceNotFoundException.class)
         public ResponseEntity<Map<String, Object>> handleNotFound(
                 ResourceNotFoundException ex
