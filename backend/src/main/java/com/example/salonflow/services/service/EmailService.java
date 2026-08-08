@@ -22,4 +22,8 @@ public interface EmailService {
     void sendInvoiceEmail(Booking booking, String invoiceUrl);
 
     void sendNotificationEmail(String to, String subject, String body);
+
+    void sendSalonApprovedEmail(String toEmail, String salonName, String ownerName);
+
+    void sendSalonRejectedEmail(String toEmail, String salonName, String ownerName, String reason);
 }

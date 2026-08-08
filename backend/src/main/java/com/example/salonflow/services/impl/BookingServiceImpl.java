@@ -80,6 +80,7 @@ public class BookingServiceImpl implements BookingService {
     private final PasswordEncoder passwordEncoder;
     private final BookingPricingService bookingPricingService;
     private final com.example.salonflow.services.service.LoyaltyPointService loyaltyPointService;
+    private final com.example.salonflow.ai.service.NoShowPredictionService noShowPredictionService;
 
     @Override
     @Transactional
@@ -371,6 +372,11 @@ public class BookingServiceImpl implements BookingService {
                         .build())
                 .toList();
 
+        com.example.salonflow.ai.dto.noshow.NoShowPredictionDto predictionDto = null;
+        try {
+            predictionDto = noShowPredictionService.getPredictionByBookingId(booking.getId());
+        } catch (Exception ignored) {}
+
         return BookingResponse.builder()
                 .id(booking.getId())
                 .customerId(booking.getCustomer().getId())
@@ -395,6 +401,7 @@ public class BookingServiceImpl implements BookingService {
                 .invoiceGeneratedAt(booking.getInvoiceGeneratedAt())
                 .reviewedAt(booking.getReviewedAt())
                 .items(itemResponses)
+                .noShowPrediction(predictionDto)
                 .build();
     }
 
@@ -682,6 +689,12 @@ public class BookingServiceImpl implements BookingService {
             booking.setItems(items);
 
             publishBookingCreatedEvent(booking);
+
+            try {
+                noShowPredictionService.predictAndSaveLog(booking);
+            } catch (Exception e) {
+                log.error("Lỗi khi thực hiện AI dự đoán No-Show cho Booking ID: {}", booking.getId(), e);
+            }
 
             try {
                 String pattern = String.format("availability:branch:%d:staff:*:date:%s:duration:*",

@@ -20,6 +20,9 @@ public class CreateReviewRequest {
     @Max(value = 5, message = "Số sao đánh giá tối đa là 5")
     private Integer rating;
 
+    @Size(max = 200, message = "Tiêu đề nhận xét tối đa 200 ký tự")
+    private String title;
+
     @Size(max = 1000, message = "Nội dung nhận xét tối đa 1000 ký tự")
     private String comment;
 

@@ -61,13 +61,18 @@ public class ReviewServiceImpl implements ReviewService {
 
         Branch branch = booking.getBranch();
         Salon salon = branch.getSalon();
+        Staff staff = booking.getAssignedStaff() != null ? booking.getAssignedStaff() : booking.getPreferredStaff();
+
+        String finalTitle = resolveReviewTitle(request.getTitle(), request.getRating());
 
         Review review = Review.builder()
                 .booking(booking)
                 .user(booking.getCustomer())
                 .salon(salon)
                 .branch(branch)
+                .staff(staff)
                 .rating(request.getRating())
+                .title(finalTitle)
                 .content(request.getComment())
                 .isHidden(false)
                 .build();
@@ -104,11 +109,11 @@ public class ReviewServiceImpl implements ReviewService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<ReviewResponse> getReviewsBySalonId(Long salonId, Pageable pageable) {
+    public Page<ReviewResponse> getReviewsBySalonId(Long salonId, Integer rating, Pageable pageable) {
         if (!salonRepository.existsById(salonId)) {
             throw new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId);
         }
-        return reviewRepository.findBySalonIdAndIsHiddenFalse(salonId, pageable)
+        return reviewRepository.findBySalonIdAndRatingAndIsHiddenFalse(salonId, rating, pageable)
                 .map(this::mapToResponse);
     }
 
@@ -125,8 +130,8 @@ public class ReviewServiceImpl implements ReviewService {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId));
 
-        Double avg = branchRepository.calculateAverageBranchRatingBySalonId(salonId);
-        Long count = branchRepository.sumRatingCountBySalonId(salonId);
+        Double avg = reviewRepository.calculateAverageRatingBySalonId(salonId);
+        Long count = reviewRepository.countBySalonId(salonId);
 
         BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         long totalReviews = count != null ? count : 0L;
@@ -391,8 +396,8 @@ public class ReviewServiceImpl implements ReviewService {
         Salon salon = salonRepository.findById(salonId).orElse(null);
         if (salon == null) return;
 
-        Double avg = branchRepository.calculateAverageBranchRatingBySalonId(salonId);
-        Long countSum = branchRepository.sumRatingCountBySalonId(salonId);
+        Double avg = reviewRepository.calculateAverageRatingBySalonId(salonId);
+        Long countSum = reviewRepository.countBySalonId(salonId);
 
         BigDecimal averageRating = avg != null ? BigDecimal.valueOf(avg).setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
         int totalReviews = countSum != null ? countSum.intValue() : 0;
@@ -407,9 +412,19 @@ public class ReviewServiceImpl implements ReviewService {
 
         List<String> photoUrls = review.getPhotos() != null ?
                 review.getPhotos().stream()
-                        .map(ReviewPhoto::getPhotoUrl)
+                        .map(photo -> {
+                            if (photo.getMedia() != null && photo.getMedia().getUrl() != null && !photo.getMedia().getUrl().isBlank()) {
+                                return photo.getMedia().getUrl();
+                            }
+                            return photo.getPhotoUrl();
+                        })
                         .collect(Collectors.toList())
                 : Collections.emptyList();
+
+        Staff staff = review.getStaff();
+        String staffName = staff != null ? staff.getName() : null;
+
+        String finalTitle = resolveReviewTitle(review.getTitle(), review.getRating());
 
         return ReviewResponse.builder()
                 .id(review.getId())
@@ -419,12 +434,30 @@ public class ReviewServiceImpl implements ReviewService {
                 .salonId(review.getSalon() != null ? review.getSalon().getId() : null)
                 .branchId(review.getBranch() != null ? review.getBranch().getId() : null)
                 .branchName(review.getBranch() != null ? review.getBranch().getName() : null)
+                .staffId(staff != null ? staff.getId() : null)
+                .staffName(staffName)
                 .rating(review.getRating())
+                .title(finalTitle)
                 .comment(review.getComment())
                 .photos(photoUrls)
                 .ownerReply(review.getOwnerReply())
                 .createdAt(review.getCreatedAt())
                 .build();
+    }
+
+    private String resolveReviewTitle(String inputTitle, Integer rating) {
+        if (inputTitle != null && !inputTitle.trim().isEmpty()) {
+            return inputTitle.trim();
+        }
+        if (rating == null) return "Nhận xét dịch vụ";
+        return switch (rating) {
+            case 5 -> "Rất hài lòng";
+            case 4 -> "Hài lòng";
+            case 3 -> "Bình thường";
+            case 2 -> "Chưa như mong đợi";
+            case 1 -> "Không hài lòng";
+            default -> "Nhận xét dịch vụ";
+        };
     }
 
     private ReviewReportResponse mapToReportResponse(ReviewReport report) {

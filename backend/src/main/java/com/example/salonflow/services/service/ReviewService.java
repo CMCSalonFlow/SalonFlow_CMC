@@ -11,7 +11,7 @@ public interface ReviewService {
 
     ReviewResponse getReviewByBookingId(Long bookingId);
 
-    Page<ReviewResponse> getReviewsBySalonId(Long salonId, Pageable pageable);
+    Page<ReviewResponse> getReviewsBySalonId(Long salonId, Integer rating, Pageable pageable);
 
     Page<ReviewResponse> getReviewsByBranchId(Long branchId, Pageable pageable);
 

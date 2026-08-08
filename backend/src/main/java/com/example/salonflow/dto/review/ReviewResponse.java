@@ -26,7 +26,13 @@ public class ReviewResponse {
 
     private String branchName;
 
+    private Long staffId;
+
+    private String staffName;
+
     private Integer rating;
+
+    private String title;
 
     private String comment;
 

@@ -21,4 +21,6 @@ public interface SalonRepository extends JpaRepository<Salon, Long> {
     WHERE s.id = :id
     """)
     Optional<Salon> findByIdWithFullData(Long id);
+
+    java.util.List<Salon> findByStatus(com.example.salonflow.entity.SalonStatus status);
 }

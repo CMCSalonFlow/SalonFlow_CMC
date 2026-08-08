@@ -134,6 +134,45 @@ public class EmailServiceImpl implements EmailService {
         sendWithRetryAndFallback(to, subject, body);
     }
 
+    @Override
+    public void sendSalonApprovedEmail(String toEmail, String salonName, String ownerName) {
+        if (toEmail == null || toEmail.isBlank()) return;
+        String subject = "Chúc mừng! Đơn đăng ký Salon " + salonName + " đã được phê duyệt";
+        String body = """
+                <div style="font-family:Arial,Helvetica,sans-serif;padding:24px;color:#2c221d;background-color:#f9f6f0;border-radius:12px;">
+                  <h2 style="color:#d4af37;margin-top:0;">SalonFlow - Phê Duyệt Salon Thành Công</h2>
+                  <p>Xin chào <b>%s</b>,</p>
+                  <p>Chúng tôi xin vui mừng thông báo đơn đăng ký mở salon <b>%s</b> của bạn đã được Super Admin xét duyệt thành công!</p>
+                  <p>Bây giờ bạn đã có thể đăng nhập vào hệ thống quản trị Salon Owner để tạo các chi nhánh, thêm nhân viên, cài đặt bảng giá dịch vụ và bắt đầu đón khách hàng.</p>
+                  <div style="margin:24px 0;">
+                    <a href="http://localhost:5173/login" style="background-color:#d4af37;color:#ffffff;padding:12px 24px;text-decoration:none;border-radius:6px;font-weight:bold;display:inline-block;">Trang Đăng Nhập Salon Owner</a>
+                  </div>
+                  <p>Cảm ơn bạn đã đồng hành cùng SalonFlow!</p>
+                </div>
+                """.formatted(ownerName != null ? ownerName : "Chủ Salon", salonName);
+        sendNotificationEmail(toEmail, subject, body);
+    }
+
+    @Override
+    public void sendSalonRejectedEmail(String toEmail, String salonName, String ownerName, String reason) {
+        if (toEmail == null || toEmail.isBlank()) return;
+        String subject = "Thông báo về đơn đăng ký Salon " + salonName;
+        String body = """
+                <div style="font-family:Arial,Helvetica,sans-serif;padding:24px;color:#2c221d;background-color:#fff5f5;border-radius:12px;">
+                  <h2 style="color:#e53e3e;margin-top:0;">SalonFlow - Kết Quả Xét Duyệt Salon</h2>
+                  <p>Xin chào <b>%s</b>,</p>
+                  <p>Rất tiếc, đơn đăng ký mở salon <b>%s</b> của bạn chưa thể được phê duyệt vào lúc này.</p>
+                  <div style="background-color:#ffffff;padding:16px;border-left:4px solid #e53e3e;margin:16px 0;border-radius:4px;">
+                    <p style="margin:0;font-weight:bold;color:#e53e3e;">Lý do từ chối:</p>
+                    <p style="margin:8px 0 0 0;">%s</p>
+                  </div>
+                  <p>Theo quy định của hệ thống, bạn có thể kiểm tra và cập nhật lại thông tin hồ sơ để gửi đơn **Appeal (Khởi tạo xét duyệt lại)** sau <b>7 ngày</b> kể từ ngày nhận thông báo này.</p>
+                  <p>Nếu có thắc mắc, vui lòng liên hệ với đội ngũ hỗ trợ SalonFlow.</p>
+                </div>
+                """.formatted(ownerName != null ? ownerName : "Chủ Salon", salonName, reason != null ? reason : "Thông tin chưa đáp ứng tiêu chuẩn.");
+        sendNotificationEmail(toEmail, subject, body);
+    }
+
     private void sendWithRetryAndFallback(String to, String subject, String body) {
         List<EmailProvider> orderedProviders = emailProviders.stream()
                 .sorted(Comparator.comparingInt(provider -> providerPriority(provider.getName())))
