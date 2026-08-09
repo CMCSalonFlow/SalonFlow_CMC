@@ -88,6 +88,19 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(ForecastException.class)
+    public ResponseEntity<Map<String, Object>> handleForecastException(
+            ForecastException ex
+    ) {
+        Map<String, Object> body = errorBody(
+                ex.getStatus(),
+                ex.getMessage(),
+                null
+        );
+        body.put("code", ex.getCode());
+        return ResponseEntity.status(ex.getStatus()).body(body);
+    }
+
     // @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(
             RuntimeException ex
@@ -141,4 +154,16 @@ public class GlobalExceptionHandler {
                         null
                 ));
         }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<Map<String, Object>> handleTooManyRequests(
+            TooManyRequestsException ex
+    ) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(errorBody(
+                        HttpStatus.TOO_MANY_REQUESTS,
+                        ex.getMessage(),
+                        null
+                ));
+    }
 }

@@ -14,12 +14,15 @@ public interface SalonRepository extends JpaRepository<Salon, Long> {
     boolean existsByOwner(User owner);
 
     Optional<Salon> findFirstByOwnerId(Long ownerId);
-        @Query("""
-    SELECT s FROM Salon s
-    LEFT JOIN FETCH s.photos p
-    LEFT JOIN FETCH p.media
-    WHERE s.id = :id
-    """)
+
+    Optional<Salon> findByIdAndOwnerId(Long id, Long ownerId);
+
+    @Query("""
+            SELECT s FROM Salon s
+            LEFT JOIN FETCH s.photos p
+            LEFT JOIN FETCH p.media
+            WHERE s.id = :id
+            """)
     Optional<Salon> findByIdWithFullData(Long id);
 
     java.util.List<Salon> findByStatus(com.example.salonflow.entity.SalonStatus status);
