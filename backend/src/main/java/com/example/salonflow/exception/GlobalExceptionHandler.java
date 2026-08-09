@@ -15,155 +15,148 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(
-            MethodArgumentNotValidException ex
-    ) {
+        @ExceptionHandler(MethodArgumentNotValidException.class)
+        public ResponseEntity<Map<String, Object>> handleValidation(
+                        MethodArgumentNotValidException ex) {
 
-        Map<String, String> errors = new LinkedHashMap<>();
-        ex.getBindingResult()
-                .getFieldErrors()
-                .forEach(error ->
-                        errors.put(
-                                error.getField(),
-                                error.getDefaultMessage()
-                        )
-                );
+                Map<String, String> errors = new LinkedHashMap<>();
+                ex.getBindingResult()
+                                .getFieldErrors()
+                                .forEach(error -> errors.put(
+                                                error.getField(),
+                                                error.getDefaultMessage()));
 
-        return ResponseEntity.badRequest()
-                .body(errorBody(
-                        HttpStatus.BAD_REQUEST,
-                        "Validation failed",
-                        errors
-                ));
-    }
-
-    @ExceptionHandler({
-            BadCredentialsException.class,
-            IllegalArgumentException.class
-    })
-    public ResponseEntity<Map<String, Object>> handleBadRequest(
-            RuntimeException ex
-    ) {
-
-        return ResponseEntity.badRequest()
-                .body(errorBody(
-                        HttpStatus.BAD_REQUEST,
-                        ex.getMessage(),
-                        null
-                ));
-    }
-        @ExceptionHandler(ResourceNotFoundException.class)
-        public ResponseEntity<Map<String, Object>> handleNotFound(
-                ResourceNotFoundException ex
-        ) {
-
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(errorBody(
-                        HttpStatus.NOT_FOUND,
-                        ex.getMessage(),
-                        null
-                ));
+                return ResponseEntity.badRequest()
+                                .body(errorBody(
+                                                HttpStatus.BAD_REQUEST,
+                                                "Validation failed",
+                                                errors));
         }
-        @ExceptionHandler(BusinessAccessDeniedException.class)
-        public ResponseEntity<Map<String, Object>> handleAccessDenied(
-                BusinessAccessDeniedException ex
-        ) {
-
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(errorBody(
-                        HttpStatus.FORBIDDEN,
-                        ex.getMessage(),
-                        null
-                ));
-        }
-    @ExceptionHandler(DataIntegrityViolationException.class)
-    public ResponseEntity<Map<String, Object>> handleDataIntegrity() {
-
-        return ResponseEntity.status(HttpStatus.CONFLICT)
-                .body(errorBody(
-                        HttpStatus.CONFLICT,
-                        "Data already exists",
-                        null
-                ));
-    }
-
-    @ExceptionHandler(ForecastException.class)
-    public ResponseEntity<Map<String, Object>> handleForecastException(
-            ForecastException ex
-    ) {
-        Map<String, Object> body = errorBody(
-                ex.getStatus(),
-                ex.getMessage(),
-                null
-        );
-        body.put("code", ex.getCode());
-        return ResponseEntity.status(ex.getStatus()).body(body);
-    }
-
-    // @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, Object>> handleRuntime(
-            RuntimeException ex
-    ) {
-
-        return ResponseEntity.badRequest()
-                .body(errorBody(
-                        HttpStatus.BAD_REQUEST,
-                        ex.getMessage(),
-                        null
-                ));
-    }
-
-    private Map<String, Object> errorBody(
-            HttpStatus status,
-            String message,
-            Object details
-    ) {
-
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("timestamp", LocalDateTime.now());
-        body.put("status", status.value());
-        body.put("error", status.getReasonPhrase());
-        body.put("message", message);
-
-        if (details != null) {
-            body.put("details", details);
-        }
-
-        return body;
-    }
 
         @ExceptionHandler({
-                InvalidTokenException.class,
-                BusinessException.class
+                        BadCredentialsException.class,
+                        IllegalArgumentException.class
+        })
+        public ResponseEntity<Map<String, Object>> handleBadRequest(
+                        RuntimeException ex) {
+
+                return ResponseEntity.badRequest()
+                                .body(errorBody(
+                                                HttpStatus.BAD_REQUEST,
+                                                ex.getMessage(),
+                                                null));
+        }
+
+        @ExceptionHandler(BadRequestException.class)
+        public ResponseEntity<Map<String, Object>> handleBadRequestException(
+                        BadRequestException ex) {
+
+                return ResponseEntity.badRequest()
+                                .body(errorBody(
+                                                HttpStatus.BAD_REQUEST,
+                                                ex.getMessage(),
+                                                null));
+        }
+
+        @ExceptionHandler(ResourceNotFoundException.class)
+        public ResponseEntity<Map<String, Object>> handleNotFound(
+                        ResourceNotFoundException ex) {
+
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                                .body(errorBody(
+                                                HttpStatus.NOT_FOUND,
+                                                ex.getMessage(),
+                                                null));
+        }
+
+        @ExceptionHandler(BusinessAccessDeniedException.class)
+        public ResponseEntity<Map<String, Object>> handleAccessDenied(
+                        BusinessAccessDeniedException ex) {
+
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                                .body(errorBody(
+                                                HttpStatus.FORBIDDEN,
+                                                ex.getMessage(),
+                                                null));
+        }
+
+        @ExceptionHandler(DataIntegrityViolationException.class)
+        public ResponseEntity<Map<String, Object>> handleDataIntegrity() {
+
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                                .body(errorBody(
+                                                HttpStatus.CONFLICT,
+                                                "Data already exists",
+                                                null));
+        }
+
+        @ExceptionHandler(ForecastException.class)
+        public ResponseEntity<Map<String, Object>> handleForecastException(
+                        ForecastException ex) {
+                Map<String, Object> body = errorBody(
+                                ex.getStatus(),
+                                ex.getMessage(),
+                                null);
+                body.put("code", ex.getCode());
+                return ResponseEntity.status(ex.getStatus()).body(body);
+        }
+
+        // @ExceptionHandler(RuntimeException.class)
+        public ResponseEntity<Map<String, Object>> handleRuntime(
+                        RuntimeException ex) {
+
+                return ResponseEntity.badRequest()
+                                .body(errorBody(
+                                                HttpStatus.BAD_REQUEST,
+                                                ex.getMessage(),
+                                                null));
+        }
+
+        private Map<String, Object> errorBody(
+                        HttpStatus status,
+                        String message,
+                        Object details) {
+
+                Map<String, Object> body = new LinkedHashMap<>();
+                body.put("timestamp", LocalDateTime.now());
+                body.put("status", status.value());
+                body.put("error", status.getReasonPhrase());
+                body.put("message", message);
+
+                if (details != null) {
+                        body.put("details", details);
+                }
+
+                return body;
+        }
+
+        @ExceptionHandler({
+                        InvalidTokenException.class,
+                        BusinessException.class
         })
         public ResponseEntity<Map<String, Object>> handleCustomException(
-                RuntimeException ex
-        ) {
+                        RuntimeException ex) {
 
-        HttpStatus status = HttpStatus.BAD_REQUEST;
+                HttpStatus status = HttpStatus.BAD_REQUEST;
 
-        if (ex instanceof InvalidTokenException) {
-                status = HttpStatus.UNAUTHORIZED;
+                if (ex instanceof InvalidTokenException) {
+                        status = HttpStatus.UNAUTHORIZED;
+                }
+
+                return ResponseEntity.status(status)
+                                .body(errorBody(
+                                                status,
+                                                ex.getMessage(),
+                                                null));
         }
 
-        return ResponseEntity.status(status)
-                .body(errorBody(
-                        status,
-                        ex.getMessage(),
-                        null
-                ));
+        @ExceptionHandler(TooManyRequestsException.class)
+        public ResponseEntity<Map<String, Object>> handleTooManyRequests(
+                        TooManyRequestsException ex) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                                .body(errorBody(
+                                                HttpStatus.TOO_MANY_REQUESTS,
+                                                ex.getMessage(),
+                                                null));
         }
-
-    @ExceptionHandler(TooManyRequestsException.class)
-    public ResponseEntity<Map<String, Object>> handleTooManyRequests(
-            TooManyRequestsException ex
-    ) {
-        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                .body(errorBody(
-                        HttpStatus.TOO_MANY_REQUESTS,
-                        ex.getMessage(),
-                        null
-                ));
-    }
 }
