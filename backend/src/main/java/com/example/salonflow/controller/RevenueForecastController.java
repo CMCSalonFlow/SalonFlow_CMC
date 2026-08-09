@@ -1,6 +1,7 @@
 package com.example.salonflow.controller;
 
 import com.example.salonflow.dto.forecast.DailyRevenuePoint;
+import com.example.salonflow.dto.forecast.RevenueForecastModelStatusResponse;
 import com.example.salonflow.dto.forecast.RevenueForecastResponse;
 import com.example.salonflow.dto.forecast.RevenueForecastTrainResponse;
 import com.example.salonflow.services.service.RevenueForecastService;
@@ -46,6 +47,13 @@ public class RevenueForecastController {
             @RequestParam(defaultValue = "7") int periods
     ) {
         return ResponseEntity.ok(revenueForecastService.forecastBranchRevenueFromSavedModel(branchId, months, periods));
+    }
+
+    @GetMapping("/forecast/model-status")
+    public ResponseEntity<RevenueForecastModelStatusResponse> modelStatus(
+            @PathVariable Long branchId
+    ) {
+        return ResponseEntity.ok(revenueForecastService.getBranchRevenueModelStatus(branchId));
     }
 
     @PostMapping("/forecast/train")

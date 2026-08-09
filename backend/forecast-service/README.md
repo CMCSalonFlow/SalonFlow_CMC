@@ -74,6 +74,7 @@ GET /api/v1/branches/{branchId}/revenue/history?months=6
 GET /api/v1/branches/{branchId}/revenue/forecast?months=6&periods=7
 POST /api/v1/branches/{branchId}/revenue/forecast/train?months=6
 GET /api/v1/branches/{branchId}/revenue/forecast/saved?months=6&periods=7
+GET /api/v1/branches/{branchId}/revenue/forecast/model-status
 ```
 
 If Java runs locally, keep:
@@ -93,3 +94,14 @@ FORECAST_SERVICE_BASE_URL=http://forecast-service:8000
 The Java backend registers a monthly job at 02:00 on day 1, Asia/Bangkok time. It aggregates the latest six months of successful payments for each branch and calls `POST /models/revenue/train`.
 
 `app/scheduler.py` also contains a Python-side hook, but the Java scheduler is the primary retraining path because Java owns the database access.
+
+## Error codes
+
+Java forecast endpoints return structured error bodies with:
+
+```text
+MODEL_NOT_FOUND
+INSUFFICIENT_DATA
+INVALID_PERIODS
+TRAINING_FAILED
+```

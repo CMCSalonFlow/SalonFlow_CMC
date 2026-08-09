@@ -1,6 +1,7 @@
 package com.example.salonflow.services.service;
 
 import com.example.salonflow.dto.forecast.DailyRevenuePoint;
+import com.example.salonflow.dto.forecast.RevenueForecastModelStatusResponse;
 import com.example.salonflow.dto.forecast.RevenueForecastResponse;
 import com.example.salonflow.dto.forecast.RevenueForecastTrainResponse;
 
@@ -12,6 +13,8 @@ public interface RevenueForecastService {
     RevenueForecastResponse forecastBranchRevenue(Long branchId, int months, int periods);
 
     RevenueForecastResponse forecastBranchRevenueFromSavedModel(Long branchId, int months, int periods);
+
+    RevenueForecastModelStatusResponse getBranchRevenueModelStatus(Long branchId);
 
     RevenueForecastTrainResponse trainBranchRevenueModel(Long branchId, int months);
 

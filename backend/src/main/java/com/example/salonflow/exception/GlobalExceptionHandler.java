@@ -88,6 +88,19 @@ public class GlobalExceptionHandler {
                 ));
     }
 
+    @ExceptionHandler(ForecastException.class)
+    public ResponseEntity<Map<String, Object>> handleForecastException(
+            ForecastException ex
+    ) {
+        Map<String, Object> body = errorBody(
+                ex.getStatus(),
+                ex.getMessage(),
+                null
+        );
+        body.put("code", ex.getCode());
+        return ResponseEntity.status(ex.getStatus()).body(body);
+    }
+
     // @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntime(
             RuntimeException ex

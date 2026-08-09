@@ -21,4 +21,5 @@ public class RevenueForecastResponse {
     private LocalDate historyEndDate;
     private List<DailyRevenuePoint> actuals;
     private List<ForecastPoint> forecast;
+    private ForecastMeta meta;
 }

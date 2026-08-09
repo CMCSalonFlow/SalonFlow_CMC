@@ -5,16 +5,17 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
+import java.time.Instant;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PythonForecastRequest {
+public class PythonModelStatusResponse {
     private String salonId;
-    private List<DailyRevenuePoint> history;
-    private Integer periods;
-    private Double intervalWidth;
+    private Boolean trained;
+    private Instant lastTrainedAt;
     private Integer trainingMonths;
+    private Integer dataPoints;
+    private String modelVersion;
 }
