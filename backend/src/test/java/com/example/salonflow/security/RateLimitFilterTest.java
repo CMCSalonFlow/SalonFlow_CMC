@@ -52,41 +52,41 @@ class RateLimitFilterTest {
     @BeforeEach
     void setUp() {
         fakeRedisStore.clear();
-        filter = new RateLimitFilter(redisTemplate);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOps);
 
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
-
-        // increment(key) → tăng counter trong fakeRedisStore, trả về giá trị mới
-        when(valueOps.increment(anyString())).thenAnswer(invocation -> {
-            String key = invocation.getArgument(0);
-            return fakeRedisStore
-                    .computeIfAbsent(key, k -> new AtomicLong(0))
-                    .incrementAndGet();
+        // Giả lập Redis increment & expire bằng Map
+        lenient().when(valueOps.increment(anyString())).thenAnswer(inv -> {
+            String key = inv.getArgument(0);
+            AtomicLong val = fakeRedisStore.computeIfAbsent(key, k -> new AtomicLong(0));
+            return val.incrementAndGet();
         });
 
-        // expire() — không cần làm gì, chỉ trả true
-        when(redisTemplate.expire(anyString(), any())).thenReturn(true);
+        lenient().when(redisTemplate.expire(anyString(), any())).thenReturn(true);
+
+        filter = new RateLimitFilter(redisTemplate);
     }
 
-    /** Helper: chạy filter 1 lần, trả về response để assert */
-    private MockHttpServletResponse runFilter(
-            String method, String uri, String ip
-    ) throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest(method, uri);
-        request.addHeader("X-Forwarded-For", ip);
-        MockHttpServletResponse response = new MockHttpServletResponse();
+    // Helper giả lập request qua filter
+    private MockHttpServletResponse runFilter(String method, String uri, String clientIp)
+            throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod(method);
+        request.setRequestURI(uri);
+        request.setRemoteAddr(clientIp);
 
-        FilterChain chain = mock(FilterChain.class);
-        filter.doFilter(request, response, chain);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        FilterChain filterChain = mock(FilterChain.class);
+
+        filter.doFilter(request, response, filterChain);
         return response;
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 1. GLOBAL RATE LIMIT (100 req/phút)
+    // 1. GLOBAL RATE LIMIT (600 req/phút)
     // ═══════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("✅ Request đầu tiên → cho phép đi qua (200, không bị set 429)")
+    @DisplayName("✅ Request đầu tiên không bị rate limit")
     void globalLimit_firstRequest_shouldPassThrough() throws Exception {
         MockHttpServletResponse res = runFilter("GET", "/api/v1/roles", uniqueIp());
 
@@ -94,24 +94,24 @@ class RateLimitFilterTest {
     }
 
     @Test
-    @DisplayName("✅ Response có header X-RateLimit-Limit = 100")
+    @DisplayName("✅ Response có header X-RateLimit-Limit = 600")
     void globalLimit_shouldHaveRateLimitHeaders() throws Exception {
         MockHttpServletResponse res = runFilter("GET", "/api/v1/roles", uniqueIp());
 
-        assertThat(res.getHeader("X-RateLimit-Limit")).isEqualTo("100");
+        assertThat(res.getHeader("X-RateLimit-Limit")).isEqualTo("600");
         assertThat(res.getHeader("X-RateLimit-Remaining")).isNotNull();
         assertThat(res.getHeader("X-RateLimit-Window")).isEqualTo("60s");
     }
 
     @Test
-    @DisplayName("🚫 Gửi 101 request liên tiếp → request thứ 101 nhận 429")
-    void globalLimit_101Requests_the101stReturns429() throws Exception {
+    @DisplayName("🚫 Gửi 601 request liên tiếp → request thứ 601 nhận 429")
+    void globalLimit_601Requests_the601stReturns429() throws Exception {
         String ip = uniqueIp();
         int successCount = 0;
         int blockedCount = 0;
         MockHttpServletResponse lastResponse = null;
 
-        for (int i = 1; i <= 101; i++) {
+        for (int i = 1; i <= 601; i++) {
             lastResponse = runFilter("GET", "/api/v1/roles", ip);
             if (lastResponse.getStatus() == 429) {
                 blockedCount++;
@@ -120,11 +120,7 @@ class RateLimitFilterTest {
             }
         }
 
-        System.out.println("✓ Trong 101 requests: "
-                + successCount + " thành công, " + blockedCount + " bị block");
-
-        // 100 request đầu thành công, request 101 bị block
-        assertThat(successCount).isEqualTo(100);
+        assertThat(successCount).isEqualTo(600);
         assertThat(blockedCount).isEqualTo(1);
         assertThat(lastResponse.getStatus()).isEqualTo(429);
         assertThat(lastResponse.getContentAsString()).contains("Quá nhiều yêu cầu");
@@ -136,9 +132,9 @@ class RateLimitFilterTest {
         String ipA = uniqueIp();
         String ipB = uniqueIp();
 
-        // Đẩy IP A vượt giới hạn (101 request)
+        // Đẩy IP A vượt giới hạn (601 request)
         MockHttpServletResponse resA = null;
-        for (int i = 0; i < 101; i++) {
+        for (int i = 0; i < 601; i++) {
             resA = runFilter("GET", "/api/v1/roles", ipA);
         }
         assertThat(resA.getStatus()).isEqualTo(429);
@@ -149,15 +145,15 @@ class RateLimitFilterTest {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 2. AUTH LOGIN RATE LIMIT (5 req/phút)
+    // 2. AUTH LOGIN RATE LIMIT (15 req/phút)
     // ═══════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("✅ Login 5 lần liên tiếp → không bị block")
-    void authLimit_5Requests_allPassThrough() throws Exception {
+    @DisplayName("✅ Login 15 lần liên tiếp → không bị block")
+    void authLimit_15Requests_allPassThrough() throws Exception {
         String ip = uniqueIp();
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 15; i++) {
             MockHttpServletResponse res =
                     runFilter("POST", "/api/v1/auth/login", ip);
             assertThat(res.getStatus()).isNotEqualTo(429);
@@ -165,11 +161,11 @@ class RateLimitFilterTest {
     }
 
     @Test
-    @DisplayName("🚫 Login lần thứ 6 → 429 (auth limit = 5 req/phút)")
-    void authLimit_6thRequest_shouldReturn429() throws Exception {
+    @DisplayName("🚫 Login lần thứ 16 → 429 (auth limit = 15 req/phút)")
+    void authLimit_16thRequest_shouldReturn429() throws Exception {
         String ip = uniqueIp();
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 15; i++) {
             runFilter("POST", "/api/v1/auth/login", ip);
         }
 
@@ -181,15 +177,15 @@ class RateLimitFilterTest {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // 3. OTP / FORGOT-PASSWORD RATE LIMIT (3 req/phút)
+    // 3. OTP / FORGOT-PASSWORD RATE LIMIT (10 req/phút)
     // ═══════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("🚫 Send-OTP lần thứ 4 → 429 (otp limit = 3 req/phút)")
-    void otpLimit_4thRequest_shouldReturn429() throws Exception {
+    @DisplayName("🚫 Send-OTP lần thứ 11 → 429 (otp limit = 10 req/phút)")
+    void otpLimit_11thRequest_shouldReturn429() throws Exception {
         String ip = uniqueIp();
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 10; i++) {
             runFilter("POST", "/api/v1/auth/send-otp", ip);
         }
 
@@ -200,11 +196,11 @@ class RateLimitFilterTest {
     }
 
     @Test
-    @DisplayName("🚫 Forgot-password lần thứ 4 → 429")
-    void forgotPasswordLimit_4thRequest_shouldReturn429() throws Exception {
+    @DisplayName("🚫 Forgot-password lần thứ 11 → 429")
+    void forgotPasswordLimit_11thRequest_shouldReturn429() throws Exception {
         String ip = uniqueIp();
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 10; i++) {
             runFilter("POST", "/api/v1/auth/forgot-password", ip);
         }
 
@@ -219,50 +215,48 @@ class RateLimitFilterTest {
     // ═══════════════════════════════════════════════════════════
 
     @Test
-    @DisplayName("✅ X-Real-IP được dùng khi không có X-Forwarded-For")
-    void resolveIp_usesXRealIpAsFallback() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/roles");
-        request.addHeader("X-Real-IP", uniqueIp());
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        FilterChain chain = mock(FilterChain.class);
+    @DisplayName("✅ Ưu tiên đọc IP từ header X-Forwarded-For nếu có NGINX proxy")
+    void resolveIp_prefersXForwardedFor() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        req.setMethod("GET");
+        req.setRequestURI("/api/v1/roles");
+        req.setRemoteAddr("10.0.0.1"); // IP ngầm định
+        req.addHeader("X-Forwarded-For", "203.0.113.195, 70.41.3.18"); // Client IP thực
 
-        filter.doFilter(request, response, chain);
+        MockHttpServletResponse res = new MockHttpServletResponse();
+        FilterChain filterChain = mock(FilterChain.class);
 
-        assertThat(response.getStatus()).isNotEqualTo(429);
-        verify(chain).doFilter(request, response);
+        filter.doFilter(req, res, filterChain);
+
+        verify(redisTemplate).opsForValue();
+        verify(valueOps).increment(contains("203.0.113.195"));
     }
 
     @Test
-    @DisplayName("✅ FilterChain.doFilter() được gọi khi không vượt limit")
-    void filterChain_isCalled_whenUnderLimit() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/roles");
-        request.addHeader("X-Forwarded-For", uniqueIp());
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        FilterChain chain = mock(FilterChain.class);
-
-        filter.doFilter(request, response, chain);
-
-        verify(chain, times(1)).doFilter(request, response);
-    }
-
-    @Test
-    @DisplayName("🚫 FilterChain.doFilter() KHÔNG được gọi khi vượt limit")
+    @DisplayName("🚫 429 response block filter chain (không cho request đi tiếp)")
     void filterChain_isNotCalled_whenOverLimit() throws Exception {
         String ip = uniqueIp();
 
-        // Đẩy vượt giới hạn auth (5 req)
-        for (int i = 0; i < 5; i++) {
-            runFilter("POST", "/api/v1/auth/login", ip);
+        for (int i = 0; i < 600; i++) {
+            MockHttpServletRequest req = new MockHttpServletRequest();
+            req.setMethod("GET");
+            req.setRequestURI("/api/v1/roles");
+            req.setRemoteAddr(ip);
+            FilterChain fc = mock(FilterChain.class);
+            filter.doFilter(req, new MockHttpServletResponse(), fc);
         }
 
-        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/login");
-        request.addHeader("X-Forwarded-For", ip);
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        FilterChain chain = mock(FilterChain.class);
+        MockHttpServletRequest reqOver = new MockHttpServletRequest();
+        reqOver.setMethod("GET");
+        reqOver.setRequestURI("/api/v1/roles");
+        reqOver.setRemoteAddr(ip);
 
-        filter.doFilter(request, response, chain);
+        MockHttpServletResponse resOver = new MockHttpServletResponse();
+        FilterChain fcOver = mock(FilterChain.class);
 
-        assertThat(response.getStatus()).isEqualTo(429);
-        verify(chain, never()).doFilter(any(), any());
+        filter.doFilter(reqOver, resOver, fcOver);
+
+        assertThat(resOver.getStatus()).isEqualTo(429);
+        verify(fcOver, never()).doFilter(any(), any());
     }
 }

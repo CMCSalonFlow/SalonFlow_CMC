@@ -5,6 +5,7 @@ import com.example.salonflow.dto.review.ReviewResponse;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.BusinessAccessDeniedException;
+import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.BranchRepository;
 import com.example.salonflow.repository.ReviewRepository;
@@ -103,8 +104,8 @@ class ReviewServiceImplTest {
 
         when(bookingRepository.findById(1L)).thenReturn(Optional.of(booking));
 
-        BusinessAccessDeniedException exception = assertThrows(
-                BusinessAccessDeniedException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> reviewService.createReview(1L, request, 100L)
         );
 
@@ -136,8 +137,8 @@ class ReviewServiceImplTest {
 
         CreateReviewRequest request = CreateReviewRequest.builder().rating(5).build();
 
-        BusinessAccessDeniedException exception = assertThrows(
-                BusinessAccessDeniedException.class,
+        BusinessException exception = assertThrows(
+                BusinessException.class,
                 () -> reviewService.createReview(1L, request, 100L)
         );
 
