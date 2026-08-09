@@ -1,5 +1,6 @@
 package com.example.salonflow.controller;
 
+import com.example.salonflow.dto.analytics.PeakHourHeatmapResponse;
 import com.example.salonflow.dto.analytics.RevenueAnalyticsResponse;
 import com.example.salonflow.dto.analytics.SalonOverviewAnalyticsResponse;
 import com.example.salonflow.services.service.AnalyticsService;
@@ -43,5 +44,18 @@ public class AnalyticsController {
             @RequestParam(required = false) Long branchId
     ) {
         return analyticsService.getSalonRevenueAnalytics(period, from, to, branchId);
+    }
+
+    /**
+     * Lấy dữ liệu Biểu đồ Heatmap Khung giờ Cao điểm theo ngày trong tuần (7x15 grid)
+     */
+    @GetMapping("/peak-hours")
+    @PreAuthorize("hasRole('SALON_OWNER') or hasRole('BRANCH_MANAGER')")
+    public PeakHourHeatmapResponse getPeakHourHeatmap(
+            @RequestParam(required = false) Long branchId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to
+    ) {
+        return analyticsService.getPeakHourHeatmap(branchId, from, to);
     }
 }

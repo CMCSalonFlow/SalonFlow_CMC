@@ -516,4 +516,96 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             case SUNDAY -> "CN";
         };
     }
+
+    @Override
+    public PeakHourHeatmapResponse getPeakHourHeatmap(Long branchId, LocalDate fromDate, LocalDate toDate) {
+        Long ownerId = SecurityUtils.getCurrentUserId();
+        Salon salon = salonRepository.findFirstByOwnerId(ownerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Salon của tài khoản này"));
+
+        List<Booking> bookings;
+        if (branchId != null) {
+            if (fromDate != null && toDate != null) {
+                bookings = bookingRepository.findByBranchIdAndBookingDateBetween(branchId, fromDate, toDate);
+            } else {
+                bookings = bookingRepository.findByBranchId(branchId);
+            }
+        } else {
+            if (fromDate != null && toDate != null) {
+                bookings = bookingRepository.findByBranchSalonIdAndBookingDateBetween(salon.getId(), fromDate, toDate);
+            } else {
+                bookings = bookingRepository.findByBranchSalonId(salon.getId());
+            }
+        }
+
+        if (bookings == null) {
+            bookings = List.of();
+        }
+
+        List<Booking> activeBookings = bookings.stream()
+                .filter(b -> b.getStatus() == BookingStatus.COMPLETED || b.getStatus() == BookingStatus.CONFIRMED)
+                .filter(b -> b.getBookingDate() != null && b.getStartTime() != null)
+                .toList();
+
+        long totalAnalysed = activeBookings.size();
+
+        Map<String, Long> countMap = activeBookings.stream()
+                .collect(Collectors.groupingBy(
+                        b -> {
+                            int minSlot = (b.getStartTime().getMinute() >= 30) ? 30 : 0;
+                            return b.getBookingDate().getDayOfWeek().getValue() + "-" + b.getStartTime().getHour() + "-" + minSlot;
+                        },
+                        Collectors.counting()
+                ));
+
+        long maxCount = countMap.values().stream().max(Long::compare).orElse(0L);
+
+        String[] dayNames = {"", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"};
+        List<PeakHourCellDto> matrix = new ArrayList<>();
+
+        long busiestCellCount = -1;
+        String busiestDay = "Chưa có dữ liệu";
+        String busiestHour = "--:--";
+
+        for (int day = 1; day <= 7; day++) {
+            for (int hour = 7; hour <= 21; hour++) {
+                for (int minute : new int[]{0, 30}) {
+                    String key = day + "-" + hour + "-" + minute;
+                    long count = countMap.getOrDefault(key, 0L);
+                    double intensity = maxCount > 0 ? Math.round(((double) count / maxCount) * 100.0) / 100.0 : 0.0;
+                    String hourLabel = String.format("%02d:%02d", hour, minute);
+
+                    String endHourLabel = minute == 0
+                            ? String.format("%02d:30", hour)
+                            : String.format("%02d:00", hour + 1);
+
+                    if (count > busiestCellCount && count > 0) {
+                        busiestCellCount = count;
+                        busiestDay = dayNames[day];
+                        busiestHour = String.format("%s - %s", hourLabel, endHourLabel);
+                    }
+
+                    matrix.add(PeakHourCellDto.builder()
+                            .dayOfWeek(day)
+                            .dayName(dayNames[day])
+                            .hourOfDay(hour)
+                            .minuteOfHour(minute)
+                            .hourLabel(hourLabel)
+                            .bookingCount(count)
+                            .intensity(intensity)
+                            .build());
+                }
+            }
+        }
+
+        return PeakHourHeatmapResponse.builder()
+                .salonId(salon.getId())
+                .branchId(branchId)
+                .totalBookingsAnalysed(totalAnalysed)
+                .maxBookingCount(maxCount)
+                .busiestDay(busiestDay)
+                .busiestHour(busiestHour)
+                .matrix(matrix)
+                .build();
+    }
 }
