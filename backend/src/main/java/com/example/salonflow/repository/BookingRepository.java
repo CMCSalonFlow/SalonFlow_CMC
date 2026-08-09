@@ -126,5 +126,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByBranchIdAndBookingDateBetween(Long branchId, LocalDate startDate, LocalDate endDate);
 
     List<Booking> findByBranchSalonIdAndBookingDate(Long salonId, LocalDate date);
+
+    List<Booking> findByBranchSalonId(Long salonId);
+
+    List<Booking> findByBranchId(Long branchId);
 }
 
