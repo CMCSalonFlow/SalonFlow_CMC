@@ -65,6 +65,31 @@ Use:
 - Forecast line: response `forecast[].date` and `forecast[].yhat`, color purple.
 - Confidence interval: shaded area between `yhat_lower` and `yhat_upper`.
 
+## Java backend endpoints
+
+The Java backend aggregates successful payments from PostgreSQL and calls this service. FE should call Java, not this Python service directly:
+
+```text
+GET /api/v1/branches/{branchId}/revenue/history?months=6
+GET /api/v1/branches/{branchId}/revenue/forecast?months=6&periods=7
+POST /api/v1/branches/{branchId}/revenue/forecast/train?months=6
+GET /api/v1/branches/{branchId}/revenue/forecast/saved?months=6&periods=7
+```
+
+If Java runs locally, keep:
+
+```properties
+FORECAST_SERVICE_BASE_URL=http://localhost:8001
+```
+
+If Java runs inside Docker on the same compose network, use:
+
+```properties
+FORECAST_SERVICE_BASE_URL=http://forecast-service:8000
+```
+
 ## Monthly retraining
 
-`app/scheduler.py` registers a monthly job at 02:00 on day 1, Asia/Bangkok time. The job currently contains a TODO hook. Wire that hook to fetch the latest six months of daily revenue from the Java backend or database, then call `save_model(...)` per salon.
+The Java backend registers a monthly job at 02:00 on day 1, Asia/Bangkok time. It aggregates the latest six months of successful payments for each branch and calls `POST /models/revenue/train`.
+
+`app/scheduler.py` also contains a Python-side hook, but the Java scheduler is the primary retraining path because Java owns the database access.
