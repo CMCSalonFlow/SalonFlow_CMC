@@ -210,6 +210,60 @@ public class EmailServiceImpl implements EmailService {
         throw new RuntimeException("Không thể gửi email sau " + maxRetries + " lần thử trên mọi provider", lastFailure);
     }
 
+    @Override
+    public void sendWeeklyReportEmail(String toEmail, String ownerName, String salonName, java.util.Map<String, Object> reportData) {
+        String subject = "📊 [SalonFlow] Báo Cáo Hiệu Suất & Doanh Thu Tuần Mới - " + salonName;
+        String htmlBody = """
+        <div style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;max-width:640px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:16px;color:#1e293b;">
+          <div style="background:linear-gradient(135deg, #4f46e5, #7c3aed);padding:24px;border-radius:12px;color:#ffffff;text-align:center;">
+            <h1 style="margin:0;font-size:24px;font-weight:800;">✂️ SalonFlow Analytics</h1>
+            <p style="margin:6px 0 0 0;opacity:0.9;font-size:14px;">Báo Báo Hiệu Suất Hàng Tuần (Gửi tự động 8:00 AM Thứ 2)</p>
+          </div>
+
+          <div style="background:#ffffff;padding:24px;border-radius:12px;margin-top:20px;box-shadow:0 4px 12px rgba(0,0,0,0.04);">
+            <p style="font-size:16px;margin:0 0 16px 0;">Kính gửi <strong>%s</strong> (Salon: <strong>%s</strong>),</p>
+            <p style="font-size:14px;color:#475569;line-height:1.6;">Dưới đây là tổng hợp kết quả hoạt động kinh doanh tuần qua của hệ thống SalonFlow:</p>
+
+            <table style="width:100%%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:12px 0;color:#64748b;">📅 Kỳ báo cáo:</td>
+                <td style="padding:12px 0;font-weight:700;text-align:right;">Tuần qua (Thứ 2 đến Chủ nhật)</td>
+              </tr>
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:12px 0;color:#64748b;">💰 Tổng doanh thu:</td>
+                <td style="padding:12px 0;font-weight:700;color:#4f46e5;font-size:18px;text-align:right;">%s</td>
+              </tr>
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:12px 0;color:#64748b;">Check-in thành công:</td>
+                <td style="padding:12px 0;font-weight:700;color:#10b981;text-align:right;">%s lịch hẹn</td>
+              </tr>
+              <tr style="border-bottom:1px solid #e2e8f0;">
+                <td style="padding:12px 0;color:#64748b;">🥇 Stylist xuất sắc nhất:</td>
+                <td style="padding:12px 0;font-weight:700;color:#f59e0b;text-align:right;">%s</td>
+              </tr>
+            </table>
+
+            <div style="background:#f1f5f9;padding:16px;border-radius:10px;text-align:center;margin-top:20px;">
+              <p style="margin:0;font-size:13px;color:#475569;">💡 Bạn có thể truy cập hệ thống để xuất file Excel/PDF chi tiết tại:</p>
+              <p style="margin:8px 0 0 0;"><a href="http://localhost:5173/reports" style="color:#4f46e5;font-weight:700;text-decoration:none;">👉 Trang Quản Lý & Xuất Báo Cáo SalonFlow</a></p>
+            </div>
+          </div>
+
+          <div style="text-align:center;margin-top:20px;font-size:12px;color:#94a3b8;">
+            © 2026 SalonFlow Smart Management System. Trân trọng cảm ơn!
+          </div>
+        </div>
+        """.formatted(
+                ownerName != null ? ownerName : "Chủ Salon",
+                salonName != null ? salonName : "Salon",
+                reportData.getOrDefault("totalRevenueStr", "0 đ"),
+                reportData.getOrDefault("completedBookings", "0"),
+                reportData.getOrDefault("topStaffName", "Chưa có")
+        );
+
+        sendNotificationEmail(toEmail, subject, htmlBody);
+    }
+
     private int providerPriority(String providerName) {
         String name = providerName == null ? "" : providerName.toLowerCase(Locale.ROOT);
         if (name.equals(primaryProvider == null ? "" : primaryProvider.toLowerCase(Locale.ROOT))) {

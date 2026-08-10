@@ -26,4 +26,6 @@ public interface EmailService {
     void sendSalonApprovedEmail(String toEmail, String salonName, String ownerName);
 
     void sendSalonRejectedEmail(String toEmail, String salonName, String ownerName, String reason);
+
+    void sendWeeklyReportEmail(String toEmail, String ownerName, String salonName, java.util.Map<String, Object> reportData);
 }
