@@ -72,6 +72,9 @@ public class ConcurrentBookingTest {
     @MockBean
     private BranchHourRepository branchHourRepository;
 
+    @MockBean
+    private com.example.salonflow.ai.service.NoShowPredictionService noShowPredictionService;
+
     @Autowired
     private StringRedisTemplate redisTemplate;
 
@@ -87,7 +90,7 @@ public class ConcurrentBookingTest {
         SalonService service = SalonService.builder().name("Cắt Tóc").price(BigDecimal.valueOf(100000)).durationMinutes(30).branch(branch).build();
         service.setId(3L);
 
-        Staff staff = Staff.builder().name("Thợ A").userId(4L).services(List.of(service)).build();
+        Staff staff = Staff.builder().name("Thợ A").userId(4L).branch(branch).services(List.of(service)).build();
         staff.setId(5L);
 
         BranchHour branchHour = BranchHour.builder().branch(branch).dayOfWeek(1).openTime(LocalTime.of(9, 0)).closeTime(LocalTime.of(21, 0)).isClosed(false).build();
