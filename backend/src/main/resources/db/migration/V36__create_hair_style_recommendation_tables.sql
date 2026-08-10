@@ -7,6 +7,7 @@ CREATE TABLE hair_styles (
     code VARCHAR(100) NOT NULL UNIQUE,
     name VARCHAR(255) NOT NULL,
     description TEXT,
+    gender VARCHAR(20) NOT NULL DEFAULT 'UNISEX',
     face_shape_tags TEXT,
     hair_texture_tags TEXT,
     hair_length_tags TEXT,
@@ -24,6 +25,8 @@ CREATE TABLE hair_styles (
 
 CREATE INDEX idx_hair_styles_active_sort
     ON hair_styles(is_active, sort_order, popularity_score DESC, name);
+CREATE INDEX idx_hair_styles_gender_active_sort
+    ON hair_styles(gender, is_active, sort_order, popularity_score DESC, name);
 
 CREATE TRIGGER trg_hair_styles_updated_at
 BEFORE UPDATE ON hair_styles
