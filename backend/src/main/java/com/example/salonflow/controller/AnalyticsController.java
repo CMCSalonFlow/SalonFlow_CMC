@@ -58,4 +58,18 @@ public class AnalyticsController {
     ) {
         return analyticsService.getPeakHourHeatmap(branchId, from, to);
     }
+
+    /**
+     * Lấy Báo cáo Báo cáo hiệu suất nhân viên (Top 3 xuất sắc, warning rating < 3.5, metric ranks, table data)
+     */
+    @GetMapping("/staff-performance")
+    @PreAuthorize("hasRole('SALON_OWNER') or hasRole('BRANCH_MANAGER')")
+    public com.example.salonflow.dto.analytics.StaffPerformanceResponse getStaffPerformance(
+            @RequestParam(required = false, defaultValue = "this_month") String period,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) Long branchId
+    ) {
+        return analyticsService.getStaffPerformanceReport(period, from, to, branchId);
+    }
 }

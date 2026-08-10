@@ -38,6 +38,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final BookingRepository bookingRepository;
     private final BookingItemRepository bookingItemRepository;
     private final ReviewRepository reviewRepository;
+    private final com.example.salonflow.repository.StaffRepository staffRepository;
+    private final com.example.salonflow.repository.ShiftRepository shiftRepository;
 
     @Override
     public SalonOverviewAnalyticsResponse getSalonOverviewAnalytics(Long branchId) {
@@ -606,6 +608,213 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 .busiestDay(busiestDay)
                 .busiestHour(busiestHour)
                 .matrix(matrix)
+                .build();
+    }
+
+    @Override
+    public StaffPerformanceResponse getStaffPerformanceReport(String period, LocalDate fromDate, LocalDate toDate, Long branchId) {
+        Long ownerId = SecurityUtils.getCurrentUserId();
+        Salon salon = salonRepository.findFirstByOwnerId(ownerId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Salon"));
+
+        String branchName = "Tất cả chi nhánh";
+        if (branchId != null) {
+            Branch branch = branchRepository.findById(branchId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh ID: " + branchId));
+            if (!branch.getSalon().getId().equals(salon.getId())) {
+                throw new IllegalArgumentException("Chi nhánh không thuộc Salon này");
+            }
+            branchName = branch.getName();
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate start;
+        LocalDate end;
+
+        String periodKey = (period != null) ? period.toLowerCase() : "this_month";
+        switch (periodKey) {
+            case "last_month":
+                LocalDate firstOfLastMonth = today.minusMonths(1).withDayOfMonth(1);
+                start = (fromDate != null) ? fromDate : firstOfLastMonth;
+                end = (toDate != null) ? toDate : firstOfLastMonth.plusMonths(1).minusDays(1);
+                break;
+            case "last_30_days":
+                start = (fromDate != null) ? fromDate : today.minusDays(30);
+                end = (toDate != null) ? toDate : today;
+                break;
+            case "custom":
+                start = (fromDate != null) ? fromDate : today.minusDays(30);
+                end = (toDate != null) ? toDate : today;
+                break;
+            case "this_month":
+            default:
+                start = (fromDate != null) ? fromDate : today.withDayOfMonth(1);
+                end = (toDate != null) ? toDate : today;
+                break;
+        }
+
+        // Lấy danh sách nhân viên
+        List<com.example.salonflow.entity.Staff> staffList;
+        if (branchId != null) {
+            staffList = staffRepository.findByBranchId(branchId);
+        } else {
+            staffList = staffRepository.findByBranchSalonId(salon.getId());
+        }
+
+        // Lấy danh sách booking trong khoảng thời gian
+        List<Booking> bookings;
+        if (branchId != null) {
+            bookings = bookingRepository.findByBranchIdAndBookingDateBetween(branchId, start, end);
+        } else {
+            bookings = bookingRepository.findByBranchSalonIdAndBookingDateBetween(salon.getId(), start, end);
+        }
+
+        // Chuyển LocalDate sang Instant cho Review query
+        java.time.Instant startInstant = start.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+        java.time.Instant endInstant = end.plusDays(1).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+
+        // Query rating stats từ ReviewRepository
+        List<Object[]> reviewStats = reviewRepository.findStaffRatingStatsBetween(startInstant, endInstant);
+        Map<Long, Double> avgRatingMap = new HashMap<>();
+        Map<Long, Long> countReviewMap = new HashMap<>();
+        for (Object[] row : reviewStats) {
+            Long sId = (Long) row[0];
+            Double avgR = (Double) row[1];
+            Long cntR = (Long) row[2];
+            if (sId != null) {
+                avgRatingMap.put(sId, (avgR != null) ? Math.round(avgR * 100.0) / 100.0 : 0.0);
+                countReviewMap.put(sId, (cntR != null) ? cntR : 0L);
+            }
+        }
+
+        // Tính toán các chỉ số cho từng nhân viên
+        List<StaffPerformanceMetricsDto> metricsList = new ArrayList<>();
+
+        for (com.example.salonflow.entity.Staff staff : staffList) {
+            Long staffId = staff.getId();
+
+            // Đơn booking của nhân viên này
+            List<Booking> staffBookings = bookings.stream()
+                    .filter(b -> b.getAssignedStaff() != null && b.getAssignedStaff().getId().equals(staffId))
+                    .collect(Collectors.toList());
+
+            long completedCount = staffBookings.stream()
+                    .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                    .count();
+
+            BigDecimal revenue = staffBookings.stream()
+                    .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
+                    .map(Booking::getTotalPrice)
+                    .filter(Objects::nonNull)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            Double avgRating = avgRatingMap.getOrDefault(staffId, 5.0);
+            Long reviewCount = countReviewMap.getOrDefault(staffId, 0L);
+
+            // Tính toán Slot lấp đầy (Shift & Booked slots)
+            long bookedSlots = staffBookings.stream()
+                    .filter(b -> b.getStatus() == BookingStatus.COMPLETED || b.getStatus() == BookingStatus.CONFIRMED)
+                    .count();
+
+            // Ước tính số ca/slot làm việc khả dụng (Mỗi ca trung bình ~16 slot 30p)
+            long totalShifts = Math.max(1, (ChronoUnit.DAYS.between(start, end) + 1) * 6 / 7);
+            long totalAvailableSlots = Math.max(bookedSlots, totalShifts * 16);
+            double occupancyRate = Math.min(100.0, Math.round((bookedSlots * 100.0 / totalAvailableSlots) * 10.0) / 10.0);
+
+            metricsList.add(StaffPerformanceMetricsDto.builder()
+                    .staffId(staffId)
+                    .staffName(staff.getName())
+                    .avatarUrl(staff.getAvatarUrl())
+                    .specialties(staff.getSpecialties())
+                    .branchId(staff.getBranch() != null ? staff.getBranch().getId() : null)
+                    .branchName(staff.getBranch() != null ? staff.getBranch().getName() : "")
+                    .completedBookings(completedCount)
+                    .totalRevenue(revenue)
+                    .avgRating(avgRating)
+                    .totalReviewsCount(reviewCount)
+                    .totalWorkingShifts(totalShifts)
+                    .bookedSlotsCount(bookedSlots)
+                    .totalAvailableSlots(totalAvailableSlots)
+                    .slotOccupancyRate(occupancyRate)
+                    .build());
+        }
+
+        // Tính Rank theo từng Metric
+        // 1. Revenue Rank
+        metricsList.sort((a, b) -> b.getTotalRevenue().compareTo(a.getTotalRevenue()));
+        for (int i = 0; i < metricsList.size(); i++) {
+            metricsList.get(i).setRevenueRank(i + 1);
+        }
+
+        // 2. Booking Rank
+        List<StaffPerformanceMetricsDto> byBookings = new ArrayList<>(metricsList);
+        byBookings.sort((a, b) -> Long.compare(b.getCompletedBookings(), a.getCompletedBookings()));
+        for (int i = 0; i < byBookings.size(); i++) {
+            byBookings.get(i).setBookingRank(i + 1);
+        }
+
+        // 3. Rating Rank
+        List<StaffPerformanceMetricsDto> byRating = new ArrayList<>(metricsList);
+        byRating.sort((a, b) -> Double.compare(b.getAvgRating(), a.getAvgRating()));
+        for (int i = 0; i < byRating.size(); i++) {
+            byRating.get(i).setRatingRank(i + 1);
+        }
+
+        // 4. Overall Rank (tổng rank nhỏ nhất xếp trước)
+        metricsList.forEach(m -> {
+            int score = m.getRevenueRank() + m.getBookingRank() + m.getRatingRank();
+            m.setOverallRank(score);
+        });
+        metricsList.sort(Comparator.comparingInt(StaffPerformanceMetricsDto::getOverallRank));
+        for (int i = 0; i < metricsList.size(); i++) {
+            metricsList.get(i).setOverallRank(i + 1);
+        }
+
+        // Trích xuất Top 3 nhân viên xuất sắc nhất tháng
+        List<StaffPerformanceMetricsDto> top3 = metricsList.stream()
+                .limit(3)
+                .collect(Collectors.toList());
+
+        // Quét Cảnh báo Rating < 3.5 trong 30 ngày gần nhất
+        java.time.Instant thirtyDaysAgo = today.minusDays(30).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant();
+        List<Object[]> recentRatingStats = reviewRepository.findStaffRatingStatsSince(thirtyDaysAgo);
+        List<StaffLowRatingWarningDto> warnings = new ArrayList<>();
+
+        for (Object[] row : recentRatingStats) {
+            Long sId = (Long) row[0];
+            Double avgR = (Double) row[1];
+            Long cntR = (Long) row[2];
+
+            if (sId != null && avgR != null && avgR < 3.5 && cntR != null && cntR > 0) {
+                staffList.stream()
+                        .filter(s -> s.getId().equals(sId))
+                        .findFirst()
+                        .ifPresent(st -> {
+                            double roundedRating = Math.round(avgR * 100.0) / 100.0;
+                            warnings.add(StaffLowRatingWarningDto.builder()
+                                    .staffId(st.getId())
+                                    .staffName(st.getName())
+                                    .avatarUrl(st.getAvatarUrl())
+                                    .branchId(st.getBranch() != null ? st.getBranch().getId() : null)
+                                    .branchName(st.getBranch() != null ? st.getBranch().getName() : "")
+                                    .thirtyDaysAvgRating(roundedRating)
+                                    .thirtyDaysReviewCount(cntR)
+                                    .warningMessage(String.format("⚠️ Nhân viên %s có điểm đánh giá 30 ngày qua thấp (%s/5.0 với %d lượt đánh giá). Cần kiểm tra chất lượng phục vụ.",
+                                            st.getName(), roundedRating, cntR))
+                                    .build());
+                        });
+            }
+        }
+
+        return StaffPerformanceResponse.builder()
+                .period(periodKey)
+                .fromDate(start)
+                .toDate(end)
+                .branchId(branchId)
+                .branchName(branchName)
+                .top3Performers(top3)
+                .lowRatingWarnings(warnings)
+                .staffPerformanceList(metricsList)
                 .build();
     }
 }

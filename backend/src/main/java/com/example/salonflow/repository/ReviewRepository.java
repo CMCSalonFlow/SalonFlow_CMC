@@ -100,10 +100,16 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, JpaSpecif
     List<Review> findByBranchIdAndIsHiddenFalseOrderByCreatedAtDesc(Long branchId);
 
     // ---------- US-045b: Word Cloud (batch job) ----------
-    // 5) Lấy review đã có content, đã phân tích sentiment xong, trong 1 khoảng thời gian
     @Query("SELECT r FROM Review r WHERE r.sentimentStatus = com.example.salonflow.entity.enums.ReviewSentimentStatus.COMPLETED " +
             "AND (r.isHidden IS FALSE OR r.isHidden IS NULL) " +
             "AND r.content IS NOT NULL " +
             "AND r.createdAt >= :from AND r.createdAt < :to")
     List<Review> findCompletedReviewsForKeywordExtraction(@Param("from") Instant from, @Param("to") Instant to);
+
+    // ---------- Staff Performance Stats ----------
+    @Query("SELECT r.staff.id, AVG(r.rating), COUNT(r) FROM Review r WHERE r.staff.id IS NOT NULL AND (r.isHidden IS FALSE OR r.isHidden IS NULL) AND r.createdAt >= :from AND r.createdAt <= :to GROUP BY r.staff.id")
+    List<Object[]> findStaffRatingStatsBetween(@Param("from") Instant from, @Param("to") Instant to);
+
+    @Query("SELECT r.staff.id, AVG(r.rating), COUNT(r) FROM Review r WHERE r.staff.id IS NOT NULL AND (r.isHidden IS FALSE OR r.isHidden IS NULL) AND r.createdAt >= :from GROUP BY r.staff.id")
+    List<Object[]> findStaffRatingStatsSince(@Param("from") Instant from);
 }

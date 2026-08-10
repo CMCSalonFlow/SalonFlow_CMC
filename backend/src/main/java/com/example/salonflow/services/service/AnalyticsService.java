@@ -4,6 +4,8 @@ import com.example.salonflow.dto.analytics.PeakHourHeatmapResponse;
 import com.example.salonflow.dto.analytics.RevenueAnalyticsResponse;
 import com.example.salonflow.dto.analytics.SalonOverviewAnalyticsResponse;
 
+import com.example.salonflow.dto.analytics.StaffPerformanceResponse;
+
 import java.time.LocalDate;
 
 public interface AnalyticsService {
@@ -12,4 +14,6 @@ public interface AnalyticsService {
     RevenueAnalyticsResponse getSalonRevenueAnalytics(String period, LocalDate fromDate, LocalDate toDate, Long branchId);
 
     PeakHourHeatmapResponse getPeakHourHeatmap(Long branchId, LocalDate fromDate, LocalDate toDate);
+
+    StaffPerformanceResponse getStaffPerformanceReport(String period, LocalDate fromDate, LocalDate toDate, Long branchId);
 }
