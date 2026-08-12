@@ -9,6 +9,9 @@ import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.entity.enums.ShiftStatus;
 import com.example.salonflow.exception.BusinessException;
+import com.example.salonflow.exception.InvalidTokenException;
+import com.example.salonflow.ai.service.NoShowPredictionService;
+import com.example.salonflow.notification.email.BookingQrSignatureService;
 import com.example.salonflow.pricing.BookingPricingResult;
 import com.example.salonflow.pricing.BookingPricingService;
 import com.example.salonflow.repository.*;
@@ -92,6 +95,12 @@ class BookingServiceTest {
 
         @Mock
         private ApplicationEventPublisher applicationEventPublisher;
+
+        @Mock
+        private BookingQrSignatureService bookingQrSignatureService;
+
+        @Mock
+        private NoShowPredictionService noShowPredictionService;
 
         @InjectMocks
         private BookingServiceImpl bookingService;
@@ -339,6 +348,47 @@ class BookingServiceTest {
                 BookingResponse response = bookingService.checkInBooking(60L);
 
                 assertThat(response.getStatus()).isEqualTo(BookingStatus.CHECKED_IN.name());
+                assertThat(response.getCheckedInAt()).isNotNull();
+        }
+
+        @Test
+        @DisplayName("✅ QR check-in verify signature và trả dữ liệu hiển thị")
+        void checkInBookingByQr_whenSignatureValid_shouldMoveToCheckedIn() {
+                Booking booking = Booking.builder()
+                                .id(63L)
+                                .branch(branch)
+                                .customer(customer)
+                                .assignedStaff(staff1)
+                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .startTime(LocalTime.of(9, 0))
+                                .endTime(LocalTime.of(9, 30))
+                                .totalPrice(BigDecimal.valueOf(80000.00))
+                                .status(BookingStatus.CONFIRMED)
+                                .build();
+
+                when(bookingQrSignatureService.verify(63L, "valid-signature")).thenReturn(true);
+                when(bookingRepository.findById(63L)).thenReturn(Optional.of(booking));
+                when(bookingRepository.save(any(Booking.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+                var response = bookingService.checkInBookingByQr(63L, "valid-signature");
+
+                assertThat(response.isSuccess()).isTrue();
+                assertThat(response.getMessage()).isEqualTo("Check-in thành công");
+                assertThat(response.getStatus()).isEqualTo(BookingStatus.CHECKED_IN.name());
+                assertThat(response.getCheckedInAt()).isNotNull();
+                assertThat(response.getCustomerName()).isEqualTo("Nguyễn Khách Hàng");
+        }
+
+        @Test
+        @DisplayName("🚫 QR check-in từ chối signature sai")
+        void checkInBookingByQr_whenSignatureInvalid_shouldThrowInvalidTokenException() {
+                when(bookingQrSignatureService.verify(64L, "bad-signature")).thenReturn(false);
+
+                assertThatThrownBy(() -> bookingService.checkInBookingByQr(64L, "bad-signature"))
+                                .isInstanceOf(InvalidTokenException.class)
+                                .hasMessageContaining("QR check-in không hợp lệ");
+
+                verify(bookingRepository, never()).findById(anyLong());
         }
 
         @Test

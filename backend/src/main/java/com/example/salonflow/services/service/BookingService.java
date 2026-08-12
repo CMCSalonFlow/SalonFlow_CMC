@@ -5,6 +5,7 @@ import com.example.salonflow.dto.booking.CreateGuestBookingRequest;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.dto.booking.CancellationResult;
+import com.example.salonflow.dto.booking.CheckInBookingResponse;
 import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 
 import java.time.LocalDate;
@@ -40,6 +41,8 @@ public interface BookingService {
     BookingResponse completeBooking(Long bookingId);
 
     BookingResponse checkInBooking(Long bookingId);
+
+    CheckInBookingResponse checkInBookingByQr(Long bookingId, String signature);
 
     BookingResponse confirmBooking(Long bookingId);
 }

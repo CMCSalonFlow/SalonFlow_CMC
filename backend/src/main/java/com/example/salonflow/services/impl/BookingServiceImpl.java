@@ -6,11 +6,14 @@ import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
 import com.example.salonflow.dto.booking.BookingItemResponse;
+import com.example.salonflow.dto.booking.CheckInBookingResponse;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.entity.enums.PaymentStatus;
 import com.example.salonflow.exception.BusinessException;
+import com.example.salonflow.exception.InvalidTokenException;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.notification.email.BookingQrSignatureService;
 import com.example.salonflow.pricing.BookingPricingResult;
 import com.example.salonflow.pricing.BookingPricingService;
 import com.example.salonflow.repository.*;
@@ -71,6 +74,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingWebSocketHandler bookingWebSocketHandler;
     private final org.springframework.data.redis.core.StringRedisTemplate redisTemplate;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final BookingQrSignatureService bookingQrSignatureService;
 
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
@@ -400,6 +404,7 @@ public class BookingServiceImpl implements BookingService {
                 .invoiceUrl(booking.getInvoiceUrl())
                 .invoiceGeneratedAt(booking.getInvoiceGeneratedAt())
                 .reviewedAt(booking.getReviewedAt())
+                .checkedInAt(booking.getCheckedInAt())
                 .items(itemResponses)
                 .noShowPrediction(predictionDto)
                 .build();
@@ -1014,6 +1019,10 @@ public BookingResponse createWalkInBooking(
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn với id: " + bookingId));
 
         if (booking.getStatus() == BookingStatus.CHECKED_IN) {
+            if (booking.getCheckedInAt() == null) {
+                booking.setCheckedInAt(LocalDateTime.now());
+                booking = bookingRepository.save(booking);
+            }
             return toResponse(booking);
         }
 
@@ -1022,10 +1031,43 @@ public BookingResponse createWalkInBooking(
         }
 
         booking.setStatus(BookingStatus.CHECKED_IN);
+        booking.setCheckedInAt(LocalDateTime.now());
         booking = bookingRepository.save(booking);
         broadcastBookingUpdateSafely(booking);
 
         return toResponse(booking);
+    }
+
+    @Override
+    @Transactional
+    public CheckInBookingResponse checkInBookingByQr(Long bookingId, String signature) {
+        if (!bookingQrSignatureService.verify(bookingId, signature)) {
+            throw new InvalidTokenException("QR check-in không hợp lệ hoặc đã bị thay đổi");
+        }
+
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy lịch hẹn với id: " + bookingId));
+
+        String message;
+        if (booking.getStatus() == BookingStatus.CHECKED_IN) {
+            if (booking.getCheckedInAt() == null) {
+                booking.setCheckedInAt(LocalDateTime.now());
+                booking = bookingRepository.save(booking);
+            }
+            message = "Booking đã được check-in trước đó";
+        } else {
+            if (booking.getStatus() != BookingStatus.CONFIRMED) {
+                throw new BusinessException("Chỉ booking đã CONFIRMED mới được check-in");
+            }
+
+            booking.setStatus(BookingStatus.CHECKED_IN);
+            booking.setCheckedInAt(LocalDateTime.now());
+            booking = bookingRepository.save(booking);
+            broadcastBookingUpdateSafely(booking);
+            message = "Check-in thành công";
+        }
+
+        return toCheckInResponse(booking, message);
     }
 
     @Override
@@ -1076,5 +1118,24 @@ public BookingResponse createWalkInBooking(
         } catch (Exception e) {
             log.error("Failed to broadcast booking update for booking {}", booking.getId(), e);
         }
+    }
+
+    private CheckInBookingResponse toCheckInResponse(Booking booking, String message) {
+        return CheckInBookingResponse.builder()
+                .success(true)
+                .message(message)
+                .bookingId(booking.getId())
+                .status(booking.getStatus().name())
+                .checkedInAt(booking.getCheckedInAt())
+                .customerName(booking.getCustomer() != null ? booking.getCustomer().getFullName() : null)
+                .customerPhone(booking.getCustomer() != null ? booking.getCustomer().getPhone() : null)
+                .branchId(booking.getBranch() != null ? booking.getBranch().getId() : null)
+                .branchName(booking.getBranch() != null ? booking.getBranch().getName() : null)
+                .bookingDate(booking.getBookingDate())
+                .startTime(booking.getStartTime())
+                .endTime(booking.getEndTime())
+                .assignedStaffId(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null)
+                .assignedStaffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getName() : null)
+                .build();
     }
 }

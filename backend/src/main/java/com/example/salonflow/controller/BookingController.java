@@ -1,6 +1,8 @@
 package com.example.salonflow.controller;
 
 import com.example.salonflow.dto.booking.AvailabilityResponse;
+import com.example.salonflow.dto.booking.CheckInBookingRequest;
+import com.example.salonflow.dto.booking.CheckInBookingResponse;
 import com.example.salonflow.dto.booking.CreateGuestBookingRequest;
 import com.example.salonflow.dto.booking.CreateBookingRequest;
 import com.example.salonflow.dto.booking.BookingResponse;
@@ -13,6 +15,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 
@@ -134,6 +137,15 @@ public class BookingController {
     @PutMapping("/api/v1/bookings/{bookingId}/check-in")
     public ResponseEntity<BookingResponse> checkInBooking(@PathVariable Long bookingId) {
         return ResponseEntity.ok(bookingService.checkInBooking(bookingId));
+    }
+
+    @PostMapping("/api/v1/bookings/{bookingId}/checkin")
+    @PreAuthorize("hasRole('STAFF') or hasRole('SALON_OWNER') or hasRole('BRANCH_MANAGER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<CheckInBookingResponse> checkInBookingByQr(
+            @PathVariable Long bookingId,
+            @Valid @RequestBody CheckInBookingRequest request
+    ) {
+        return ResponseEntity.ok(bookingService.checkInBookingByQr(bookingId, request.getSignature()));
     }
 
     @PutMapping("/api/v1/bookings/{bookingId}/confirm")
