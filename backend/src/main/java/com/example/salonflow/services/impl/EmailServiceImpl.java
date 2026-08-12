@@ -264,6 +264,74 @@ public class EmailServiceImpl implements EmailService {
         sendNotificationEmail(toEmail, subject, htmlBody);
     }
 
+    @Override
+    public void sendTicketCreatedEmail(String toEmail, String userName, String ticketCode, String subjectTitle, String priorityName, String slaDueStr) {
+        String subject = "🎫 [SalonFlow Help Center] Xác Nhận Tạo Ticket Support #" + ticketCode;
+        String htmlBody = """
+        <div style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:16px;color:#1e293b;">
+          <div style="background:linear-gradient(135deg, #0284c7, #2563eb);padding:24px;border-radius:12px;color:#ffffff;text-align:center;">
+            <h1 style="margin:0;font-size:22px;font-weight:800;">🎫 SalonFlow Help Center</h1>
+            <p style="margin:6px 0 0 0;opacity:0.9;font-size:14px;">Yêu cầu hỗ trợ của bạn đã được ghi nhận</p>
+          </div>
+          <div style="background:#ffffff;padding:24px;border-radius:12px;margin-top:20px;box-shadow:0 4px 12px rgba(0,0,0,0.04);">
+            <p style="font-size:15px;margin:0 0 12px 0;">Xin chào <strong>%s</strong>,</p>
+            <p style="font-size:14px;color:#475569;line-height:1.6;">Yêu cầu hỗ trợ của bạn đã được gửi tới Ban Quản Trị SalonFlow thành công.</p>
+            <table style="width:100%%;border-collapse:collapse;margin:16px 0;font-size:14px;">
+              <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:10px 0;color:#64748b;">Mã Ticket:</td><td style="padding:10px 0;font-weight:700;color:#2563eb;text-align:right;">%s</td></tr>
+              <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:10px 0;color:#64748b;">Tiêu đề:</td><td style="padding:10px 0;font-weight:600;text-align:right;">%s</td></tr>
+              <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:10px 0;color:#64748b;">Độ ưu tiên:</td><td style="padding:10px 0;font-weight:700;color:#d97706;text-align:right;">%s</td></tr>
+              <tr style="border-bottom:1px solid #f1f5f9;"><td style="padding:10px 0;color:#64748b;">Thời hạn cam kết SLA:</td><td style="padding:10px 0;font-weight:700;color:#059669;text-align:right;">%s</td></tr>
+            </table>
+            <p style="font-size:13px;color:#64748b;">Đội ngũ SalonFlow Support sẽ phản hồi bạn trong thời gian cam kết SLA sớm nhất.</p>
+          </div>
+        </div>
+        """.formatted(userName, ticketCode, subjectTitle, priorityName, slaDueStr);
+
+        sendNotificationEmail(toEmail, subject, htmlBody);
+    }
+
+    @Override
+    public void sendTicketReplyNotificationEmail(String toEmail, String userName, String ticketCode, String senderName, String messageContent) {
+        String subject = "💬 [SalonFlow Support] Phản hồi mới cho Ticket #" + ticketCode;
+        String htmlBody = """
+        <div style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:16px;color:#1e293b;">
+          <div style="background:linear-gradient(135deg, #4f46e5, #7c3aed);padding:24px;border-radius:12px;color:#ffffff;text-align:center;">
+            <h1 style="margin:0;font-size:22px;font-weight:800;">💬 Phản Hồi Ticket Support</h1>
+            <p style="margin:6px 0 0 0;opacity:0.9;font-size:14px;">Mã Ticket: #%s</p>
+          </div>
+          <div style="background:#ffffff;padding:24px;border-radius:12px;margin-top:20px;box-shadow:0 4px 12px rgba(0,0,0,0.04);">
+            <p style="font-size:15px;margin:0 0 12px 0;">Xin chào <strong>%s</strong>,</p>
+            <p style="font-size:14px;color:#475569;"><strong>%s</strong> vừa gửi một phản hồi mới trong ticket của bạn:</p>
+            <div style="background:#f1f5f9;padding:16px;border-radius:8px;font-size:14px;color:#1e293b;border-left:4px solid #4f46e5;margin:16px 0;line-height:1.6;">
+              %s
+            </div>
+            <p style="font-size:13px;color:#64748b;">Bạn có thể truy cập hệ thống SalonFlow để tiếp tục trao đổi.</p>
+          </div>
+        </div>
+        """.formatted(ticketCode, userName, senderName, messageContent);
+
+        sendNotificationEmail(toEmail, subject, htmlBody);
+    }
+
+    @Override
+    public void sendTicketStatusChangedEmail(String toEmail, String userName, String ticketCode, String newStatusName) {
+        String subject = "🔄 [SalonFlow Support] Cập Nhật Trạng Thái Ticket #" + ticketCode + " -> " + newStatusName;
+        String htmlBody = """
+        <div style="font-family:'Segoe UI',Helvetica,Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:#f8fafc;border-radius:16px;color:#1e293b;">
+          <div style="background:linear-gradient(135deg, #10b981, #059669);padding:24px;border-radius:12px;color:#ffffff;text-align:center;">
+            <h1 style="margin:0;font-size:22px;font-weight:800;">🔄 Trạng Thái Ticket Đã Cập Nhật</h1>
+            <p style="margin:6px 0 0 0;opacity:0.9;font-size:14px;">Mã Ticket: #%s</p>
+          </div>
+          <div style="background:#ffffff;padding:24px;border-radius:12px;margin-top:20px;box-shadow:0 4px 12px rgba(0,0,0,0.04);">
+            <p style="font-size:15px;margin:0 0 12px 0;">Xin chào <strong>%s</strong>,</p>
+            <p style="font-size:14px;color:#475569;">Trạng thái Ticket #<strong>%s</strong> của bạn đã chuyển sang: <span style="background:#dcfce7;color:#166534;padding:4px 12px;border-radius:20px;font-weight:700;">%s</span></p>
+          </div>
+        </div>
+        """.formatted(ticketCode, userName, ticketCode, newStatusName);
+
+        sendNotificationEmail(toEmail, subject, htmlBody);
+    }
+
     private int providerPriority(String providerName) {
         String name = providerName == null ? "" : providerName.toLowerCase(Locale.ROOT);
         if (name.equals(primaryProvider == null ? "" : primaryProvider.toLowerCase(Locale.ROOT))) {
