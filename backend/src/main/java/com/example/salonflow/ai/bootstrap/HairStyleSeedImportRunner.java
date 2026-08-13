@@ -13,6 +13,7 @@ import com.example.salonflow.repository.HairStyleRepository;
 import com.example.salonflow.repository.MediaFileRepository;
 import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
+import io.minio.StatObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
@@ -20,11 +21,18 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+
 import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -61,9 +69,26 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
             throw new BadRequestException("Hair style import zip path is missing for " + archiveGender);
         }
 
-        Path path = Path.of(zipPath);
-        if (!Files.exists(path)) {
+        Resource resource = zipPath.startsWith("classpath:")
+                ? new ClassPathResource(zipPath.substring("classpath:".length()))
+                : new FileSystemResource(zipPath);
+
+        if (!resource.exists()) {
             throw new BadRequestException("Hair style zip file not found: " + zipPath);
+        }
+
+        File file;
+        File tempFile = null;
+        try {
+            file = resource.getFile();
+        } catch (IOException e) {
+            Path tempPath = Files.createTempFile("hairstyle_" + archiveGender.name().toLowerCase(Locale.ROOT), ".zip");
+            tempFile = tempPath.toFile();
+            tempFile.deleteOnExit();
+            try (InputStream is = resource.getInputStream()) {
+                Files.copy(is, tempPath, StandardCopyOption.REPLACE_EXISTING);
+            }
+            file = tempFile;
         }
 
         List<HairStyleSeedItem> seeds = HairStyleSeedCatalog.all().stream()
@@ -75,10 +100,17 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
             return;
         }
 
-        try (ZipFile zipFile = new ZipFile(path.toFile())) {
+        try (ZipFile zipFile = new ZipFile(file)) {
             Map<String, List<ZipAsset>> assetsByPrefix = loadAssets(zipFile);
             for (HairStyleSeedItem seed : seeds) {
                 importStyle(seed, assetsByPrefix);
+            }
+        } finally {
+            if (tempFile != null && tempFile.exists()) {
+                try {
+                    tempFile.delete();
+                } catch (Exception ignored) {
+                }
             }
         }
     }
@@ -120,8 +152,7 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
         for (int index = 0; index < matches.size(); index++) {
             ZipAsset asset = matches.get(index);
             String objectName = buildObjectName(seed.gender(), seed.code(), asset.fileName());
-            MediaFile media = mediaFileRepository.findByObjectName(objectName)
-                    .orElseGet(() -> uploadAsset(objectName, asset));
+            MediaFile media = ensureAssetUploaded(objectName, asset);
 
             Optional<HairStyleImage> existingImage = hairStyleImageRepository
                     .findByHairStyleIdAndMediaId(style.getId(), media.getId());
@@ -144,7 +175,41 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
         log.info("Imported hair style {} with {} image(s)", seed.code(), matches.size());
     }
 
-    private MediaFile uploadAsset(String objectName, ZipAsset asset) {
+    private MediaFile ensureAssetUploaded(String objectName, ZipAsset asset) {
+        if (!doesObjectExistInMinio(objectName)) {
+            uploadToMinio(objectName, asset);
+        }
+
+        return mediaFileRepository.findByObjectName(objectName)
+                .orElseGet(() -> {
+                    MediaFile media = MediaFile.builder()
+                            .objectName(objectName)
+                            .originalFileName(asset.fileName())
+                            .contentType(asset.contentType())
+                            .fileSize((long) asset.bytes().length)
+                            .provider("MINIO")
+                            .bucket(minioProperties.getBucketName())
+                            .url(buildPublicUrl(objectName))
+                            .build();
+                    return mediaFileRepository.save(media);
+                });
+    }
+
+    private boolean doesObjectExistInMinio(String objectName) {
+        try {
+            minioClient.statObject(
+                    StatObjectArgs.builder()
+                            .bucket(minioProperties.getBucketName())
+                            .object(objectName)
+                            .build()
+            );
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private void uploadToMinio(String objectName, ZipAsset asset) {
         try (InputStream inputStream = new ByteArrayInputStream(asset.bytes())) {
             minioClient.putObject(
                     PutObjectArgs.builder()
@@ -154,18 +219,7 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
                             .contentType(asset.contentType())
                             .build()
             );
-
-            MediaFile media = MediaFile.builder()
-                    .objectName(objectName)
-                    .originalFileName(asset.fileName())
-                    .contentType(asset.contentType())
-                    .fileSize((long) asset.bytes().length)
-                    .provider("MINIO")
-                    .bucket(minioProperties.getBucketName())
-                    .url(buildPublicUrl(objectName))
-                    .build();
-
-            return mediaFileRepository.save(media);
+            log.info("Uploaded hair style asset to MinIO: {}", objectName);
         } catch (Exception ex) {
             throw new BadRequestException("Failed to upload hair style asset " + asset.fileName() + ": " + ex.getMessage());
         }
