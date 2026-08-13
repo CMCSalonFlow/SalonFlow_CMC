@@ -14,6 +14,7 @@ import com.example.salonflow.repository.ReviewRepository;
 import com.example.salonflow.repository.SalonRepository;
 import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.AnalyticsService;
+import com.example.salonflow.services.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +41,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final ReviewRepository reviewRepository;
     private final com.example.salonflow.repository.StaffRepository staffRepository;
     private final com.example.salonflow.repository.ShiftRepository shiftRepository;
+    private final SubscriptionService subscriptionService;
 
     @Override
     public SalonOverviewAnalyticsResponse getSalonOverviewAnalytics(Long branchId) {
@@ -211,6 +213,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         Long ownerId = SecurityUtils.getCurrentUserId();
         Salon salon = salonRepository.findFirstByOwnerId(ownerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Salon của tài khoản này"));
+
+        subscriptionService.validateAdvancedAnalytics(salon.getId());
 
         String normalizedPeriod = period != null ? period.toLowerCase().trim() : "daily";
         LocalDate today = LocalDate.now();
@@ -525,6 +529,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         Salon salon = salonRepository.findFirstByOwnerId(ownerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Salon của tài khoản này"));
 
+        subscriptionService.validateAdvancedAnalytics(salon.getId());
+
         List<Booking> bookings;
         if (branchId != null) {
             if (fromDate != null && toDate != null) {
@@ -616,6 +622,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         Long ownerId = SecurityUtils.getCurrentUserId();
         Salon salon = salonRepository.findFirstByOwnerId(ownerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy thông tin Salon"));
+
+        subscriptionService.validateAdvancedAnalytics(salon.getId());
 
         String branchName = "Tất cả chi nhánh";
         if (branchId != null) {

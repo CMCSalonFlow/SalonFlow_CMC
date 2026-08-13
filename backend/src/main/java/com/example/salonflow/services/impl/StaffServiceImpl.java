@@ -25,6 +25,7 @@ import com.example.salonflow.entity.Role;
 import com.example.salonflow.entity.UserRole;
 import com.example.salonflow.entity.UserRoleId;
 import com.example.salonflow.services.service.StaffService;
+import com.example.salonflow.services.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +51,7 @@ public class StaffServiceImpl implements StaffService {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final SubscriptionService subscriptionService;
 
     @Override
     @Transactional
@@ -57,6 +59,9 @@ public class StaffServiceImpl implements StaffService {
         // Kiểm tra sự tồn tại của chi nhánh (Branch)
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
+
+        // Kiểm tra giới hạn nhân viên
+        subscriptionService.validateStaffLimit(branch.getSalon().getId());
 
         // Kiểm tra xem email đã tồn tại trong bảng users chưa
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {

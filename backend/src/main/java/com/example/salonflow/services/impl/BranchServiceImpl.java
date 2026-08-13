@@ -8,6 +8,7 @@ import com.example.salonflow.repository.*;
 import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.BranchService;
 import com.example.salonflow.services.service.GeocodingService;
+import com.example.salonflow.services.service.SubscriptionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +37,8 @@ public class BranchServiceImpl implements BranchService {
         private final BranchHourRepository branchHourRepository;
 
         private final GeocodingService geocodingService;
+
+        private final SubscriptionService subscriptionService;
 
         @Override
         @Transactional(readOnly = true)
@@ -126,6 +129,8 @@ public class BranchServiceImpl implements BranchService {
                                 .findFirstByOwnerId(ownerId)
                                 .orElseThrow(() -> new ResourceNotFoundException(
                                                 "Salon not found"));
+
+                subscriptionService.validateBranchLimit(salon.getId());
 
                 Double lat = request.getLatitude();
                 Double lng = request.getLongitude();

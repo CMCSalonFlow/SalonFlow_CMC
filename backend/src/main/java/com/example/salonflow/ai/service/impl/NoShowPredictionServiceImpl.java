@@ -7,6 +7,7 @@ import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.EmailService;
+import com.example.salonflow.services.service.SubscriptionService;
 import com.example.salonflow.services.service.ZaloZnsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -38,6 +39,8 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     private final UserRepository userRepository;
     private final ZaloZnsService zaloZnsService;
     private final EmailService emailService;
+    private final SubscriptionService subscriptionService;
+    private final BranchRepository branchRepository;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -118,6 +121,8 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Booking với ID: " + bookingId));
 
+        subscriptionService.validateAiFeatures(booking.getBranch().getSalon().getId());
+
         NoShowPredictionLog predictionLog = predictionRepository.findByBookingId(bookingId)
                 .orElseGet(() -> {
                     // Nếu chưa có log dự đoán, thực hiện dự đoán realtime
@@ -131,6 +136,10 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     @Override
     @Transactional(readOnly = true)
     public Page<NoShowPredictionDto> getHighRiskBookings(Long branchId, Pageable pageable) {
+        Branch branch = branchRepository.findById(branchId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId));
+        subscriptionService.validateAiFeatures(branch.getSalon().getId());
+
         Page<NoShowPredictionLog> page = predictionRepository.findByBranchIdAndRiskLevelOrderByCreatedAtDesc(branchId, "HIGH", pageable);
         return page.map(this::toDtoWithBooking);
     }
@@ -138,6 +147,12 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     @Override
     @Transactional(readOnly = true)
     public Page<NoShowPredictionDto> getPredictionLogs(Long branchId, Pageable pageable) {
+        if (branchId != null) {
+            Branch branch = branchRepository.findById(branchId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với ID: " + branchId));
+            subscriptionService.validateAiFeatures(branch.getSalon().getId());
+        }
+
         Page<NoShowPredictionLog> page = branchId != null
                 ? predictionRepository.findByBranchIdOrderByCreatedAtDesc(branchId, pageable)
                 : predictionRepository.findAll(pageable);
@@ -182,6 +197,8 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     public boolean sendManualReminder(Long bookingId) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Booking với ID: " + bookingId));
+
+        subscriptionService.validateAiFeatures(booking.getBranch().getSalon().getId());
 
         boolean sent = sendReminderToCustomer(booking, booking.getCustomer());
         if (sent) {

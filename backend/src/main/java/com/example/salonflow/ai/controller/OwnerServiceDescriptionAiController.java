@@ -5,6 +5,7 @@ import com.example.salonflow.ai.dto.description.ServiceDescriptionGenerateRespon
 import com.example.salonflow.ai.dto.description.ServiceDescriptionQuotaResponse;
 import com.example.salonflow.ai.service.ServiceDescriptionGenerationService;
 import com.example.salonflow.security.SecurityUtils;
+import com.example.salonflow.services.service.SubscriptionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -23,12 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 public class OwnerServiceDescriptionAiController {
 
     private final ServiceDescriptionGenerationService serviceDescriptionGenerationService;
+    private final SubscriptionService subscriptionService;
 
     @PostMapping("/generate")
     public ResponseEntity<ServiceDescriptionGenerateResponse> generate(
             @PathVariable Long salonId,
             @Valid @RequestBody ServiceDescriptionGenerateRequest request
     ) {
+        subscriptionService.validateAiFeatures(salonId);
         Long ownerId = SecurityUtils.getCurrentUserId();
         ServiceDescriptionGenerateRequest normalizedRequest = new ServiceDescriptionGenerateRequest(
                 salonId,
@@ -44,6 +47,7 @@ public class OwnerServiceDescriptionAiController {
     public ResponseEntity<ServiceDescriptionQuotaResponse> quota(
             @PathVariable Long salonId
     ) {
+        subscriptionService.validateAiFeatures(salonId);
         Long ownerId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(
                 serviceDescriptionGenerationService.getQuota(ownerId, salonId)
