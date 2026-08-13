@@ -4,6 +4,10 @@ import com.example.salonflow.config.properties.StripeProperties;
 import com.example.salonflow.dto.subscription.ManualSubscriptionRequest;
 import com.example.salonflow.dto.subscription.StripeCheckoutRequest;
 import com.example.salonflow.dto.subscription.SubscriptionResponse;
+import com.example.salonflow.dto.subscription.UpdateSubscriptionRequest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import com.example.salonflow.entity.Salon;
 import com.example.salonflow.entity.Subscription;
 import com.example.salonflow.entity.SubscriptionFeatures;
@@ -448,5 +452,91 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .stripeCustomerId(sub.getStripeCustomerId())
                 .createdAt(sub.getCreatedAt() != null ? LocalDateTime.ofInstant(sub.getCreatedAt(), ZoneId.systemDefault()) : null)
                 .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<SubscriptionResponse> getAllSubscriptionsForAdmin(
+            Long salonId,
+            SubscriptionPlan plan,
+            SubscriptionStatus status,
+            Pageable pageable
+    ) {
+        Specification<Subscription> spec = (root, query, cb) -> cb.conjunction();
+        
+        if (salonId != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("salon").get("id"), salonId));
+        }
+        if (plan != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("plan"), plan));
+        }
+        if (status != null) {
+            spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
+        }
+        
+        return subscriptionRepository.findAll(spec, pageable).map(this::mapToResponse);
+    }
+
+    @Override
+    @Transactional
+    public SubscriptionResponse updateSubscriptionForAdmin(Long id, UpdateSubscriptionRequest request) {
+        Subscription subscription = subscriptionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Subscription not found with ID: " + id));
+
+        if (request.getPlan() != null) {
+            subscription.setPlan(request.getPlan());
+        }
+        if (request.getStatus() != null) {
+            subscription.setStatus(request.getStatus());
+        }
+        if (request.getPrice() != null) {
+            subscription.setPrice(request.getPrice());
+        }
+        if (request.getBillingCycle() != null) {
+            subscription.setBillingCycle(request.getBillingCycle());
+        }
+        if (request.getStartDate() != null) {
+            subscription.setStartDate(request.getStartDate());
+        }
+        if (request.getEndDate() != null) {
+            subscription.setEndDate(request.getEndDate());
+        }
+
+        SubscriptionFeatures features = subscription.getFeatures();
+        if (features == null) {
+            features = new SubscriptionFeatures();
+        }
+        boolean featuresUpdated = false;
+        if (request.getMaxBranches() != null) {
+            features.setMaxBranches(request.getMaxBranches());
+            featuresUpdated = true;
+        }
+        if (request.getMaxStaff() != null) {
+            features.setMaxStaff(request.getMaxStaff());
+            featuresUpdated = true;
+        }
+        if (request.getAnalyticsAdvanced() != null) {
+            features.setAnalyticsAdvanced(request.getAnalyticsAdvanced());
+            featuresUpdated = true;
+        }
+        if (request.getAiFeatures() != null) {
+            features.setAiFeatures(request.getAiFeatures());
+            featuresUpdated = true;
+        }
+        if (featuresUpdated) {
+            subscription.setFeatures(features);
+        }
+
+        subscription = subscriptionRepository.save(subscription);
+        return mapToResponse(subscription);
+    }
+
+    @Override
+    @Transactional
+    public void cancelSubscriptionForAdmin(Long id) {
+        Subscription subscription = subscriptionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Subscription not found with ID: " + id));
+        subscription.setStatus(SubscriptionStatus.CANCELED);
+        subscriptionRepository.save(subscription);
     }
 }
