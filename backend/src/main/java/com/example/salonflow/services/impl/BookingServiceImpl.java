@@ -85,6 +85,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingPricingService bookingPricingService;
     private final com.example.salonflow.services.service.LoyaltyPointService loyaltyPointService;
     private final com.example.salonflow.ai.service.NoShowPredictionService noShowPredictionService;
+    private final ReviewRepository reviewRepository;
 
     @Override
     @Transactional
@@ -381,6 +382,11 @@ public class BookingServiceImpl implements BookingService {
             predictionDto = noShowPredictionService.getPredictionByBookingId(booking.getId());
         } catch (Exception ignored) {}
 
+        LocalDateTime reviewedAt = booking.getReviewedAt();
+        if (reviewedAt == null && reviewRepository.existsByBookingId(booking.getId())) {
+            reviewedAt = LocalDateTime.now();
+        }
+
         return BookingResponse.builder()
                 .id(booking.getId())
                 .customerId(booking.getCustomer().getId())
@@ -403,7 +409,7 @@ public class BookingServiceImpl implements BookingService {
                 .notes(booking.getNotes())
                 .invoiceUrl(booking.getInvoiceUrl())
                 .invoiceGeneratedAt(booking.getInvoiceGeneratedAt())
-                .reviewedAt(booking.getReviewedAt())
+                .reviewedAt(reviewedAt)
                 .checkedInAt(booking.getCheckedInAt())
                 .items(itemResponses)
                 .noShowPrediction(predictionDto)

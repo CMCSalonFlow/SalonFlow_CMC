@@ -4,6 +4,7 @@ import com.example.salonflow.dto.review.*;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.entity.enums.ReviewReportStatus;
+import com.example.salonflow.entity.enums.ReviewSentimentStatus;
 import com.example.salonflow.exception.BusinessAccessDeniedException;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
@@ -74,6 +75,7 @@ public class ReviewServiceImpl implements ReviewService {
                 .rating(request.getRating())
                 .title(finalTitle)
                 .content(request.getComment())
+                .sentimentStatus(ReviewSentimentStatus.PENDING)
                 .isHidden(false)
                 .build();
 
