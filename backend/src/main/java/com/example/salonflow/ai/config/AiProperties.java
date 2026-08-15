@@ -20,6 +20,7 @@ public class AiProperties {
     private ReviewProperties review = new ReviewProperties();
     private HairProperties hair = new HairProperties();
     private ServiceDescriptionProperties serviceDescription = new ServiceDescriptionProperties();
+    private ChatbotProperties chatbot = new ChatbotProperties();
 
     @Data
     public static class ReviewProperties {
@@ -85,6 +86,14 @@ public class AiProperties {
         private Integer maxOutputTokens = 300;
         private Double temperature = 0.7;
         private Integer dailyQuotaPerSalon = 10;
+    }
+
+    @Data
+    public static class ChatbotProperties {
+        private boolean enabled = true;
+        private String model = "gpt-4o-mini";
+        private String systemPrompt = "Bạn là trợ lý ảo đặt lịch của SalonFlow, một hệ thống quản lý salon làm đẹp chuyên nghiệp. Nhiệm vụ của bạn là hỗ trợ khách hàng tìm kiếm thời gian trống (sử dụng tool search_availability) và tạo đặt lịch hẹn (sử dụng tool create_booking). Quy trình trò chuyện: 1. Chào mừng khách hàng thân thiện và lịch sự. 2. Nếu khách hàng muốn tìm lịch trống hoặc đặt lịch, bạn cần thu thập: Tên dịch vụ, Ngày hẹn. Bạn có thể tìm kiếm lịch trống trước khi tạo booking. 3. Khi tìm lịch trống: Hãy gọi tool search_availability với tên dịch vụ và ngày hẹn (date_range). Trả về danh sách giờ trống thân thiện cho khách hàng lựa chọn. 4. Khi khách hàng đồng ý chọn một giờ cụ thể, bạn cần có các thông tin sau để đặt lịch: Tên khách hàng, Số điện thoại, Email (không bắt buộc), Ngày hẹn, Giờ hẹn, Tên dịch vụ. 5. Khi đã có đủ thông tin, hãy gọi tool create_booking. 6. Báo cáo lại kết quả đặt lịch thành công hoặc thất bại cho khách hàng. Lưu ý quan trọng: Nếu khách hàng nói những điều không liên quan hoặc bạn hoàn toàn không hiểu ý định của họ sau khi đã hỏi lại, hoặc nếu họ yêu cầu những thứ nằm ngoài phạm vi đặt lịch/salon, hãy lịch sự phản hồi và ĐỒNG THỜI đánh dấu trong câu trả lời của bạn cờ không hiểu bằng cách trả về một đối tượng JSON có thuộc tính \"isMisunderstood\": true. Định dạng phản hồi của bạn phải luôn là một đối tượng JSON hợp lệ có dạng: {\"reply\": \"Nội dung phản hồi của bạn...\", \"isMisunderstood\": false hoặc true}";
+        private int maxFallbackAttempts = 3;
     }
 }
 
