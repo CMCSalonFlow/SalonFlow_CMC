@@ -136,6 +136,19 @@ public class SalonController {
     }
 
     /**
+     * Khách hàng / Khách vãng lai tìm các salon và chi nhánh gần nhất bằng tọa độ GPS (PostGIS ST_Distance)
+     */
+    @GetMapping("/nearby")
+    public List<com.example.salonflow.dto.Salon.NearbySalonBranchResponse> getNearbySalons(
+            @RequestParam(name = "lat") Double latitude,
+            @RequestParam(name = "lng") Double longitude,
+            @RequestParam(name = "radius", required = false, defaultValue = "5000") Double radius,
+            @RequestParam(name = "limit", required = false, defaultValue = "50") Integer limit
+    ) {
+        return salonService.getNearbySalons(latitude, longitude, radius, limit);
+    }
+
+    /**
      * Super Admin xem chi tiết salon
      */
     @GetMapping("/{id}")

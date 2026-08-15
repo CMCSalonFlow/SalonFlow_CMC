@@ -39,4 +39,5 @@ public interface SalonService {
     List<SalonApprovalAuditResponse> getAudits(Long salonId);
 
     List<SalonResponse> getPublicSalons();
+    List<com.example.salonflow.dto.Salon.NearbySalonBranchResponse> getNearbySalons(Double lat, Double lng, Double radiusInMeters, Integer limit);
 }
