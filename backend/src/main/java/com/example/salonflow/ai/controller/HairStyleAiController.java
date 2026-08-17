@@ -24,16 +24,14 @@ public class HairStyleAiController {
 
     @PostMapping("/analyze")
     public ResponseEntity<HairStyleRecommendationResponse> analyze(
-            @Valid @RequestBody HairStyleAnalyzeRequest request
-    ) {
+            @Valid @RequestBody HairStyleAnalyzeRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(hairStyleAnalysisService.analyze(userId, request));
     }
 
     @PostMapping("/confirm")
     public ResponseEntity<HairStyleProfileResponse> confirm(
-            @RequestBody HairStyleConfirmRequest request
-    ) {
+            @RequestBody HairStyleConfirmRequest request) {
         Long userId = SecurityUtils.getCurrentUserId();
         return ResponseEntity.ok(hairStyleAnalysisService.confirmSelection(userId, request));
     }

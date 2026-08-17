@@ -30,6 +30,7 @@ public class SalonServiceImpl implements SalonService {
         private final MediaFileRepository mediaFileRepository;
         private final SalonApprovalAuditRepository auditRepository;
         private final EmailService emailService;
+        private final BranchRepository branchRepository;
 
         @Override
         public SalonResponse create(CreateSalonRequest request) {
@@ -379,6 +380,42 @@ public class SalonServiceImpl implements SalonService {
         public List<SalonResponse> getPublicSalons() {
                 List<Salon> salons = salonRepository.findByStatus(SalonStatus.APPROVED);
                 return salons.stream().map(this::mapToResponse).toList();
+        }
+
+        @Override
+        @Transactional(readOnly = true)
+        public List<NearbySalonBranchResponse> getNearbySalons(Double lat, Double lng, Double radiusInMeters, Integer limit) {
+                if (lat == null || lng == null) {
+                        throw new BusinessException("Vui lòng cung cấp tọa độ vĩ độ (lat) và kinh độ (lng).");
+                }
+                double radius = (radiusInMeters != null && radiusInMeters > 0) ? radiusInMeters : 5000.0;
+                int maxLimit = (limit != null && limit > 0 && limit <= 100) ? limit : 50;
+
+                List<com.example.salonflow.repository.projection.NearbyBranchProjection> projections = 
+                        branchRepository.findNearbyBranches(lat, lng, radius, maxLimit);
+
+                return projections.stream().map(p -> {
+                        Double distanceM = p.getDistanceMeters();
+                        Double distanceKm = distanceM != null ? Math.round(distanceM / 100.0) / 10.0 : null;
+                        return NearbySalonBranchResponse.builder()
+                                        .branchId(p.getBranchId())
+                                        .branchName(p.getBranchName())
+                                        .branchPhone(p.getBranchPhone())
+                                        .branchEmail(p.getBranchEmail())
+                                        .address(p.getAddress())
+                                        .latitude(p.getLatitude())
+                                        .longitude(p.getLongitude())
+                                        .salonId(p.getSalonId())
+                                        .salonName(p.getSalonName())
+                                        .salonDescription(p.getSalonDescription())
+                                        .logoUrl(p.getLogoUrl())
+                                        .distanceMeters(distanceM != null ? Math.round(distanceM * 10.0) / 10.0 : null)
+                                        .distanceKm(distanceKm)
+                                        .ratingAverage(p.getRatingAverage() != null ? p.getRatingAverage() : java.math.BigDecimal.ZERO)
+                                        .ratingCount(p.getRatingCount() != null ? p.getRatingCount() : 0)
+                                        .isOpen(true)
+                                        .build();
+                }).toList();
         }
 
 }
