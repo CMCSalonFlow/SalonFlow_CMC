@@ -159,4 +159,20 @@ public class GlobalExceptionHandler {
                                                 ex.getMessage(),
                                                 null));
         }
+
+        @ExceptionHandler(Exception.class)
+        public ResponseEntity<Map<String, Object>> handleGeneralException(
+                        Exception ex) {
+                // Gửi lỗi lên Sentry tự động
+                try {
+                        io.sentry.Sentry.captureException(ex);
+                } catch (Exception ignored) {
+                }
+
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .body(errorBody(
+                                                HttpStatus.INTERNAL_SERVER_ERROR,
+                                                ex.getMessage() != null ? ex.getMessage() : "Internal server error occurred",
+                                                null));
+        }
 }

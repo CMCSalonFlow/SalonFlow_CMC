@@ -77,6 +77,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/chatbot/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/actuator", "/actuator/**").permitAll()
+                        .requestMatchers("/api/v1/monitoring", "/api/v1/monitoring/**").permitAll()
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/v1/recommendations", "/api/v1/recommendations/**").permitAll()

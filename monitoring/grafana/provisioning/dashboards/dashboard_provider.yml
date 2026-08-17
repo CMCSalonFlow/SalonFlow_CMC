@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: 'SalonFlow Dashboards'
+    orgId: 1
+    folder: 'SalonFlow Monitoring'
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
