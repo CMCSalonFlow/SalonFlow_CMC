@@ -12,7 +12,10 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
+import lombok.extern.slf4j.Slf4j;
+
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
         @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -166,8 +169,11 @@ public class GlobalExceptionHandler {
                 // Gửi lỗi lên Sentry tự động
                 try {
                         io.sentry.Sentry.captureException(ex);
-                } catch (Exception ignored) {
+                } catch (Exception sentryEx) {
+                        log.warn("[Sentry] Không thể gửi exception lên Sentry: {}", sentryEx.getMessage());
                 }
+
+                log.error("[GlobalExceptionHandler] Unhandled exception: {}", ex.getMessage(), ex);
 
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                                 .body(errorBody(
