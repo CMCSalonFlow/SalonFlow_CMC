@@ -78,8 +78,6 @@ public class BookingEmailTemplateService {
         String staffName = booking != null && booking.getAssignedStaff() != null ? booking.getAssignedStaff().getName() : "Chưa phân công";
         String customerName = booking != null && booking.getCustomer() != null ? booking.getCustomer().getFullName() : "-";
         String totalPrice = formatMoney(booking != null ? booking.getTotalPrice() : null);
-        String deposit = formatMoney(booking != null ? booking.getDepositAmount() : null);
-        String remaining = formatMoney(booking != null ? booking.getRemainingAmount() : null);
         String bookingLink = buildBookingLink(booking);
 
         return """
@@ -116,9 +114,7 @@ public class BookingEmailTemplateService {
                                       <tr><td style="color:#7c6a61;">Nhân viên</td><td style="font-weight:700;">%s</td></tr>
                                       <tr><td style="color:#7c6a61;">Ngày</td><td style="font-weight:700;">%s</td></tr>
                                       <tr><td style="color:#7c6a61;">Giờ</td><td style="font-weight:700;">%s</td></tr>
-                                      <tr><td style="color:#7c6a61;">Tổng tiền</td><td style="font-weight:700;">%s VND</td></tr>
-                                      <tr><td style="color:#7c6a61;">Đã cọc</td><td style="font-weight:700;">%s VND</td></tr>
-                                      <tr><td style="color:#7c6a61;">Còn lại</td><td style="font-weight:700;">%s VND</td></tr>
+                                      <tr><td style="color:#7c6a61;">Tổng tiền</td><td style="font-weight:700;">%s VNĐ</td></tr>
                                     </table>
                                   </td>
                                   <td style="width:210px;vertical-align:top;text-align:center;">
@@ -165,8 +161,6 @@ public class BookingEmailTemplateService {
                 dateText,
                 timeText,
                 totalPrice,
-                deposit,
-                remaining,
                 qrCode,
                 services,
                 note,
@@ -212,8 +206,9 @@ public class BookingEmailTemplateService {
 
     private String formatMoney(BigDecimal value) {
         if (value == null) {
-            return "0.00";
+            return "0";
         }
-        return value.setScale(2, java.math.RoundingMode.HALF_UP).toPlainString();
+        java.text.DecimalFormat formatter = (java.text.DecimalFormat) java.text.NumberFormat.getInstance(new java.util.Locale("vi", "VN"));
+        return formatter.format(value.setScale(0, java.math.RoundingMode.HALF_UP));
     }
 }

@@ -40,6 +40,24 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.Collections;
+import java.util.Calendar;
+import java.util.TimeZone;
+import java.text.SimpleDateFormat;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Value;
+import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import com.example.salonflow.dto.payment.PaymentResponse;
+import com.example.salonflow.entity.enums.PaymentMethod;
+import com.example.salonflow.entity.enums.PaymentStatus;
+
 
 @Service
 @RequiredArgsConstructor
@@ -53,6 +71,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final StaffRepository staffRepository;
     private final EmailService emailService;
     private final StripeProperties stripeProperties;
+
+    @Value("${vnpay.tmn-code}")
+    private String tmnCode;
+
+    @Value("${vnpay.hash-secret}")
+    private String hashSecret;
+
+    @Value("${vnpay.pay-url}")
+    private String payUrl;
+
 
     @Override
     @Transactional(readOnly = true)
@@ -97,59 +125,85 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + salonId));
 
-        if (stripeProperties.isMockEnable() || Stripe.apiKey == null || Stripe.apiKey.isEmpty()) {
-            log.info("Creating mock Stripe checkout session for salon: {}, plan: {}", salonId, request.getPlan());
-            expireActiveSubscriptions(salonId);
-
-            SubscriptionFeatures features = getFeaturesForPlan(request.getPlan());
-            BigDecimal price = request.getPlan() == SubscriptionPlan.PRO ? BigDecimal.valueOf(499000) : BigDecimal.ZERO;
-
-            Subscription subscription = Subscription.builder()
-                    .salon(salon)
-                    .plan(request.getPlan())
-                    .features(features)
-                    .billingCycle(request.getBillingCycle())
-                    .price(price)
-                    .status(SubscriptionStatus.ACTIVE)
-                    .startDate(LocalDateTime.now())
-                    .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
-                    .stripeSubscriptionId("mock_sub_" + System.currentTimeMillis())
-                    .stripeCustomerId("mock_cust_" + System.currentTimeMillis())
-                    .build();
-
-            subscriptionRepository.save(subscription);
-            return request.getSuccessUrl() + "?session_id=" + subscription.getStripeSubscriptionId();
+        // 1. Calculate price
+        BigDecimal price;
+        if (request.getPlan() == SubscriptionPlan.PRO) {
+            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(4788000) : BigDecimal.valueOf(499000);
+        } else if (request.getPlan() == SubscriptionPlan.ENTERPRISE) {
+            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(28800000) : BigDecimal.valueOf(3000000);
+        } else {
+            throw new BusinessException("Gói FREE không yêu cầu thanh toán.");
         }
 
+        // 2. Create pending subscription record (PAST_DUE means pending payment)
+        Subscription subscription = Subscription.builder()
+                .salon(salon)
+                .plan(request.getPlan())
+                .features(getFeaturesForPlan(request.getPlan()))
+                .billingCycle(request.getBillingCycle())
+                .price(price)
+                .status(SubscriptionStatus.PAST_DUE)
+                .startDate(LocalDateTime.now())
+                .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
+                .build();
+
+        subscription = subscriptionRepository.save(subscription);
+
+        // 3. Generate VNPay URL
         try {
-            SessionCreateParams.Builder paramsBuilder = SessionCreateParams.builder()
-                    .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                    .setSuccessUrl(request.getSuccessUrl())
-                    .setCancelUrl(request.getCancelUrl())
-                    .putMetadata("salonId", salonId.toString())
-                    .putMetadata("plan", request.getPlan().name())
-                    .putMetadata("billingCycle", request.getBillingCycle().name());
+            HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+            String clientIp = getClientIp(servletRequest);
 
-            if (request.getPlan() == SubscriptionPlan.PRO) {
-                String priceId = stripeProperties.getProPriceId();
-                if (priceId == null || priceId.isEmpty()) {
-                    throw new BusinessException("Stripe Price ID for PRO plan is not configured");
+            String vnp_Version = "2.1.0";
+            String vnp_Command = "pay";
+            String orderType = "other";
+            long amount = price.multiply(new BigDecimal(100)).longValue();
+            String vnp_TxnRef = "sub_" + subscription.getId();
+
+            Map<String, String> vnp_Params = new HashMap<>();
+            vnp_Params.put("vnp_Version", vnp_Version);
+            vnp_Params.put("vnp_Command", vnp_Command);
+            vnp_Params.put("vnp_TmnCode", tmnCode);
+            vnp_Params.put("vnp_Amount", String.valueOf(amount));
+            vnp_Params.put("vnp_CurrCode", "VND");
+            vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
+            vnp_Params.put("vnp_OrderInfo", "Thanh toan goi cuoc " + request.getPlan().name() + " (" + request.getBillingCycle().name() + ")");
+            vnp_Params.put("vnp_OrderType", orderType);
+            vnp_Params.put("vnp_Locale", "vn");
+            vnp_Params.put("vnp_ReturnUrl", request.getSuccessUrl());
+            vnp_Params.put("vnp_IpAddr", clientIp);
+
+            Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
+            SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
+            String vnp_CreateDate = formatter.format(cld.getTime());
+            vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
+
+            cld.add(Calendar.MINUTE, 15);
+            String vnp_ExpireDate = formatter.format(cld.getTime());
+            vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
+
+            List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
+            Collections.sort(fieldNames);
+            List<String> parts = new ArrayList<>();
+            for (String fieldName : fieldNames) {
+                String fieldValue = vnp_Params.get(fieldName);
+                if (fieldValue != null && !fieldValue.isEmpty()) {
+                    parts.add(encode(fieldName) + "=" + encode(fieldValue));
                 }
-                paramsBuilder.addLineItem(SessionCreateParams.LineItem.builder()
-                        .setQuantity(1L)
-                        .setPrice(priceId)
-                        .build());
-            } else {
-                throw new BusinessException("Only PRO plan is eligible for Stripe checkout. For ENTERPRISE, please contact sales.");
             }
+            String hashData = String.join("&", parts);
+            String vnp_SecureHash = hmacSHA512(hashSecret, hashData);
+            String queryUrl = hashData + "&vnp_SecureHash=" + vnp_SecureHash;
+            String generatedUrl = payUrl + "?" + queryUrl;
 
-            Session session = Session.create(paramsBuilder.build());
-            return session.getUrl();
+            log.info("Generated VNPay subscription URL: {} for subscription ID: {}", generatedUrl, subscription.getId());
+            return generatedUrl;
         } catch (Exception e) {
-            log.error("Error creating Stripe checkout session: ", e);
+            log.error("Error creating VNPay checkout session for subscription: ", e);
             throw new BusinessException("Failed to generate payment session: " + e.getMessage());
         }
     }
+
 
     @Override
     @Transactional(readOnly = true)
@@ -538,5 +592,160 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Subscription not found with ID: " + id));
         subscription.setStatus(SubscriptionStatus.CANCELED);
         subscriptionRepository.save(subscription);
+    }
+
+    @Override
+    @Transactional
+    public com.example.salonflow.dto.payment.PaymentResponse verifySubscriptionPayment(java.util.Map<String, String> params) {
+        String vnp_TxnRef = params.get("vnp_TxnRef");
+        if (vnp_TxnRef == null || !vnp_TxnRef.startsWith("sub_")) {
+            throw new IllegalArgumentException("Mã giao dịch không hợp lệ cho subscription");
+        }
+
+        Long subscriptionId = Long.parseLong(vnp_TxnRef.substring(4));
+        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Subscription ID: " + subscriptionId));
+
+        BigDecimal vnpAmount = new BigDecimal(params.get("vnp_Amount")).divide(new BigDecimal(100));
+        if (subscription.getPrice().compareTo(vnpAmount) != 0) {
+            throw new IllegalArgumentException("Số tiền thanh toán không khớp");
+        }
+
+        String responseCode = params.get("vnp_ResponseCode");
+        if ("00".equals(responseCode)) {
+            if (subscription.getStatus() != SubscriptionStatus.ACTIVE) {
+                expireActiveSubscriptions(subscription.getSalon().getId());
+                subscription.setStatus(SubscriptionStatus.ACTIVE);
+                subscription.setStartDate(LocalDateTime.now());
+                subscription.setEndDate(calculateEndDate(LocalDateTime.now(), subscription.getBillingCycle()));
+                subscription.setStripeSubscriptionId(params.get("vnp_TransactionNo")); // Lưu mã giao dịch cổng thanh toán
+                subscription.setStripeCustomerId(params.get("vnp_BankCode")); // Lưu mã ngân hàng
+                subscriptionRepository.save(subscription);
+                log.info("Subscription ID {} activated successfully via VNPay callback.", subscriptionId);
+            }
+            return com.example.salonflow.dto.payment.PaymentResponse.builder()
+                    .paymentId(subscriptionId)
+                    .paymentMethod(com.example.salonflow.entity.enums.PaymentMethod.VNPAY)
+                    .amount(subscription.getPrice())
+                    .status(com.example.salonflow.entity.enums.PaymentStatus.SUCCESS)
+                    .build();
+        } else {
+            subscription.setStatus(SubscriptionStatus.CANCELED);
+            subscriptionRepository.save(subscription);
+            log.warn("Subscription ID {} payment failed with VNPay response code: {}", subscriptionId, responseCode);
+            return com.example.salonflow.dto.payment.PaymentResponse.builder()
+                    .paymentId(subscriptionId)
+                    .paymentMethod(com.example.salonflow.entity.enums.PaymentMethod.VNPAY)
+                    .amount(subscription.getPrice())
+                    .status(com.example.salonflow.entity.enums.PaymentStatus.FAILED)
+                    .build();
+        }
+    }
+
+    @Override
+    @Transactional
+    public java.util.Map<String, String> verifySubscriptionIpn(java.util.Map<String, String> params) {
+        java.util.Map<String, String> response = new java.util.HashMap<>();
+        try {
+            String vnp_TxnRef = params.get("vnp_TxnRef");
+            if (vnp_TxnRef == null || !vnp_TxnRef.startsWith("sub_")) {
+                response.put("RspCode", "01");
+                response.put("Message", "Order not Found");
+                return response;
+            }
+
+            Long subscriptionId = Long.parseLong(vnp_TxnRef.substring(4));
+            Optional<Subscription> subOpt = subscriptionRepository.findById(subscriptionId);
+            if (subOpt.isEmpty()) {
+                response.put("RspCode", "01");
+                response.put("Message", "Order not Found");
+                return response;
+            }
+
+            Subscription subscription = subOpt.get();
+
+            BigDecimal vnpAmount = new BigDecimal(params.get("vnp_Amount")).divide(new BigDecimal(100));
+            if (subscription.getPrice().compareTo(vnpAmount) != 0) {
+                response.put("RspCode", "04");
+                response.put("Message", "Invalid Amount");
+                return response;
+            }
+
+            if (subscription.getStatus() == SubscriptionStatus.ACTIVE) {
+                response.put("RspCode", "02");
+                response.put("Message", "Order already confirmed");
+                return response;
+            }
+
+            String responseCode = params.get("vnp_ResponseCode");
+            if ("00".equals(responseCode)) {
+                expireActiveSubscriptions(subscription.getSalon().getId());
+                subscription.setStatus(SubscriptionStatus.ACTIVE);
+                subscription.setStartDate(LocalDateTime.now());
+                subscription.setEndDate(calculateEndDate(LocalDateTime.now(), subscription.getBillingCycle()));
+                subscription.setStripeSubscriptionId(params.get("vnp_TransactionNo"));
+                subscription.setStripeCustomerId(params.get("vnp_BankCode"));
+                subscriptionRepository.save(subscription);
+                log.info("Subscription ID {} activated successfully via VNPay IPN.", subscriptionId);
+            } else {
+                subscription.setStatus(SubscriptionStatus.CANCELED);
+                subscriptionRepository.save(subscription);
+            }
+
+            response.put("RspCode", "00");
+            response.put("Message", "Confirm Success");
+            return response;
+        } catch (Exception e) {
+            log.error("Subscription IPN handling failed", e);
+            response.put("RspCode", "99");
+            response.put("Message", "Unknown error");
+            return response;
+        }
+    }
+
+    private String getClientIp(HttpServletRequest request) {
+        String ipAddress = request.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getHeader("Proxy-Client-IP");
+        }
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getHeader("WL-Proxy-Client-IP");
+        }
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getRemoteAddr();
+        }
+        if (ipAddress != null && ipAddress.contains(",")) {
+            ipAddress = ipAddress.split(",")[0].trim();
+        }
+        if ("0:0:0:0:0:0:0:1".equals(ipAddress) || (ipAddress != null && ipAddress.contains(":"))) {
+            ipAddress = "127.0.0.1";
+        }
+        return ipAddress;
+    }
+
+    private String hmacSHA512(String key, String data) {
+        try {
+            Mac hmac512 = Mac.getInstance("HmacSHA512");
+            SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
+            hmac512.init(secretKey);
+            byte[] result = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(2 * result.length);
+            for (byte b : result) {
+                sb.append(String.format("%02x", b & 0xff));
+            }
+            return sb.toString();
+        } catch (Exception ex) {
+            log.error("Error creating hmacSHA512 hash", ex);
+            return "";
+        }
+    }
+
+    private String encode(String value) {
+        try {
+            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
+        } catch (Exception e) {
+            log.error("Error URL encoding value: {}", value, e);
+            return "";
+        }
     }
 }

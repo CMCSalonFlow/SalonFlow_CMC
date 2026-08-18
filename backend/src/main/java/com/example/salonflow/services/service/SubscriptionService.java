@@ -48,4 +48,9 @@ public interface SubscriptionService {
     SubscriptionResponse updateSubscriptionForAdmin(Long id, UpdateSubscriptionRequest request);
 
     void cancelSubscriptionForAdmin(Long id);
+
+    com.example.salonflow.dto.payment.PaymentResponse verifySubscriptionPayment(java.util.Map<String, String> params);
+
+    java.util.Map<String, String> verifySubscriptionIpn(java.util.Map<String, String> params);
 }
+

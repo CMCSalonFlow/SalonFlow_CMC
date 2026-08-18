@@ -42,6 +42,8 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final InvoicePdfService invoicePdfService;
     private final EmailService emailService;
+    private final com.example.salonflow.services.service.SubscriptionService subscriptionService;
+
 
     @Value("${vnpay.tmn-code}")
     private String tmnCode;
@@ -208,7 +210,12 @@ public class PaymentServiceImpl implements PaymentService {
             throw new IllegalArgumentException("Khong tim thay ma giao dich (vnp_TxnRef)");
         }
 
+        if (vnp_TxnRef.startsWith("sub_")) {
+            return subscriptionService.verifySubscriptionPayment(params);
+        }
+
         Long paymentId = Long.parseLong(vnp_TxnRef);
+
         Payment payment = paymentRepository.findById(paymentId)
                 .orElseThrow(() -> new IllegalArgumentException("Giao dich khong ton tai: " + paymentId));
 
@@ -304,7 +311,12 @@ public class PaymentServiceImpl implements PaymentService {
                 return response;
             }
 
+            if (vnp_TxnRef.startsWith("sub_")) {
+                return subscriptionService.verifySubscriptionIpn(params);
+            }
+
             Long paymentId = Long.parseLong(vnp_TxnRef);
+
             Optional<Payment> paymentOpt = paymentRepository.findById(paymentId);
             if (paymentOpt.isEmpty()) {
                 response.put("RspCode", "01");
