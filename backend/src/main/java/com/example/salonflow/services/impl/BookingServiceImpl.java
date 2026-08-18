@@ -86,6 +86,8 @@ public class BookingServiceImpl implements BookingService {
     private final com.example.salonflow.services.service.LoyaltyPointService loyaltyPointService;
     private final com.example.salonflow.ai.service.NoShowPredictionService noShowPredictionService;
     private final ReviewRepository reviewRepository;
+    private final com.example.salonflow.services.service.InvoicePdfService invoicePdfService;
+    private final com.example.salonflow.services.service.EmailService emailService;
 
     @Override
     @Transactional
@@ -417,27 +419,7 @@ public class BookingServiceImpl implements BookingService {
     }
 
     private BigDecimal calculateDepositAmount(List<SalonService> services) {
-        BigDecimal depositAmount = BigDecimal.ZERO;
-
-        for (SalonService service : services) {
-            if (!Boolean.TRUE.equals(service.getDepositRequired())) {
-                continue;
-            }
-
-            BigDecimal depositPercentage = service.getDepositPercentage();
-            if (depositPercentage == null) {
-                throw new BusinessException(
-                        "Dịch vụ '" + service.getName() + "' đang bật deposit nhưng chưa có phần trăm cọc"
-                );
-            }
-
-            BigDecimal serviceDeposit = service.getPrice()
-                    .multiply(depositPercentage)
-                    .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-            depositAmount = depositAmount.add(serviceDeposit);
-        }
-
-        return depositAmount;
+        return BigDecimal.ZERO;
     }
 
     private void publishBookingCreatedEvent(Booking booking) {
@@ -668,7 +650,7 @@ public class BookingServiceImpl implements BookingService {
                     .endTime(endTime)
                     .preferredStaff(preferredStaff)
                     .assignedStaff(assignedStaff)
-                    .status(BookingStatus.PENDING)
+                    .status(BookingStatus.CONFIRMED)
                     .totalPrice(totalPrice)
                     .depositAmount(depositAmount)
                     .totalDurationMinutes(totalDuration)
@@ -700,6 +682,17 @@ public class BookingServiceImpl implements BookingService {
             booking.setItems(items);
 
             publishBookingCreatedEvent(booking);
+
+            // Generate invoice and send confirmation email directly since the booking is confirmed immediately
+            try {
+                String invoiceUrl = invoicePdfService.generateInvoice(booking);
+                booking.setInvoiceUrl(invoiceUrl);
+                emailService.sendInvoiceEmail(booking, invoiceUrl);
+                booking = bookingRepository.save(booking);
+                log.info("Invoice generated and confirmation email sent for booking ID: {}", booking.getId());
+            } catch (Exception ex) {
+                log.error("Failed to generate invoice or send confirmation email for booking ID: {}", booking.getId(), ex);
+            }
 
             try {
                 noShowPredictionService.predictAndSaveLog(booking);

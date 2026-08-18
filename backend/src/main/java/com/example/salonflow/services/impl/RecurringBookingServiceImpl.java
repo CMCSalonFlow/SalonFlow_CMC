@@ -196,7 +196,7 @@ public class RecurringBookingServiceImpl implements RecurringBookingService {
                     .startTime(startTime)
                     .endTime(endTime)
                     .slotKey(slotKey)
-                    .status(BookingStatus.PENDING)
+                    .status(BookingStatus.CONFIRMED)
                     .totalPrice(service.getPrice())
                     .totalDurationMinutes(service.getDurationMinutes())
                     .notes(request.getNote())
