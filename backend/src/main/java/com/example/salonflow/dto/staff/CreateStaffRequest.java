@@ -36,6 +36,8 @@ public class CreateStaffRequest {
     private String email;
 
     private String phone;
+
+    private String roleCode;
 }
 
 

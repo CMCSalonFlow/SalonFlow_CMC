@@ -30,6 +30,8 @@ public class UpdateStaffRequest {
 
     // Danh sách ID các dịch vụ được phép thực hiện
     private List<Long> serviceIds;
+
+    private String roleCode;
 }
 
 

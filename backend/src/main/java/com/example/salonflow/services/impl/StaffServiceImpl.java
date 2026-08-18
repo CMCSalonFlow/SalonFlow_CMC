@@ -86,9 +86,11 @@ public class StaffServiceImpl implements StaffService {
                 .build();
         user = userRepository.save(user);
 
-        // Gán role STAFF
-        Role staffRole = roleRepository.findByCode("STAFF")
-                .orElseThrow(() -> new ResourceNotFoundException("Role STAFF not found"));
+        // Gán role (STAFF hoặc MANAGER)
+        String roleToAssign = ("MANAGER".equalsIgnoreCase(request.getRoleCode())) ? "MANAGER" : "STAFF";
+        Role staffRole = roleRepository.findByCode(roleToAssign)
+                .orElseGet(() -> roleRepository.findByCode("STAFF")
+                        .orElseThrow(() -> new ResourceNotFoundException("Role not found")));
         UserRole userRole = UserRole.builder()
                 .id(new UserRoleId(user.getId(), staffRole.getId()))
                 .user(user)
@@ -185,13 +187,28 @@ public class StaffServiceImpl implements StaffService {
         staff.setBio(request.getBio());
         staff.setSpecialties(request.getSpecialties());
 
-        // Cập nhật tên của User liên kết để đồng bộ
+        // Cập nhật tên và role của User liên kết để đồng bộ
         if (staff.getUserId() != null) {
             User user = userRepository.findById(staff.getUserId())
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Không tìm thấy tài khoản người dùng liên kết với id: " + staff.getUserId()));
             user.setFullName(request.getName());
             userRepository.save(user);
+
+            if (request.getRoleCode() != null && !request.getRoleCode().isBlank()) {
+                String targetRoleCode = "MANAGER".equalsIgnoreCase(request.getRoleCode()) ? "MANAGER" : "STAFF";
+                Role newRole = roleRepository.findByCode(targetRoleCode).orElse(null);
+                if (newRole != null) {
+                    userRoleRepository.deleteByUser_Id(user.getId());
+                    UserRole userRole = UserRole.builder()
+                            .id(new UserRoleId(user.getId(), newRole.getId()))
+                            .user(user)
+                            .role(newRole)
+                            .assignedAt(LocalDateTime.now())
+                            .build();
+                    userRoleRepository.save(userRole);
+                }
+            }
         }
 
         // Cập nhật lại liên kết danh sách dịch vụ cho phép thực hiện
@@ -250,11 +267,19 @@ public class StaffServiceImpl implements StaffService {
 
         String email = null;
         String phone = null;
+        String roleCode = "STAFF";
         if (staff.getUserId() != null) {
             User user = userRepository.findById(staff.getUserId()).orElse(null);
             if (user != null) {
                 email = user.getEmail();
                 phone = user.getPhone();
+                if (user.getUserRoles() != null && !user.getUserRoles().isEmpty()) {
+                    boolean isManager = user.getUserRoles().stream()
+                            .anyMatch(ur -> ur.getRole() != null && "MANAGER".equalsIgnoreCase(ur.getRole().getCode()));
+                    if (isManager) {
+                        roleCode = "MANAGER";
+                    }
+                }
             }
         }
 
@@ -269,6 +294,7 @@ public class StaffServiceImpl implements StaffService {
                 .userId(staff.getUserId())
                 .email(email)
                 .phone(phone)
+                .roleCode(roleCode)
                 .build();
     }
 

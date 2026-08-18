@@ -42,5 +42,7 @@ public class StaffResponse {
     private String email;
 
     private String phone;
+
+    private String roleCode;
 }
 

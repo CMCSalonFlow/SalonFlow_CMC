@@ -140,7 +140,7 @@ public class BookingController {
     }
 
     @PostMapping("/api/v1/bookings/{bookingId}/checkin")
-    @PreAuthorize("hasRole('STAFF') or hasRole('SALON_OWNER') or hasRole('BRANCH_MANAGER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasRole('STAFF') or hasRole('MANAGER') or hasRole('SALON_OWNER') or hasRole('BRANCH_MANAGER') or hasRole('ADMIN') or hasRole('SUPER_ADMIN')")
     public ResponseEntity<CheckInBookingResponse> checkInBookingByQr(
             @PathVariable Long bookingId,
             @Valid @RequestBody CheckInBookingRequest request
