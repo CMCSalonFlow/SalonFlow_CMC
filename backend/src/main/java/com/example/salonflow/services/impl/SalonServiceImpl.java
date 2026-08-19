@@ -1,10 +1,13 @@
 package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.Salon.*;
+import com.example.salonflow.dto.audit.CreateAuditLogRequest;
 import com.example.salonflow.entity.*;
+import com.example.salonflow.entity.enums.AuditAction;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
+import com.example.salonflow.services.service.AuditLogService;
 import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.SalonService;
 import com.example.salonflow.util.SecurityUtil;
@@ -30,6 +33,7 @@ public class SalonServiceImpl implements SalonService {
         private final MediaFileRepository mediaFileRepository;
         private final SalonApprovalAuditRepository auditRepository;
         private final EmailService emailService;
+        private final AuditLogService auditLogService; // thêm
 
         @Override
         public SalonResponse create(CreateSalonRequest request) {
@@ -270,6 +274,16 @@ public class SalonServiceImpl implements SalonService {
                                 .build();
                 auditRepository.save(audit);
 
+                // Cách A: ghi audit log nghiệp vụ nhạy cảm
+                auditLogService.log(CreateAuditLogRequest.builder()
+                                .userId(adminUserId)
+                                .userEmail(admin.getEmail())
+                                .action(AuditAction.APPROVE)
+                                .resourceType("Salon")
+                                .resourceId(String.valueOf(salonId))
+                                .newValue("Salon '" + salon.getName() + "' được duyệt bởi admin " + admin.getEmail())
+                                .build());
+
                 try {
                         emailService.sendSalonApprovedEmail(
                                         salon.getOwner() != null ? salon.getOwner().getEmail() : salon.getEmail(),
@@ -304,6 +318,17 @@ public class SalonServiceImpl implements SalonService {
                                 .reason(reason)
                                 .build();
                 auditRepository.save(audit);
+
+                // Cách A: ghi audit log nghiệp vụ nhạy cảm
+                auditLogService.log(CreateAuditLogRequest.builder()
+                                .userId(adminUserId)
+                                .userEmail(admin.getEmail())
+                                .action(AuditAction.REJECT)
+                                .resourceType("Salon")
+                                .resourceId(String.valueOf(salonId))
+                                .oldValue("status=PENDING")
+                                .newValue("status=REJECTED, reason=" + reason)
+                                .build());
 
                 try {
                         emailService.sendSalonRejectedEmail(

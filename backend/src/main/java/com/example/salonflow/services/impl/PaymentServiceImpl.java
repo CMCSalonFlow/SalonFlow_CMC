@@ -1,14 +1,17 @@
 package com.example.salonflow.services.impl;
 
+import com.example.salonflow.dto.audit.CreateAuditLogRequest;
 import com.example.salonflow.dto.payment.CreatePaymentUrlRequest;
 import com.example.salonflow.dto.payment.PaymentResponse;
 import com.example.salonflow.entity.Booking;
 import com.example.salonflow.entity.Payment;
+import com.example.salonflow.entity.enums.AuditAction;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.entity.enums.PaymentMethod;
 import com.example.salonflow.entity.enums.PaymentStatus;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.PaymentRepository;
+import com.example.salonflow.services.service.AuditLogService;
 import com.example.salonflow.services.service.PaymentService;
 import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.InvoicePdfService;
@@ -42,6 +45,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final PaymentRepository paymentRepository;
     private final InvoicePdfService invoicePdfService;
     private final EmailService emailService;
+    private final AuditLogService auditLogService; // thêm
 
     @Value("${vnpay.tmn-code}")
     private String tmnCode;
@@ -381,7 +385,6 @@ public class PaymentServiceImpl implements PaymentService {
         if (ipAddress != null && ipAddress.contains(",")) {
             ipAddress = ipAddress.split(",")[0].trim();
         }
-        // Chuẩn hóa địa chỉ IPv6 localhost hoặc các IPv6 khác thành IPv4 127.0.0.1 để tránh lỗi chữ ký VNPay
         if ("0:0:0:0:0:0:0:1".equals(ipAddress) || (ipAddress != null && ipAddress.contains(":"))) {
             ipAddress = "127.0.0.1";
         }
@@ -524,6 +527,16 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setRefundedAt(Instant.now());
             payment.setStatus(PaymentStatus.REFUNDED);
             paymentRepository.save(payment);
+
+            // Cách A: ghi audit log nghiệp vụ nhạy cảm — refund
+            auditLogService.log(CreateAuditLogRequest.builder()
+                    .action(AuditAction.REFUND)
+                    .resourceType("Payment")
+                    .resourceId(String.valueOf(payment.getId()))
+                    .oldValue("status=SUCCESS, amount=" + payment.getAmount())
+                    .newValue("status=REFUNDED, refundAmount=" + refundAmount + ", reason=" + reason)
+                    .build());
+
             log.info("Refunded VNPay payment {} for booking {} with amount {}", payment.getId(), bookingId, refundAmount);
             return mapToResponse(payment);
         } catch (Exception e) {
@@ -604,7 +617,6 @@ public class PaymentServiceImpl implements PaymentService {
 
         BigDecimal cashAmount = request.getAmount() != null ? request.getAmount() : booking.getTotalPrice();
 
-        // Kiểm tra nếu đơn này đã được thanh toán tiền mặt thành công trước đó thì trả về thông tin đã có (Idempotent)
         java.util.Optional<Payment> existingOpt = paymentRepository.findByBookingId(booking.getId())
                 .stream()
                 .filter(p -> p.getPaymentMethod() == PaymentMethod.CASH && p.getStatus() == PaymentStatus.SUCCESS)

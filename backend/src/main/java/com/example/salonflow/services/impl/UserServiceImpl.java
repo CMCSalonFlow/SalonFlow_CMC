@@ -1,9 +1,12 @@
 package com.example.salonflow.services.impl;
 
+import com.example.salonflow.dto.audit.CreateAuditLogRequest;
 import com.example.salonflow.dto.user.*;
 import com.example.salonflow.entity.*;
+import com.example.salonflow.entity.enums.AuditAction;
 import com.example.salonflow.entity.enums.UserStatus;
 import com.example.salonflow.repository.*;
+import com.example.salonflow.services.service.AuditLogService;
 import com.example.salonflow.services.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,6 +24,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final UserRoleRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLogService; // thêm
 
     @Override
     public UserResponse createUser(UserCreateRequest request) {
@@ -78,7 +82,23 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public void deleteUser(Long userId) {
+        // Lấy thông tin user trước khi xoá để ghi vào log
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        String deletedEmail = user.getEmail();
+        String deletedFullName = user.getFullName();
+
         userRepository.deleteById(userId);
+
+        // Cách A: ghi audit log nghiệp vụ nhạy cảm — xoá tài khoản
+        auditLogService.log(CreateAuditLogRequest.builder()
+                .action(AuditAction.DELETE)
+                .resourceType("User")
+                .resourceId(String.valueOf(userId))
+                .oldValue("email=" + deletedEmail + ", fullName=" + deletedFullName)
+                .newValue("DELETED")
+                .build());
     }
 
     @Override
