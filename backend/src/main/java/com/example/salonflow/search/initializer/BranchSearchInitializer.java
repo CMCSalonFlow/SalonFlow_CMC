@@ -1,6 +1,7 @@
 package com.example.salonflow.search.initializer;
 
 import com.example.salonflow.search.document.BranchSearchDocument;
+import com.example.salonflow.search.service.BranchSearchService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -8,44 +9,50 @@ import org.springframework.context.event.EventListener;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.stereotype.Component;
-import org.springframework.data.elasticsearch.client.elc.NativeQuery;
+
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class BranchSearchInitializer {
 
     private final ElasticsearchOperations elasticsearchOperations;
-@EventListener(ApplicationReadyEvent.class)
-public void initializeIndex() {
+    private final BranchSearchService branchSearchService;
 
-    try {
+    @EventListener(ApplicationReadyEvent.class)
+    public void initializeIndex() {
 
-        log.info("=== initializeIndex() called ===");
+        try {
 
-        IndexOperations indexOperations =
-                elasticsearchOperations.indexOps(BranchSearchDocument.class);
+            log.info("=== initializeIndex() called ===");
 
-        boolean exists = indexOperations.exists();
-        log.info("Index exists: {}", exists);
+            IndexOperations indexOperations =
+                    elasticsearchOperations.indexOps(BranchSearchDocument.class);
 
-        if (!exists) {
+            boolean exists = indexOperations.exists();
+            log.info("Index exists: {}", exists);
 
-            boolean created = indexOperations.create();
-            log.info("Index created: {}", created);
+            if (!exists) {
 
-            boolean mapped = indexOperations.putMapping();
-            log.info("Mapping created: {}", mapped);
+                boolean created = indexOperations.create();
+                log.info("Index created: {}", created);
 
-        } else {
+                boolean mapped = indexOperations.putMapping();
+                log.info("Mapping created: {}", mapped);
 
-            log.info("Index already exists.");
+            } else {
+
+                log.info("Index already exists.");
+
+            }
+
+            log.info("Reindexing all branches to populate new search fields in Elasticsearch...");
+            branchSearchService.reindexAll();
+            log.info("Reindexing completed successfully.");
+
+        } catch (Exception e) {
+
+            log.error("Failed to initialize Elasticsearch index", e);
 
         }
-
-    } catch (Exception e) {
-
-        log.error("Failed to initialize Elasticsearch index", e);
-
     }
-}
 }

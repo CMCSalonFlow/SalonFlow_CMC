@@ -159,6 +159,9 @@ public class BranchSearchQueryServiceImpl implements BranchSearchQueryService {
         item.setMaxPrice(doc.getMaxPrice());
         item.setRating(doc.getAverageRating());
         item.setDistance(distance);
+        item.setLogoUrl(doc.getLogoUrl());
+        item.setPhone(doc.getPhone());
+        item.setRatingCount(doc.getRatingCount());
         return item;
     }
 

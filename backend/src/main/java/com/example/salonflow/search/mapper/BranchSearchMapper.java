@@ -62,6 +62,9 @@ public class BranchSearchMapper {
         document.setMaxPrice(maxPrice);
         document.setAverageRating(branch.getRatingAverage() != null ? branch.getRatingAverage().doubleValue() : 0d);
         document.setActive(branch.getIsActive());
+        document.setLogoUrl(branch.getSalon().getLogo() != null ? branch.getSalon().getLogo().getUrl() : null);
+        document.setPhone(branch.getPhone());
+        document.setRatingCount(branch.getRatingCount() != null ? branch.getRatingCount() : 0);
         return document;
     }
 

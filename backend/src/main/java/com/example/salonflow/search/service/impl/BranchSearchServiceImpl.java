@@ -10,11 +10,13 @@ import com.example.salonflow.search.repository.BranchSearchRepository;
 import com.example.salonflow.search.service.BranchSearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class BranchSearchServiceImpl implements BranchSearchService {
 
     private final BranchRepository branchRepository;
