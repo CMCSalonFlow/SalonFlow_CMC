@@ -58,6 +58,15 @@ public class BranchSearchDocument {
     @Field(type = FieldType.Boolean)
     private Boolean active;
 
+    @Field(type = FieldType.Keyword)
+    private String logoUrl;
+
+    @Field(type = FieldType.Keyword)
+    private String phone;
+
+    @Field(type = FieldType.Integer)
+    private Integer ratingCount = 0;
+
     public Long getBranchId() {
         return branchId;
     }
@@ -176,5 +185,29 @@ public class BranchSearchDocument {
 
     public void setActive(Boolean active) {
         this.active = active;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.logoUrl = logoUrl;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public Integer getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(Integer ratingCount) {
+        this.ratingCount = ratingCount;
     }
 }

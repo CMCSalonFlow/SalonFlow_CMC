@@ -15,6 +15,9 @@ public class BranchSearchItem {
     private BigDecimal maxPrice;
     private Double rating;
     private Double distance;
+    private String logoUrl;
+    private String phone;
+    private Integer ratingCount;
 
     public Long getBranchId() {
         return branchId;
@@ -102,5 +105,29 @@ public class BranchSearchItem {
 
     public void setDistance(Double distance) {
         this.distance = distance;
+    }
+
+    public String getLogoUrl() {
+        return logoUrl;
+    }
+
+    public void setLogoUrl(String logoUrl) {
+        this.logoUrl = logoUrl;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public Integer getRatingCount() {
+        return ratingCount;
+    }
+
+    public void setRatingCount(Integer ratingCount) {
+        this.ratingCount = ratingCount;
     }
 }
