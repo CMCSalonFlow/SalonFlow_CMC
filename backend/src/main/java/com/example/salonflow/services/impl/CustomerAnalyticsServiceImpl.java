@@ -231,6 +231,7 @@ public class CustomerAnalyticsServiceImpl implements CustomerAnalyticsService {
 
         String salonName = salon.getName() != null ? salon.getName() : "Salon";
         String segment = request.getSegmentType() != null ? request.getSegmentType().toUpperCase() : "AT_RISK";
+        String goal = request.getGoalDescription() != null ? request.getGoalDescription().trim() : "";
 
         List<CustomerSegmentDetailDto> segmentCustomers = buildCustomerMetricsList(salon.getId(), request.getBranchId())
                 .stream()
@@ -239,52 +240,111 @@ public class CustomerAnalyticsServiceImpl implements CustomerAnalyticsService {
 
         long targetCount = segmentCustomers.size();
 
-        return switch (segment) {
-            case "AT_RISK" -> AiCampaignSuggestionResponse.builder()
-                    .segmentType("AT_RISK")
-                    .campaignName("Chiến dịch khôi phục Khách hàng ngưng quay lại (" + targetCount + " khách)")
-                    .suggestedTitle(salonName + " rất nhớ bạn! Nhận ngay ưu đãi 20%")
-                    .suggestedMessage("Chào bạn! Đã hơn 60 ngày rồi " + salonName + " chưa được phục vụ bạn. Nhập ngay mã ưu đãi dành riêng cho bạn để tận hưởng phút giây thư giãn và làm mới bản thân nhé!")
-                    .discountType("PERCENTAGE")
-                    .discountValue(BigDecimal.valueOf(20))
-                    .minOrderAmount(BigDecimal.valueOf(200000))
-                    .maxDiscountAmount(BigDecimal.valueOf(100000))
-                    .strategyExplanation("Phân tích CSDL: Đã phát hiện " + targetCount + " khách hàng > 60 ngày chưa quay lại. Đề xuất ưu đãi 20% để kéo khách hàng tái kích hoạt.")
-                    .build();
-            case "VIP" -> AiCampaignSuggestionResponse.builder()
-                    .segmentType("VIP")
-                    .campaignName("Chiến dịch Tri ân Khách hàng VIP (" + targetCount + " khách)")
-                    .suggestedTitle("Đặc quyền Tri ân Khách hàng VIP tại " + salonName)
-                    .suggestedMessage("Trân trọng cảm ơn sự gắn kết đặc biệt của Quý khách! " + salonName + " dành tặng riêng Quý khách VIP voucher 150.000đ cho mọi dịch vụ chăm sóc cao cấp.")
-                    .discountType("FIXED")
-                    .discountValue(BigDecimal.valueOf(150000))
-                    .minOrderAmount(BigDecimal.valueOf(500000))
-                    .maxDiscountAmount(BigDecimal.valueOf(150000))
-                    .strategyExplanation("Phân tích CSDL: Đã ghi nhận " + targetCount + " khách hàng đạt cấp VIP. Đề xuất Voucher tri ân 150.000đ để giữ chân khách hàng cao cấp lâu dài.")
-                    .build();
-            case "NEW" -> AiCampaignSuggestionResponse.builder()
-                    .segmentType("NEW")
-                    .campaignName("Chiến dịch Chào mừng Khách mới quay lại (" + targetCount + " khách)")
-                    .suggestedTitle("Ưu đãi 15% cho lượt đặt lịch thứ 2 tại " + salonName)
-                    .suggestedMessage("Cảm ơn bạn đã lựa chọn trải nghiệm dịch vụ tại " + salonName + "! Nhận ngay ưu đãi 15% cho lượt đặt lịch tiếp theo để trải nghiệm trọn vẹn sự chăm sóc chu đáo.")
-                    .discountType("PERCENTAGE")
-                    .discountValue(BigDecimal.valueOf(15))
-                    .minOrderAmount(BigDecimal.valueOf(150000))
-                    .maxDiscountAmount(BigDecimal.valueOf(75000))
-                    .strategyExplanation("Phân tích CSDL: Hiện có " + targetCount + " khách mới vừa hoàn thành 1 dịch vụ. Đề xuất giảm 15% để khuyến khích đặt lần 2.")
-                    .build();
-            default -> AiCampaignSuggestionResponse.builder()
-                    .segmentType("RETURNING")
-                    .campaignName("Chiến dịch Nâng hạng VIP cho Khách quay lại (" + targetCount + " khách)")
-                    .suggestedTitle("Ưu đãi 10% - Tích điểm nâng hạng VIP cùng " + salonName)
-                    .suggestedMessage("Cảm ơn sự ủng hộ thường xuyên của bạn! Đặt lịch ngay hôm nay tại " + salonName + " để nhận thêm 10% giảm giá và tích lũy số lần đặt lịch nâng hạng VIP.")
-                    .discountType("PERCENTAGE")
-                    .discountValue(BigDecimal.valueOf(10))
-                    .minOrderAmount(BigDecimal.valueOf(200000))
-                    .maxDiscountAmount(BigDecimal.valueOf(50000))
-                    .strategyExplanation("Phân tích CSDL: Đã có " + targetCount + " khách hàng đặt 2-5 lần. Đề xuất giảm 10% thúc đẩy họ tích điểm thành khách VIP.")
-                    .build();
+        // 1. Xác định loại giảm và giá trị từ yêu cầu người dùng (hoặc mặc định theo segment)
+        String dType = request.getDiscountType() != null ? request.getDiscountType().toUpperCase() : null;
+        BigDecimal dValue = request.getDiscountValue();
+        BigDecimal minOrder = request.getMinOrderAmount();
+        BigDecimal maxDisc = request.getMaxDiscountAmount();
+
+        if (dType == null) {
+            dType = ("VIP".equals(segment)) ? "FIXED" : "PERCENTAGE";
+        }
+
+        if (dValue == null) {
+            switch (segment) {
+                case "VIP" -> dValue = BigDecimal.valueOf(150000);
+                case "NEW" -> dValue = BigDecimal.valueOf(15);
+                case "RETURNING" -> dValue = BigDecimal.valueOf(10);
+                default -> dValue = BigDecimal.valueOf(20); // AT_RISK
+            }
+        }
+
+        if (minOrder == null) {
+            switch (segment) {
+                case "VIP" -> minOrder = BigDecimal.valueOf(500000);
+                case "NEW" -> minOrder = BigDecimal.valueOf(150000);
+                default -> minOrder = BigDecimal.valueOf(200000);
+            }
+        }
+
+        // Format chuỗi giảm giá
+        String discountStr;
+        if ("FIXED".equalsIgnoreCase(dType) || ("PERCENT".equalsIgnoreCase(dType) && dValue.compareTo(BigDecimal.valueOf(100)) > 0)) {
+            dType = "FIXED";
+            discountStr = String.format("%,.0fđ", dValue);
+        } else {
+            dType = "PERCENTAGE";
+            discountStr = dValue.stripTrailingZeros().toPlainString() + "%";
+        }
+
+        String minOrderStr = (minOrder != null && minOrder.compareTo(BigDecimal.ZERO) > 0)
+                ? String.format("%,.0fđ", minOrder)
+                : null;
+
+        // 2. Xây dựng Tiêu đề & Nội dung linh hoạt theo yêu cầu nhập của người dùng
+        String campaignName;
+        String suggestedTitle;
+        String suggestedMessage;
+        String strategyExplanation;
+
+        String segmentTitleLabel = switch (segment) {
+            case "VIP" -> "Khách hàng VIP";
+            case "NEW" -> "Khách hàng Mới";
+            case "RETURNING" -> "Khách hàng Quay lại";
+            default -> "Khách ngưng quay lại (At-risk)";
         };
+
+        if (!goal.isBlank()) {
+            campaignName = "Chiến dịch: " + goal + " (" + targetCount + " " + segmentTitleLabel + ")";
+            suggestedTitle = salonName + " - " + goal;
+            suggestedMessage = "Chào bạn! " + salonName + " hân hạnh gửi tặng bạn chương trình: " + goal + ". Nhận ngay ưu đãi "
+                    + discountStr + (minOrderStr != null ? " áp dụng cho đơn từ " + minOrderStr : "")
+                    + "! Hãy đặt lịch ngay để được phục vụ chu đáo nhất nhé.";
+            strategyExplanation = "AI đã tạo thông điệp tiếp thị tùy chỉnh theo yêu cầu '" + goal + "' dành riêng cho " + targetCount + " " + segmentTitleLabel + ".";
+        } else {
+            switch (segment) {
+                case "VIP" -> {
+                    campaignName = "Chiến dịch Tri ân Khách hàng VIP (" + targetCount + " khách)";
+                    suggestedTitle = "Đặc quyền Tri ân Khách hàng VIP tại " + salonName;
+                    suggestedMessage = "Trân trọng cảm ơn sự gắn kết đặc biệt của Quý khách! " + salonName + " dành tặng riêng Quý khách VIP voucher "
+                            + discountStr + (minOrderStr != null ? " cho hóa đơn từ " + minOrderStr : "") + " cho các dịch vụ chăm sóc cao cấp.";
+                    strategyExplanation = "AI phân tích CSDL: Đã ghi nhận " + targetCount + " khách VIP. Đã tùy chỉnh thông điệp theo mức ưu đãi " + discountStr + ".";
+                }
+                case "NEW" -> {
+                    campaignName = "Chiến dịch Chào mừng Khách mới quay lại (" + targetCount + " khách)";
+                    suggestedTitle = "Ưu đãi " + discountStr + " cho lượt đặt lịch tiếp theo tại " + salonName;
+                    suggestedMessage = "Cảm ơn bạn đã trải nghiệm dịch vụ tại " + salonName + "! Nhận ngay ưu đãi "
+                            + discountStr + (minOrderStr != null ? " cho đơn từ " + minOrderStr : "") + " cho lần hẹn tiếp theo để trải nghiệm sự chăm sóc trọn vẹn.";
+                    strategyExplanation = "AI phân tích CSDL: Hiện có " + targetCount + " khách mới. Đề xuất ưu đãi " + discountStr + " để khuyến khích quay lại lần 2.";
+                }
+                case "RETURNING" -> {
+                    campaignName = "Chiến dịch Tri ân Khách hàng thân thiết (" + targetCount + " khách)";
+                    suggestedTitle = "Ưu đãi " + discountStr + " dành cho Khách hàng thân thiết " + salonName;
+                    suggestedMessage = "Cảm ơn sự ủng hộ thường xuyên của bạn! Đặt lịch ngay hôm nay tại " + salonName + " để nhận thêm ưu đãi "
+                            + discountStr + (minOrderStr != null ? " (Đơn từ " + minOrderStr + ")" : "") + ".";
+                    strategyExplanation = "AI phân tích CSDL: Đã có " + targetCount + " khách hàng quay lại. Tùy chỉnh thông điệp tri ân theo mức ưu đãi " + discountStr + ".";
+                }
+                default -> {
+                    campaignName = "Chiến dịch Khôi phục Khách hàng ngưng quay lại (" + targetCount + " khách)";
+                    suggestedTitle = salonName + " rất nhớ bạn! Nhận ngay ưu đãi " + discountStr;
+                    suggestedMessage = "Chào bạn! Đã lâu rồi " + salonName + " chưa được phục vụ bạn. Nhận ngay mã ưu đãi "
+                            + discountStr + (minOrderStr != null ? " cho đơn từ " + minOrderStr : "") + " để tận hưởng phút giây thư giãn và làm mới bản thân nhé!";
+                    strategyExplanation = "AI phân tích CSDL: Phát hiện " + targetCount + " khách hàng > 60 ngày chưa quay lại. Tự động tạo thông điệp khuyến khích tái kích hoạt với ưu đãi " + discountStr + ".";
+                }
+            }
+        }
+
+        return AiCampaignSuggestionResponse.builder()
+                .segmentType(segment)
+                .campaignName(campaignName)
+                .suggestedTitle(suggestedTitle)
+                .suggestedMessage(suggestedMessage)
+                .discountType(dType)
+                .discountValue(dValue)
+                .minOrderAmount(minOrder)
+                .maxDiscountAmount(maxDisc)
+                .strategyExplanation(strategyExplanation)
+                .build();
     }
 
     @Override
@@ -300,7 +360,18 @@ public class CustomerAnalyticsServiceImpl implements CustomerAnalyticsService {
                     .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh ID: " + request.getBranchId()));
         }
 
-        // 1. Tạo Voucher nếu được yêu cầu
+        // 1. Lấy danh sách khách hàng thuộc Segment
+        List<CustomerSegmentDetailDto> targetCustomers = buildCustomerMetricsList(salon.getId(), request.getBranchId())
+                .stream()
+                .filter(c -> request.getSegmentType().equalsIgnoreCase(c.getSegmentType()))
+                .toList();
+
+        int targetCount = Math.max(1, targetCustomers.size());
+        int limit = request.getUsageLimit() != null && request.getUsageLimit() > 0
+                ? request.getUsageLimit()
+                : targetCount;
+
+        // 2. Tạo Voucher nếu được yêu cầu
         Voucher createdVoucher = null;
         if (Boolean.TRUE.equals(request.getCreateVoucher())) {
             String code = request.getVoucherCode();
@@ -323,18 +394,12 @@ public class CustomerAnalyticsServiceImpl implements CustomerAnalyticsService {
                     .startDate(LocalDateTime.now())
                     .endDate(LocalDateTime.now().plusDays(validDays))
                     .isActive(true)
-                    .usageLimit(1000)
+                    .usageLimit(limit)
                     .usedCount(0)
                     .build();
 
             createdVoucher = voucherRepository.save(createdVoucher);
         }
-
-        // 2. Lấy danh sách khách hàng thuộc Segment
-        List<CustomerSegmentDetailDto> targetCustomers = buildCustomerMetricsList(salon.getId(), request.getBranchId())
-                .stream()
-                .filter(c -> request.getSegmentType().equalsIgnoreCase(c.getSegmentType()))
-                .toList();
 
         // 3. Tạo thông báo hàng loạt cho danh sách khách hàng
         String finalMessage = request.getMessageContent();

@@ -606,9 +606,27 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             }
         }
 
+        LocalDate calculatedFrom = fromDate;
+        LocalDate calculatedTo = toDate;
+
+        if ((calculatedFrom == null || calculatedTo == null) && !activeBookings.isEmpty()) {
+            calculatedFrom = activeBookings.stream()
+                    .map(Booking::getBookingDate)
+                    .filter(Objects::nonNull)
+                    .min(LocalDate::compareTo)
+                    .orElse(null);
+            calculatedTo = activeBookings.stream()
+                    .map(Booking::getBookingDate)
+                    .filter(Objects::nonNull)
+                    .max(LocalDate::compareTo)
+                    .orElse(null);
+        }
+
         return PeakHourHeatmapResponse.builder()
                 .salonId(salon.getId())
                 .branchId(branchId)
+                .fromDate(calculatedFrom)
+                .toDate(calculatedTo)
                 .totalBookingsAnalysed(totalAnalysed)
                 .maxBookingCount(maxCount)
                 .busiestDay(busiestDay)

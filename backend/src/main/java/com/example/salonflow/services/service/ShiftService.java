@@ -21,10 +21,14 @@ public interface ShiftService {
     // ── Áp dụng template vào tuần ─────────────────────────────
     List<ShiftResponse> applyTemplate(Long templateId, ApplyTemplateRequest request);
 
+    List<ShiftResponse> applyAllTemplatesForBranch(Long branchId, ApplyTemplateRequest request);
+
     // ── Query shifts ──────────────────────────────────────────
     List<ShiftResponse> getShiftsByUserAndWeek(Long userId, LocalDate weekStartDate);
 
     List<ShiftResponse> getShiftsByBranchAndDate(Long branchId, LocalDate date);
+
+    List<ShiftResponse> getShiftsByBranchAndRange(Long branchId, LocalDate startDate, LocalDate endDate);
 
     // ── Availability slots cho booking ────────────────────────
     List<AvailabilitySlotResponse> getAvailabilitySlots(Long branchId, LocalDate date);

@@ -33,9 +33,11 @@ public interface UserBranchRepository
 
         void deleteByBranch_Id(Long branchId);
         @Query("""
-        SELECT ub
+        SELECT DISTINCT ub
         FROM UserBranch ub
-        JOIN FETCH ub.user
+        JOIN FETCH ub.user u
+        LEFT JOIN FETCH u.userRoles ur
+        LEFT JOIN FETCH ur.role r
         WHERE ub.branch.id = :branchId
         """)
         List<UserBranch> findAllUsersByBranchId(

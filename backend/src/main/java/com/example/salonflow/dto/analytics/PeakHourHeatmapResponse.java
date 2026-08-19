@@ -5,6 +5,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Data
@@ -14,6 +15,8 @@ import java.util.List;
 public class PeakHourHeatmapResponse {
     private Long salonId;
     private Long branchId;
+    private LocalDate fromDate;
+    private LocalDate toDate;
     private long totalBookingsAnalysed;
     private long maxBookingCount;
     private String busiestDay;       // VD: "Thứ 7"

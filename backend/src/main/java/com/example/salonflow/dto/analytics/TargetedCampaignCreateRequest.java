@@ -35,4 +35,5 @@ public class TargetedCampaignCreateRequest {
     private BigDecimal minOrderAmount;
     private BigDecimal maxDiscountAmount;
     private Integer validDays; // Số ngày hiệu lực của voucher (ví dụ 14 ngày)
+    private Integer usageLimit; // Số lần dùng tối đa của voucher
 }

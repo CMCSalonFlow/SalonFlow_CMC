@@ -142,7 +142,10 @@ public class ShiftServiceImpl implements ShiftService {
                                 template.getUser().getId(),
                                 shiftDate
                         );
-                shiftRepository.deleteAll(existingShifts);
+                if (!existingShifts.isEmpty()) {
+                    shiftRepository.deleteAll(existingShifts);
+                    shiftRepository.flush();
+                }
             }
 
             Shift shift = Shift.builder()
@@ -159,6 +162,72 @@ public class ShiftServiceImpl implements ShiftService {
         }
 
         return createdShifts.stream()
+                .map(this::toShiftResponse)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public List<ShiftResponse> applyAllTemplatesForBranch(
+            Long branchId,
+            ApplyTemplateRequest request
+    ) {
+        findBranch(branchId);
+        List<ShiftTemplate> templates = templateRepository.findByBranchId(branchId);
+        if (templates.isEmpty()) {
+            return List.of();
+        }
+
+        LocalDate monday = request.getWeekStartDate()
+                .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate sunday = monday.plusDays(6);
+
+        if (request.isOverwrite()) {
+            List<Shift> existingShifts = shiftRepository
+                    .findByBranchIdAndShiftDateBetween(branchId, monday, sunday);
+            if (!existingShifts.isEmpty()) {
+                shiftRepository.deleteAll(existingShifts);
+                shiftRepository.flush();
+            }
+        }
+
+        List<Shift> shiftsToSave = new ArrayList<>();
+
+        for (ShiftTemplate template : templates) {
+            for (ShiftTemplateDetail detail : template.getDetails()) {
+                LocalDate shiftDate = monday.plusDays(detail.getDayOfWeek() - 1);
+
+                if (!request.isOverwrite()) {
+                    boolean hasOverlap = shiftRepository.existsOverlappingShift(
+                            template.getUser().getId(),
+                            template.getBranch().getId(),
+                            shiftDate,
+                            detail.getStartTime(),
+                            detail.getEndTime(),
+                            null
+                    );
+                    if (hasOverlap) {
+                        continue;
+                    }
+                }
+
+                Shift shift = Shift.builder()
+                        .user(template.getUser())
+                        .branch(template.getBranch())
+                        .template(template)
+                        .shiftDate(shiftDate)
+                        .startTime(detail.getStartTime())
+                        .endTime(detail.getEndTime())
+                        .status(ShiftStatus.SCHEDULED)
+                        .build();
+
+                shiftsToSave.add(shift);
+            }
+        }
+
+        List<Shift> savedShifts = shiftRepository.saveAll(shiftsToSave);
+
+        return savedShifts.stream()
                 .map(this::toShiftResponse)
                 .toList();
     }
@@ -184,6 +253,14 @@ public class ShiftServiceImpl implements ShiftService {
     @Override
     public List<ShiftResponse> getShiftsByBranchAndDate(Long branchId, LocalDate date) {
         return shiftRepository.findByBranchIdAndShiftDate(branchId, date)
+                .stream()
+                .map(this::toShiftResponse)
+                .toList();
+    }
+
+    @Override
+    public List<ShiftResponse> getShiftsByBranchAndRange(Long branchId, LocalDate startDate, LocalDate endDate) {
+        return shiftRepository.findByBranchIdAndShiftDateBetween(branchId, startDate, endDate)
                 .stream()
                 .map(this::toShiftResponse)
                 .toList();

@@ -88,6 +88,7 @@ public class BookingServiceImpl implements BookingService {
     private final ReviewRepository reviewRepository;
     private final com.example.salonflow.services.service.InvoicePdfService invoicePdfService;
     private final com.example.salonflow.services.service.EmailService emailService;
+    private final com.example.salonflow.services.service.SystemOffDayService systemOffDayService;
 
     @Override
     @Transactional
@@ -189,6 +190,11 @@ public class BookingServiceImpl implements BookingService {
         }
 
         if (totalDuration == 0) {
+            return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
+        }
+
+        // Kiểm tra xem chi nhánh / Salon có đóng cửa nghỉ lễ vào ngày này không
+        if (systemOffDayService != null && systemOffDayService.isBranchClosedOnDate(branchId, date)) {
             return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
         }
 
@@ -582,6 +588,10 @@ public class BookingServiceImpl implements BookingService {
         BigDecimal depositAmount = calculateDepositAmount(services);
 
         LocalTime endTime = startTime.plusMinutes(totalDuration);
+
+        if (systemOffDayService != null && systemOffDayService.isBranchClosedOnDate(branchId, bookingDate)) {
+            throw new BusinessException("Salon/Chi nhánh đóng cửa nghỉ lễ vào ngày " + bookingDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". Vui lòng chọn ngày khác!");
+        }
 
         int dbDayOfWeek = bookingDate.getDayOfWeek().getValue() == 7 ? 0 : bookingDate.getDayOfWeek().getValue();
         BranchHour branchHour = branchHourRepository.findByBranchIdAndDayOfWeek(branchId, dbDayOfWeek)

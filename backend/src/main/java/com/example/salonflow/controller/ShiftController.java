@@ -79,6 +79,15 @@ public class ShiftController {
                 shiftService.applyTemplate(templateId, request));
     }
 
+    @PostMapping("/branch/{branchId}/templates/apply-all")
+    public ResponseEntity<List<ShiftResponse>> applyAllTemplatesForBranch(
+            @PathVariable Long branchId,
+            @Valid @RequestBody ApplyTemplateRequest request
+    ) {
+        return ResponseEntity.ok(
+                shiftService.applyAllTemplatesForBranch(branchId, request));
+    }
+
     // ── Query shifts ────────────────────────────────────────────
 
     @GetMapping("/user/{userId}/week")
@@ -99,6 +108,18 @@ public class ShiftController {
     ) {
         return ResponseEntity.ok(
                 shiftService.getShiftsByBranchAndDate(branchId, date));
+    }
+
+    @GetMapping("/branch/{branchId}/range")
+    public ResponseEntity<List<ShiftResponse>> getShiftsByBranchAndRange(
+            @PathVariable Long branchId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate
+    ) {
+        return ResponseEntity.ok(
+                shiftService.getShiftsByBranchAndRange(branchId, startDate, endDate));
     }
 
     // ── Availability slots cho booking ──────────────────────────

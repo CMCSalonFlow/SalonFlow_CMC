@@ -162,23 +162,6 @@ public class BranchServiceImpl implements BranchService {
                 saveHours(saved, request.getHours());
 
                 branchSearchService.indexBranch(saved.getId());
-                User owner = userRepository
-                                .findById(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Owner not found"));
-
-                UserBranch userBranch = UserBranch.builder()
-                                .id(
-                                                new UserBranchId(
-                                                                owner.getId(),
-                                                                saved.getId()))
-                                .user(owner)
-                                .branch(saved)
-                                .assignedAt(
-                                                Instant.now())
-                                .build();
-
-                userBranchRepository.save(userBranch);
 
                 return mapToResponse(saved);
         }
@@ -353,6 +336,17 @@ public class BranchServiceImpl implements BranchService {
                 return userBranchRepository
                                 .findAllUsersByBranchId(branchId)
                                 .stream()
+                                .filter(userBranch -> {
+                                        User user = userBranch.getUser();
+                                        if (user == null) return false;
+                                        if (user.getUserRoles() == null || user.getUserRoles().isEmpty()) return true;
+                                        return user.getUserRoles().stream().noneMatch(ur -> {
+                                                if (ur.getRole() == null) return false;
+                                                String code = ur.getRole().getCode();
+                                                return "SALON_OWNER".equalsIgnoreCase(code)
+                                                        || "ROLE_SALON_OWNER".equalsIgnoreCase(code);
+                                        });
+                                })
                                 .map(userBranch -> {
 
                                         User user = userBranch.getUser();
