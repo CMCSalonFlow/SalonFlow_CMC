@@ -6,6 +6,7 @@ import com.example.salonflow.entity.Booking;
 import com.example.salonflow.entity.BookingItem;
 import com.example.salonflow.entity.Branch;
 import com.example.salonflow.entity.Salon;
+import com.example.salonflow.entity.User;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
@@ -28,17 +29,21 @@ public class InvoiceMapper {
         double total = subTotal + tax;
 
         String customerName = "Khách hàng";
-        String customerPhone = "";
+        String customerPhone = "Chưa cập nhật SĐT";
         if (booking.getCustomer() != null) {
-            if (booking.getCustomer().getFullName() != null && !booking.getCustomer().getFullName().isBlank()) {
-                customerName = booking.getCustomer().getFullName();
-            } else if (booking.getCustomer().getUsername() != null && !booking.getCustomer().getUsername().isBlank()) {
-                customerName = booking.getCustomer().getUsername();
-            } else if (booking.getCustomer().getEmail() != null) {
-                customerName = booking.getCustomer().getEmail();
+            User c = booking.getCustomer();
+            if (c.getFullName() != null && !c.getFullName().isBlank()) {
+                customerName = c.getFullName();
+            } else if (c.getUsername() != null && !c.getUsername().isBlank()) {
+                customerName = c.getUsername();
+            } else if (c.getEmail() != null) {
+                customerName = c.getEmail();
             }
-            if (booking.getCustomer().getPhone() != null) {
-                customerPhone = booking.getCustomer().getPhone();
+
+            if (c.getPhone() != null && !c.getPhone().isBlank()) {
+                customerPhone = c.getPhone();
+            } else if (c.getUsername() != null && c.getUsername().matches("^0[0-9]{9,10}$")) {
+                customerPhone = c.getUsername();
             }
         }
 

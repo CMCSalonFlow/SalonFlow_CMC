@@ -31,7 +31,7 @@ async function renderPdfWithPuppeteer(invoiceData, outputPath) {
     const salonPhone = invoiceData.salonPhone || "0900000000";
     const salonAddress = invoiceData.salonAddress || "Hà Nội, Việt Nam";
     const customerName = invoiceData.customerName || "Khách hàng";
-    const customerPhone = invoiceData.customerPhone || "N/A";
+    const customerPhone = (invoiceData.customerPhone && invoiceData.customerPhone.trim() !== '' && invoiceData.customerPhone !== 'N/A') ? invoiceData.customerPhone : "Chưa cập nhật SĐT";
     const bookingId = invoiceData.bookingId || "0";
     const bookingTime = invoiceData.bookingTime ? String(invoiceData.bookingTime).replace('T', ' ').substring(0, 16) : new Date().toLocaleDateString('vi-VN');
     

@@ -674,4 +674,77 @@ public class PaymentServiceImpl implements PaymentService {
                 .invoiceUrl(booking.getInvoiceUrl())
                 .build();
     }
+
+    @Override
+    @Transactional
+    public PaymentResponse autoConfirmBankTransfer(Long bookingId) {
+        Booking booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Booking ID: " + bookingId));
+
+        booking.setStatus(BookingStatus.COMPLETED);
+        booking = bookingRepository.save(booking);
+
+        BigDecimal amount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
+
+        Payment payment = Payment.builder()
+                .booking(booking)
+                .paymentMethod(PaymentMethod.BANK_TRANSFER)
+                .amount(amount)
+                .status(PaymentStatus.SUCCESS)
+                .idempotencyKey("vietqr_auto_" + booking.getId() + "_" + System.currentTimeMillis())
+                .gatewayTransactionId("VIETQR_" + System.currentTimeMillis())
+                .build();
+
+        payment = paymentRepository.save(payment);
+
+        try {
+            String invoiceUrl = invoicePdfService.generateInvoice(booking);
+            booking.setInvoiceUrl(invoiceUrl);
+            emailService.sendInvoiceEmail(booking, invoiceUrl);
+        } catch (Exception ex) {
+            log.error("Failed to generate invoice during auto confirm", ex);
+        }
+
+        log.info("Tự động xác nhận thanh toán Chuyển khoản VietQR cho Booking ID: {}", bookingId);
+
+        return PaymentResponse.builder()
+                .paymentId(payment.getId())
+                .bookingId(booking.getId())
+                .paymentMethod(PaymentMethod.BANK_TRANSFER)
+                .amount(payment.getAmount())
+                .status(PaymentStatus.SUCCESS)
+                .invoiceUrl(booking.getInvoiceUrl())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponse processSepayWebhook(Map<String, Object> payload) {
+        log.info("Nhận Webhook SePay / VietQR: {}", payload);
+        String content = payload != null ? String.valueOf(payload.getOrDefault("content", "")) : "";
+        Long bookingId = null;
+
+        if (content.contains("SF")) {
+            try {
+                String numericPart = content.replaceAll("[^0-9]", "");
+                if (!numericPart.isEmpty()) {
+                    bookingId = Long.parseLong(numericPart);
+                }
+            } catch (Exception e) {
+                log.error("Lỗi parse booking ID từ webhook content: {}", content, e);
+            }
+        }
+
+        if (bookingId == null && payload != null && payload.containsKey("bookingId")) {
+            try {
+                bookingId = Long.parseLong(payload.get("bookingId").toString());
+            } catch (Exception e) {}
+        }
+
+        if (bookingId != null) {
+            return autoConfirmBankTransfer(bookingId);
+        }
+
+        throw new IllegalArgumentException("Không thể tìm thấy Booking ID từ nội dung Webhook");
+    }
 }

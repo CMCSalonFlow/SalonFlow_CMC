@@ -19,6 +19,8 @@ import java.util.Locale;
 public class EmailServiceImpl implements EmailService {
 
     private final List<EmailProvider> emailProviders;
+    @org.springframework.context.annotation.Lazy
+    private final com.example.salonflow.services.service.MediaService mediaService;
 
     @Value("${mail.primary-provider:resend}")
     private String primaryProvider;
@@ -111,19 +113,32 @@ public class EmailServiceImpl implements EmailService {
             return;
         }
 
+        String downloadUrl = invoiceUrl;
+        if (downloadUrl != null && !downloadUrl.startsWith("http://") && !downloadUrl.startsWith("https://")) {
+            try {
+                downloadUrl = mediaService.getInvoiceUrl(invoiceUrl);
+            } catch (Exception e) {
+                log.error("Failed to generate presigned download URL for email invoice: {}", invoiceUrl, e);
+            }
+        }
+
         String subject = "Thanh toán thành công - SalonFlow";
         String body = """
                 <div style="font-family:Arial,Helvetica,sans-serif;padding:24px;color:#2c221d;">
-                  <h2>Cảm ơn bạn đã sử dụng SalonFlow</h2>
-                  <p>Thanh toán của bạn đã thành công.</p>
-                  <p><b>Mã lịch hẹn:</b> %d</p>
-                  <p><b>Tổng tiền:</b> %s VND</p>
-                  <p><a href="%s">Tải hóa đơn PDF</a></p>
+                  <h2 style="color:#10b981;margin-top:0;">Cảm ơn bạn đã sử dụng SalonFlow</h2>
+                  <p>Thanh toán của bạn đã hoàn tất thành công.</p>
+                  <p><b>Mã lịch hẹn:</b> #%d</p>
+                  <p><b>Tổng tiền thanh toán:</b> %s VND</p>
+                  <p style="margin-top:20px;">
+                    <a href="%s" target="_blank" style="background:#10b981;color:#ffffff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;font-weight:bold;">
+                      Tải hóa đơn PDF
+                    </a>
+                  </p>
                 </div>
                 """.formatted(
                 booking.getId(),
-                booking.getTotalPrice(),
-                invoiceUrl
+                booking.getTotalPrice() != null ? String.format("%,.0f", booking.getTotalPrice()) : "0",
+                downloadUrl
         );
 
         sendNotificationEmail(recipientEmail, subject, body);

@@ -111,7 +111,7 @@ public class InvoicePdfServiceImpl implements InvoicePdfService {
         String salonPhone = removeAccents(invoice.getSalonPhone() != null ? invoice.getSalonPhone() : "0900000000");
         String salonAddress = removeAccents(invoice.getSalonAddress() != null ? invoice.getSalonAddress() : "Ha Noi, Viet Nam");
         String customerName = removeAccents(invoice.getCustomerName() != null ? invoice.getCustomerName() : "Khach hang");
-        String customerPhone = removeAccents(invoice.getCustomerPhone() != null ? invoice.getCustomerPhone() : "");
+        String customerPhone = removeAccents(invoice.getCustomerPhone() != null && !invoice.getCustomerPhone().isBlank() ? invoice.getCustomerPhone() : "Chua cap nhat SDT");
         Long bookingId = invoice.getBookingId() != null ? invoice.getBookingId() : 0L;
         Double totalVal = invoice.getTotal() != null ? invoice.getTotal() : (invoice.getSubTotal() != null ? invoice.getSubTotal() : 0.0);
         String totalFormatted = String.format("%,.0f VND", totalVal);
@@ -126,7 +126,7 @@ public class InvoicePdfServiceImpl implements InvoicePdfService {
         linesList.add(String.format("  So Dien Thoai : %s", salonPhone));
         linesList.add("------------------------------------------------------------");
         linesList.add(String.format("  Khach Hang    : %s", customerName));
-        linesList.add(String.format("  SDT Khach     : %s", customerPhone.isBlank() ? "N/A" : customerPhone));
+        linesList.add(String.format("  SDT Khach     : %s", customerPhone));
         linesList.add("------------------------------------------------------------");
         linesList.add("  DANH SACH DICH VU SU DUNG:");
 

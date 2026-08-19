@@ -37,4 +37,14 @@ public interface PaymentService {
      * Xử lý thanh toán tiền mặt tại quầy (POS Mode) bỏ qua các cổng trực tuyến.
      */
     PaymentResponse processPosCashPayment(com.example.salonflow.dto.payment.PosCashPaymentRequest request);
+
+    /**
+     * Tự động xác nhận thanh toán chuyển khoản ngân hàng (VietQR / Bank Transfer).
+     */
+    PaymentResponse autoConfirmBankTransfer(Long bookingId);
+
+    /**
+     * Tiếp nhận và xử lý Webhook tự động từ SePay / Casso / Ngân hàng.
+     */
+    PaymentResponse processSepayWebhook(Map<String, Object> payload);
 }

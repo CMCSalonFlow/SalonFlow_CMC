@@ -72,4 +72,26 @@ public class PaymentController {
         PaymentResponse response = paymentService.processPosCashPayment(request);
         return ResponseEntity.ok(response);
     }
+
+    /**
+     * Endpoint nhận Webhook tự động từ SePay / Casso / Ngân hàng khi tiền về tài khoản.
+     */
+    @PostMapping("/sepay-webhook")
+    public ResponseEntity<PaymentResponse> handleSepayWebhook(
+            @RequestBody Map<String, Object> payload
+    ) {
+        PaymentResponse response = paymentService.processSepayWebhook(payload);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Endpoint tự động xác nhận chuyển khoản ngân hàng thành công cho Booking ID.
+     */
+    @PostMapping("/auto-confirm/{bookingId}")
+    public ResponseEntity<PaymentResponse> autoConfirmBankTransfer(
+            @PathVariable Long bookingId
+    ) {
+        PaymentResponse response = paymentService.autoConfirmBankTransfer(bookingId);
+        return ResponseEntity.ok(response);
+    }
 }

@@ -101,6 +101,22 @@ public class BookingServiceImpl implements BookingService {
             customer = getCurrentUser();
         }
 
+        if (request.getCustomerPhone() != null && !request.getCustomerPhone().isBlank()) {
+            String phone = request.getCustomerPhone().trim();
+            if (customer.getPhone() == null || customer.getPhone().isBlank() || !customer.getPhone().equals(phone)) {
+                customer.setPhone(phone);
+                customer = userRepository.save(customer);
+            }
+        }
+
+        if (request.getCustomerName() != null && !request.getCustomerName().isBlank()) {
+            String name = request.getCustomerName().trim();
+            if (customer.getFullName() == null || customer.getFullName().isBlank()) {
+                customer.setFullName(name);
+                customer = userRepository.save(customer);
+            }
+        }
+
         return createBookingInternal(
                 branchId,
                 customer,
@@ -389,11 +405,15 @@ public class BookingServiceImpl implements BookingService {
             reviewedAt = LocalDateTime.now();
         }
 
+        String customerPhone = (booking.getCustomer() != null && booking.getCustomer().getPhone() != null && !booking.getCustomer().getPhone().isBlank())
+                ? booking.getCustomer().getPhone()
+                : ((booking.getCustomer() != null && booking.getCustomer().getUsername() != null && booking.getCustomer().getUsername().matches("^0[0-9]{9,10}$")) ? booking.getCustomer().getUsername() : null);
+
         return BookingResponse.builder()
                 .id(booking.getId())
                 .customerId(booking.getCustomer().getId())
                 .customerName(booking.getCustomer().getFullName())
-                .customerPhone(booking.getCustomer().getPhone())
+                .customerPhone(customerPhone)
                 .branchId(booking.getBranch().getId())
                 .branchName(booking.getBranch().getName())
                 .bookingDate(booking.getBookingDate())
@@ -741,7 +761,12 @@ public class BookingServiceImpl implements BookingService {
         if (request.getCustomerEmail() != null && !request.getCustomerEmail().isBlank()) {
             Optional<User> byEmail = userRepository.findByEmail(request.getCustomerEmail().trim());
             if (byEmail.isPresent()) {
-                return byEmail.get();
+                User u = byEmail.get();
+                if (!phoneStr.isBlank() && (u.getPhone() == null || u.getPhone().isBlank())) {
+                    u.setPhone(phoneStr);
+                    u = userRepository.save(u);
+                }
+                return u;
             }
         }
 

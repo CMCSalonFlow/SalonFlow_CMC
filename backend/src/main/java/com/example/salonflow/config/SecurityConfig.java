@@ -90,7 +90,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/branches/*/staff/public").permitAll()
                         .requestMatchers("/api/v1/branches/*/staff/*/availability").permitAll()
                         .requestMatchers("/api/v1/branches/*/guest-bookings").permitAll()
-                        .requestMatchers("/api/v1/payments/vnpay-callback", "/api/v1/payments/vnpay-ipn").permitAll()
+                        .requestMatchers("/api/v1/payments/vnpay-callback", "/api/v1/payments/vnpay-ipn", "/api/v1/payments/sepay-webhook", "/api/v1/payments/auto-confirm/**").permitAll()
                         .requestMatchers("/api/v1/subscriptions/webhook").permitAll()
 
                         // media upload (tuỳ bạn có thể đổi authenticated)
