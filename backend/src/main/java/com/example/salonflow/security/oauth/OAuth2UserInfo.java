@@ -24,7 +24,6 @@ public record OAuth2UserInfo(
 
         return switch (provider) {
             case GOOGLE -> google(user);
-            case FACEBOOK -> facebook(user);
         };
     }
 
@@ -37,31 +36,6 @@ public record OAuth2UserInfo(
                 user.getAttribute("name"),
                 user.getAttribute("picture"),
                 user.getAttribute("email_verified")
-        );
-    }
-
-    @SuppressWarnings("unchecked")
-    private static OAuth2UserInfo facebook(OAuth2User user) {
-
-        String avatarUrl = null;
-        Map<String, Object> picture = user.getAttribute("picture");
-
-        if (picture != null) {
-            Object data = picture.get("data");
-
-            if (data instanceof Map<?, ?> dataMap) {
-                Object url = dataMap.get("url");
-                avatarUrl = url == null ? null : url.toString();
-            }
-        }
-
-        return new OAuth2UserInfo(
-                OAuthProvider.FACEBOOK,
-                user.getAttribute("id"),
-                user.getAttribute("email"),
-                user.getAttribute("name"),
-                avatarUrl,
-                null
         );
     }
 }
