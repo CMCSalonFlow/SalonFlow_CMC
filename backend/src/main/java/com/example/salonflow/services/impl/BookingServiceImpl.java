@@ -260,9 +260,7 @@ public class BookingServiceImpl implements BookingService {
         java.util.Map<Long, List<Shift>> staffShiftsMap = new java.util.HashMap<>();
 
         for (Staff staff : qualifiedStaff) {
-            boolean isOff = staffOffDayRepository.existsByStaffIdAndDateFromLessThanEqualAndDateToGreaterThanEqual(
-                    staff.getId(), date, date
-            );
+            boolean isOff = staffOffDayRepository != null && staffOffDayRepository.isStaffApprovedOffOnDate(staff.getId(), date);
             staffOffDaysMap.put(staff.getId(), isOff);
 
             if (!isOff && staff.getUserId() != null) {
@@ -613,6 +611,10 @@ public class BookingServiceImpl implements BookingService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Không tìm thấy nhân viên với id: " + preferredStaffId + " tại chi nhánh này"));
 
+            if (staffOffDayRepository != null && staffOffDayRepository.isStaffApprovedOffOnDate(preferredStaffId, bookingDate)) {
+                throw new BusinessException("Nhân viên " + preferredStaff.getName() + " đã xin nghỉ phép vào ngày " + bookingDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". Vui lòng chọn nhân viên khác hoặc ngày khác!");
+            }
+
             if (!isStaffQualified(preferredStaff, services)) {
                 throw new BusinessException("Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện một số dịch vụ đã chọn");
             }
@@ -636,6 +638,9 @@ public class BookingServiceImpl implements BookingService {
 
             List<Staff> availableStaff = new ArrayList<>();
             for (Staff staff : qualifiedStaff) {
+                if (staffOffDayRepository != null && staffOffDayRepository.isStaffApprovedOffOnDate(staff.getId(), bookingDate)) {
+                    continue;
+                }
                 List<Booking> overlapping = bookingRepository.findOverlappingBookings(
                         staff.getId(), bookingDate, startTime, endTime, activeStatuses);
                 if (overlapping.isEmpty()) {

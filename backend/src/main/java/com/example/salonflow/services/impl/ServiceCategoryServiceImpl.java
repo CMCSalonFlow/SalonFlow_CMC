@@ -5,6 +5,7 @@ import com.example.salonflow.dto.category.CreateCategoryRequest;
 import com.example.salonflow.dto.category.UpdateCategoryRequest;
 import com.example.salonflow.entity.MediaFile;
 import com.example.salonflow.entity.ServiceCategory;
+import com.example.salonflow.exception.BadRequestException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.MediaFileRepository;
 import com.example.salonflow.repository.ServiceCategoryRepository;
@@ -23,6 +24,9 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
 
     @Override
     public CategoryResponse create(CreateCategoryRequest request) {
+        if (request.getName() != null && repository.existsByNameIgnoreCase(request.getName().trim())) {
+            throw new BadRequestException("Tên danh mục '" + request.getName().trim() + "' đã tồn tại trong hệ thống. Vui lòng chọn tên khác!");
+        }
 
         Integer maxOrder = repository.findMaxDisplayOrder();
         int newOrder = (maxOrder != null) ? maxOrder + 1 : 0;
@@ -32,11 +36,11 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
         if (request.getIconMediaId() != null) {
             icon = mediaRepository.findById(request.getIconMediaId())
                     .orElseThrow(() ->
-                            new ResourceNotFoundException("Icon media not found"));
+                            new ResourceNotFoundException("Icon media không tồn tại"));
         }
 
         ServiceCategory category = ServiceCategory.builder()
-                .name(request.getName())
+                .name(request.getName().trim())
                 .icon(icon)
                 .color(request.getColor())
                 .description(request.getDescription())
@@ -71,15 +75,19 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Category not found with id: " + id));
 
+        if (request.getName() != null && repository.existsByNameIgnoreCaseAndIdNot(request.getName().trim(), id)) {
+            throw new BadRequestException("Tên danh mục '" + request.getName().trim() + "' đã tồn tại trong hệ thống. Vui lòng chọn tên khác!");
+        }
+
         MediaFile icon = null;
 
         if (request.getIconMediaId() != null) {
             icon = mediaRepository.findById(request.getIconMediaId())
                     .orElseThrow(() ->
-                            new ResourceNotFoundException("Icon media not found"));
+                            new ResourceNotFoundException("Icon media không tồn tại"));
         }
 
-        category.setName(request.getName());
+        category.setName(request.getName().trim());
         category.setIcon(icon);
         category.setColor(request.getColor());
         category.setDescription(request.getDescription());
