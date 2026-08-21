@@ -1,6 +1,7 @@
 package com.example.salonflow.repository;
 
 import com.example.salonflow.entity.Review;
+import com.example.salonflow.entity.enums.ReviewSentiment;
 import com.example.salonflow.entity.enums.ReviewSentimentStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -77,14 +78,24 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, JpaSpecif
                                                @Param("from") Instant from,
                                                @Param("to") Instant to);
 
-    // 2) Top reviews tích cực / tiêu cực
-    Page<Review> findBySalonIdAndIsHiddenFalseOrderByRatingDescCreatedAtDesc(Long salonId, Pageable pageable);
+    // 2) Top reviews tích cực / tiêu cực - dùng AI sentiment (US-045 update)
+    @Query("SELECT r FROM Review r WHERE r.salon.id = :salonId " +
+            "AND (r.isHidden IS FALSE OR r.isHidden IS NULL) " +
+            "AND r.sentiment = :sentiment " +
+            "AND r.sentimentStatus = com.example.salonflow.entity.enums.ReviewSentimentStatus.COMPLETED " +
+            "ORDER BY r.sentimentConfidence DESC NULLS LAST, r.createdAt DESC")
+    Page<Review> findTopBySentimentAndSalonId(@Param("salonId") Long salonId,
+                                               @Param("sentiment") ReviewSentiment sentiment,
+                                               Pageable pageable);
 
-    Page<Review> findBySalonIdAndIsHiddenFalseOrderByRatingAscCreatedAtDesc(Long salonId, Pageable pageable);
-
-    Page<Review> findByBranchIdAndIsHiddenFalseOrderByRatingDescCreatedAtDesc(Long branchId, Pageable pageable);
-
-    Page<Review> findByBranchIdAndIsHiddenFalseOrderByRatingAscCreatedAtDesc(Long branchId, Pageable pageable);
+    @Query("SELECT r FROM Review r WHERE r.branch.id = :branchId " +
+            "AND (r.isHidden IS FALSE OR r.isHidden IS NULL) " +
+            "AND r.sentiment = :sentiment " +
+            "AND r.sentimentStatus = com.example.salonflow.entity.enums.ReviewSentimentStatus.COMPLETED " +
+            "ORDER BY r.sentimentConfidence DESC NULLS LAST, r.createdAt DESC")
+    Page<Review> findTopBySentimentAndBranchId(@Param("branchId") Long branchId,
+                                                @Param("sentiment") ReviewSentiment sentiment,
+                                                Pageable pageable);
 
     // 3) So sánh rating giữa các chi nhánh trong 1 salon
     @Query("SELECT r.branch.id, r.branch.name, AVG(r.rating), COUNT(r) " +

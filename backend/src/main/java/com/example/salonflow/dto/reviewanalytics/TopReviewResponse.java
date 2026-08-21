@@ -6,6 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 
 @Getter
@@ -28,6 +29,8 @@ public class TopReviewResponse {
     private String comment;
 
     private String sentiment;
+
+    private BigDecimal sentimentConfidence;
 
     private String branchName;
 
