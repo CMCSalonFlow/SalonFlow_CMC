@@ -555,6 +555,17 @@ public class BookingServiceImpl implements BookingService {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
 
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+        
+        if (bookingDate.isBefore(today)) {
+            throw new BusinessException("Không thể đặt lịch cho ngày trong quá khứ");
+        }
+        
+        if (bookingDate.equals(today) && startTime.isBefore(now)) {
+            throw new BusinessException("Thời gian đặt lịch không hợp lệ vì đã qua thời điểm hiện tại");
+        }
+
         BigDecimal totalPrice = BigDecimal.ZERO;
         int totalDuration = 0;
         List<SalonService> services = new ArrayList<>();

@@ -58,7 +58,7 @@ services:
       retries: 5
 
   postgres:
-    image: postgres:16
+    image: postgis/postgis:16-3.4-alpine
     container_name: postgres
     restart: unless-stopped
     environment:
@@ -81,6 +81,31 @@ services:
       - "8001:8000"
     volumes:
       - forecast_models:/app/models
+    networks:
+      - salon-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: salonflow-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+      - elasticsearch
+    env_file:
+      - .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_URL=jdbc:postgresql://postgres:5432/salonflow
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_HOST=redis
+      - ELASTICSEARCH_URI=http://elasticsearch:9200
+      - MINIO_ENDPOINT=http://minio:9000
     networks:
       - salon-network
 
