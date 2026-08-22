@@ -87,11 +87,11 @@ public class SmartSchedulingServiceImpl implements SmartSchedulingService {
         LocalTime openTime = branchHour.getOpenTime();
         LocalTime closeTime = branchHour.getCloseTime();
 
-        // 3. Lấy cấu hình trọng số AI
+        // 3. Sử dụng công thức trọng số cố định cho AI Smart Scheduling (0.4 / 0.3 / 0.3)
         SmartSchedulingConfig config = getActiveConfig(request.getBranchId());
-        double wWorkload = config.getWorkloadWeight().doubleValue();
-        double wTravel = config.getTravelWeight().doubleValue();
-        double wServiceFit = config.getServiceFitWeight().doubleValue();
+        double wWorkload = 0.4;
+        double wTravel = 0.3;
+        double wServiceFit = 0.3;
 
         // 4. Lấy danh sách nhân viên chi nhánh & lọc nhân viên đủ tay nghề
         List<Staff> staffList = staffRepository.findByBranchId(request.getBranchId());
