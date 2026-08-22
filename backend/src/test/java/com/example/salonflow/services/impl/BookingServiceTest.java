@@ -208,12 +208,13 @@ class BookingServiceTest {
                 when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
 
                 // Giả lập tính toán giá và tiền cọc
-                when(bookingPricingService.calculatePricing(any())).thenReturn(
+                when(bookingPricingService.calculate(any(), any(), any())).thenReturn(
                                 BookingPricingResult.builder()
                                                 .totalPrice(BigDecimal.valueOf(80000.00))
                                                 .depositAmount(BigDecimal.valueOf(8000.00))
-                                                .depositRequired(true)
-                                                .pricingTier("STANDARD")
+                                                .remainingAmount(BigDecimal.valueOf(72000.00))
+                                                .totalDurationMinutes(30)
+                                                .services(List.of(service1))
                                                 .build());
 
                 // Giả lập không có lịch trùng của nhân sự này
