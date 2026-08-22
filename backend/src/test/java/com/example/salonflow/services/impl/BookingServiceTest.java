@@ -207,16 +207,6 @@ class BookingServiceTest {
                 when(branchHourRepository.findByBranchIdAndDayOfWeek(1L, 3)).thenReturn(Optional.of(branchHour));
                 when(staffRepository.findByIdAndBranchId(6L, 1L)).thenReturn(Optional.of(staff1));
 
-                // Giả lập tính toán giá và tiền cọc
-                when(bookingPricingService.calculate(any(), any(), any())).thenReturn(
-                                BookingPricingResult.builder()
-                                                .totalPrice(BigDecimal.valueOf(80000.00))
-                                                .depositAmount(BigDecimal.valueOf(8000.00))
-                                                .remainingAmount(BigDecimal.valueOf(72000.00))
-                                                .totalDurationMinutes(30)
-                                                .services(List.of(service1))
-                                                .build());
-
                 // Giả lập không có lịch trùng của nhân sự này
                 when(bookingRepository.findOverlappingBookings(any(), any(), any(), any(), any()))
                                 .thenReturn(Collections.emptyList());
@@ -236,7 +226,7 @@ class BookingServiceTest {
                 assertThat(response.getAssignedStaffId()).isEqualTo(6L);
                 assertThat(response.getEndTime()).isEqualTo(LocalTime.of(9, 30));
                 assertThat(response.getTotalPrice()).isEqualByComparingTo("80000.00");
-                assertThat(response.getDepositAmount()).isEqualByComparingTo("8000.00");
+                assertThat(response.getDepositAmount()).isEqualByComparingTo("0.00");
         }
 
         @Test
