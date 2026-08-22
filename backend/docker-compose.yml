@@ -57,21 +57,6 @@ services:
       timeout: 10s
       retries: 5
 
-  postgres:
-    image: postgres:16
-    container_name: postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: salonflow
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - salon-network
-
   forecast-service:
     build:
       context: ./forecast-service
