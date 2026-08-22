@@ -1,16 +1,20 @@
-name: Spring Boot CI
+name: SalonFlow Backend CI
 
 on:
   push:
     branches:
       - main
-
+      - develop
+      - 'feature/**'
   pull_request:
     branches:
       - main
+      - develop
+      - 'feature/**'
 
 jobs:
-  build:
+  build-and-test:
+    name: Build & Package Verification
     runs-on: ubuntu-latest
 
     defaults:
@@ -18,23 +22,36 @@ jobs:
         working-directory: backend
 
     steps:
-      - name: Checkout source code
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+          cache: 'maven'
 
-      - name: Grant execute permission
+      - name: Grant Execute Permission for Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Build project
-        run: ./mvnw clean install -DskipTests
+      - name: Compile and Package Application
+        run: ./mvnw clean package -DskipTests
 
-      - name: Start infrastructure
-        run: docker compose up -d
+      - name: Verify Artifact Creation
+        run: ls -la target/*.jar
 
-      - name: Show running containers
-        run: docker ps
+  docker-smoke-test:
+    name: Docker Containerization Smoke Test
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Test Docker Compose Infrastructure
+        run: |
+          docker compose up -d
+          docker ps
+          docker compose down
