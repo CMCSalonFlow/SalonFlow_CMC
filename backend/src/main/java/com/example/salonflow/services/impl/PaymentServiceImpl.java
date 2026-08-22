@@ -1,14 +1,17 @@
 package com.example.salonflow.services.impl;
 
+import com.example.salonflow.dto.audit.CreateAuditLogRequest;
 import com.example.salonflow.dto.payment.CreatePaymentUrlRequest;
 import com.example.salonflow.dto.payment.PaymentResponse;
 import com.example.salonflow.entity.Booking;
 import com.example.salonflow.entity.Payment;
+import com.example.salonflow.entity.enums.AuditAction;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.entity.enums.PaymentMethod;
 import com.example.salonflow.entity.enums.PaymentStatus;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.PaymentRepository;
+import com.example.salonflow.services.service.AuditLogService;
 import com.example.salonflow.services.service.PaymentService;
 import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.InvoicePdfService;
@@ -43,7 +46,7 @@ public class PaymentServiceImpl implements PaymentService {
     private final InvoicePdfService invoicePdfService;
     private final EmailService emailService;
     private final com.example.salonflow.services.service.SubscriptionService subscriptionService;
-
+    private final AuditLogService auditLogService; // thêm
 
     @Value("${vnpay.tmn-code}")
     private String tmnCode;
@@ -73,7 +76,8 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         Booking booking = bookingRepository.findById(request.getBookingId())
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay lich hen voi ID: " + request.getBookingId()));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Khong tim thay lich hen voi ID: " + request.getBookingId()));
 
         if (booking.getStatus() == BookingStatus.COMPLETED || booking.getStatus() == BookingStatus.CANCELLED) {
             throw new IllegalStateException("Khong the thanh toan cho lich hen o trang thai: " + booking.getStatus());
@@ -83,7 +87,8 @@ public class PaymentServiceImpl implements PaymentService {
                 .findByBookingId(booking.getId())
                 .stream()
                 .anyMatch(payment -> payment.getPaymentMethod() == request.getPaymentMethod()
-                        && (payment.getStatus() == PaymentStatus.SUCCESS || payment.getStatus() == PaymentStatus.REFUNDED));
+                        && (payment.getStatus() == PaymentStatus.SUCCESS
+                                || payment.getStatus() == PaymentStatus.REFUNDED));
         if (alreadyPaid) {
             throw new IllegalStateException("Lich hen nay da duoc thanh toan thanh cong");
         }
@@ -103,7 +108,8 @@ public class PaymentServiceImpl implements PaymentService {
 
         if (request.getPaymentMethod() == PaymentMethod.VNPAY) {
             try {
-                HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+                HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder
+                        .currentRequestAttributes()).getRequest();
                 String clientIp = getClientIp(servletRequest);
 
                 String vnp_Version = "2.1.0";
@@ -167,7 +173,8 @@ public class PaymentServiceImpl implements PaymentService {
     @Transactional(readOnly = true)
     public PaymentResponse getPaymentStatus(Long bookingId) {
         Payment payment = paymentRepository.findFirstByBookingIdOrderByCreatedAtDesc(bookingId)
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay giao dich thanh toan cho Booking ID: " + bookingId));
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Khong tim thay giao dich thanh toan cho Booking ID: " + bookingId));
         return mapToResponse(payment);
     }
 
@@ -184,7 +191,8 @@ public class PaymentServiceImpl implements PaymentService {
         for (Map.Entry<String, String> entry : params.entrySet()) {
             String key = entry.getKey();
             String value = entry.getValue();
-            if (value != null && !value.isEmpty() && !key.equals("vnp_SecureHash") && !key.equals("vnp_SecureHashType")) {
+            if (value != null && !value.isEmpty() && !key.equals("vnp_SecureHash")
+                    && !key.equals("vnp_SecureHashType")) {
                 fields.put(key, value);
             }
         }
@@ -242,7 +250,7 @@ public class PaymentServiceImpl implements PaymentService {
                 } catch (Exception ex) {
                     log.error("Generate invoice failed", ex);
                 }
-                
+
             } else {
                 payment.setStatus(PaymentStatus.FAILED);
                 booking.setStatus(BookingStatus.CANCELLED);
@@ -283,7 +291,8 @@ public class PaymentServiceImpl implements PaymentService {
             for (Map.Entry<String, String> entry : params.entrySet()) {
                 String key = entry.getKey();
                 String value = entry.getValue();
-                if (value != null && !value.isEmpty() && !key.equals("vnp_SecureHash") && !key.equals("vnp_SecureHashType")) {
+                if (value != null && !value.isEmpty() && !key.equals("vnp_SecureHash")
+                        && !key.equals("vnp_SecureHashType")) {
                     fields.put(key, value);
                 }
             }
@@ -393,7 +402,6 @@ public class PaymentServiceImpl implements PaymentService {
         if (ipAddress != null && ipAddress.contains(",")) {
             ipAddress = ipAddress.split(",")[0].trim();
         }
-        // Chuẩn hóa địa chỉ IPv6 localhost hoặc các IPv6 khác thành IPv4 127.0.0.1 để tránh lỗi chữ ký VNPay
         if ("0:0:0:0:0:0:0:1".equals(ipAddress) || (ipAddress != null && ipAddress.contains(":"))) {
             ipAddress = "127.0.0.1";
         }
@@ -454,9 +462,9 @@ public class PaymentServiceImpl implements PaymentService {
                 .findFirstByBookingIdAndPaymentMethodAndStatusOrderByCreatedAtDesc(
                         bookingId,
                         PaymentMethod.VNPAY,
-                        PaymentStatus.SUCCESS
-                )
-                .orElseThrow(() -> new IllegalArgumentException("Khong tim thay giao dich VNPay da thanh toan cho booking " + bookingId));
+                        PaymentStatus.SUCCESS)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Khong tim thay giao dich VNPay da thanh toan cho booking " + bookingId));
 
         if (refundAmount.compareTo(payment.getAmount()) > 0) {
             throw new IllegalArgumentException("So tien hoan khong duoc lon hon so tien da thanh toan");
@@ -486,7 +494,8 @@ public class PaymentServiceImpl implements PaymentService {
         payload.put("vnp_TmnCode", tmnCode);
         payload.put("vnp_TransactionType", "02");
         payload.put("vnp_TxnRef", txnRef);
-        payload.put("vnp_Amount", refundAmount.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).toPlainString());
+        payload.put("vnp_Amount",
+                refundAmount.multiply(BigDecimal.valueOf(100)).setScale(0, RoundingMode.HALF_UP).toPlainString());
         payload.put("vnp_OrderInfo", buildRefundOrderInfo(payment, reason));
         payload.put("vnp_TransactionNo", transactionNo);
         payload.put("vnp_TransactionDate", originalTransactionDate);
@@ -515,15 +524,13 @@ public class PaymentServiceImpl implements PaymentService {
             String responseCode = firstNonBlank(
                     stringValue(response.get("vnp_ResponseCode")),
                     stringValue(response.get("RspCode")),
-                    stringValue(response.get("ResponseCode"))
-            );
+                    stringValue(response.get("ResponseCode")));
 
             if (!"00".equals(responseCode)) {
                 String message = firstNonBlank(
                         stringValue(response.get("vnp_Message")),
                         stringValue(response.get("Message")),
-                        "VNPay refund failed"
-                );
+                        "VNPay refund failed");
                 throw new IllegalStateException(message);
             }
 
@@ -531,12 +538,22 @@ public class PaymentServiceImpl implements PaymentService {
             payment.setRefundTransactionId(firstNonBlank(
                     stringValue(response.get("vnp_TransactionNo")),
                     stringValue(response.get("TransactionNo")),
-                    requestId
-            ));
+                    requestId));
             payment.setRefundedAt(Instant.now());
             payment.setStatus(PaymentStatus.REFUNDED);
             paymentRepository.save(payment);
-            log.info("Refunded VNPay payment {} for booking {} with amount {}", payment.getId(), bookingId, refundAmount);
+
+            // Cách A: ghi audit log nghiệp vụ nhạy cảm — refund
+            auditLogService.log(CreateAuditLogRequest.builder()
+                    .action(AuditAction.REFUND)
+                    .resourceType("Payment")
+                    .resourceId(String.valueOf(payment.getId()))
+                    .oldValue("status=SUCCESS, amount=" + payment.getAmount())
+                    .newValue("status=REFUNDED, refundAmount=" + refundAmount + ", reason=" + reason)
+                    .build());
+
+            log.info("Refunded VNPay payment {} for booking {} with amount {}", payment.getId(), bookingId,
+                    refundAmount);
             return mapToResponse(payment);
         } catch (Exception e) {
             log.error("Refund VNPay failed for booking {}: {}", bookingId, e.getMessage(), e);
@@ -616,7 +633,6 @@ public class PaymentServiceImpl implements PaymentService {
 
         BigDecimal cashAmount = request.getAmount() != null ? request.getAmount() : booking.getTotalPrice();
 
-        // Kiểm tra nếu đơn này đã được thanh toán tiền mặt thành công trước đó thì trả về thông tin đã có (Idempotent)
         java.util.Optional<Payment> existingOpt = paymentRepository.findByBookingId(booking.getId())
                 .stream()
                 .filter(p -> p.getPaymentMethod() == PaymentMethod.CASH && p.getStatus() == PaymentStatus.SUCCESS)
@@ -738,7 +754,8 @@ public class PaymentServiceImpl implements PaymentService {
         if (bookingId == null && payload != null && payload.containsKey("bookingId")) {
             try {
                 bookingId = Long.parseLong(payload.get("bookingId").toString());
-            } catch (Exception e) {}
+            } catch (Exception e) {
+            }
         }
 
         if (bookingId != null) {
