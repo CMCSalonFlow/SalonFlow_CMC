@@ -13,8 +13,8 @@ on:
       - 'feature/**'
 
 jobs:
-  build-and-test:
-    name: Build & Package Verification
+  unit-tests-and-build:
+    name: Run Unit Tests & Build Package
     runs-on: ubuntu-latest
 
     defaults:
@@ -35,15 +35,26 @@ jobs:
       - name: Grant Execute Permission for Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Compile and Package Application
-        run: ./mvnw clean package -DskipTests
+      - name: Execute All Backend Unit Tests
+        run: ./mvnw test
 
-      - name: Verify Artifact Creation
+      - name: Compile and Package JAR
+        run: ./mvnw package -DskipTests
+
+      - name: Verify JAR Artifact
         run: ls -la target/*.jar
+
+      - name: Upload Surefire Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-test-reports
+          path: backend/target/surefire-reports/
+          retention-days: 7
 
   docker-smoke-test:
     name: Docker Containerization Smoke Test
-    needs: build-and-test
+    needs: unit-tests-and-build
     runs-on: ubuntu-latest
 
     steps:
