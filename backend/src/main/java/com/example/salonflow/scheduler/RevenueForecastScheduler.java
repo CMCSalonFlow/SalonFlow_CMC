@@ -14,7 +14,7 @@ public class RevenueForecastScheduler {
 
     private final RevenueForecastService revenueForecastService;
 
-    @Value("${app.forecast.retrain-months:6}")
+    @Value("${app.forecast.retrain-months:2}")
     private Integer retrainMonths;
 
     @Scheduled(cron = "${app.forecast.retrain-cron:0 0 2 1 * *}", zone = "Asia/Bangkok")
