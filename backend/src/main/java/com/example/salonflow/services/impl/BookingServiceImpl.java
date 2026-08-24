@@ -275,12 +275,20 @@ public class BookingServiceImpl implements BookingService {
 
         // 5. Quét các khung giờ cách nhau 15 phút
         List<LocalTime> availableStartTimes = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
         LocalTime current = openTime;
         LocalTime lastPossibleStart = closeTime.minusMinutes(totalDuration);
 
         while (!current.isAfter(lastPossibleStart)) {
             LocalTime slotStart = current;
             LocalTime slotEnd = current.plusMinutes(totalDuration);
+
+            // 0. Nếu là ngày hôm nay, bỏ qua các khung giờ đã trôi qua trong quá khứ
+            if (date.equals(today) && slotStart.isBefore(now)) {
+                current = current.plusMinutes(15);
+                continue;
+            }
 
             // Kiểm tra xem có ít nhất một nhân viên đủ điều kiện đang trống lịch trong khung giờ này không
             boolean anyStaffFree = false;
