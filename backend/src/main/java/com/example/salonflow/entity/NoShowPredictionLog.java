@@ -51,7 +51,7 @@ public class NoShowPredictionLog extends BaseEntity {
     @Builder.Default
     private Boolean isWarningTriggered = false;
 
-    // Đánh dấu đã tự động gửi Zalo ZNS / SMS nhắc nhở cho khách
+    // Đánh dấu đã tự động gửi Email/SMS nhắc nhở cho khách
     @Column(name = "sms_sent")
     @Builder.Default
     private Boolean smsSent = false;

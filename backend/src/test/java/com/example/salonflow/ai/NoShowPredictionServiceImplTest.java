@@ -5,7 +5,6 @@ import com.example.salonflow.ai.service.impl.NoShowPredictionServiceImpl;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.repository.*;
-import com.example.salonflow.services.service.ZaloZnsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,9 +37,6 @@ class NoShowPredictionServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
-
-    @Mock
-    private ZaloZnsService zaloZnsService;
 
     @InjectMocks
     private NoShowPredictionServiceImpl noShowPredictionService;
@@ -105,7 +101,6 @@ class NoShowPredictionServiceImplTest {
             log.setId(1L);
             return log;
         });
-        when(zaloZnsService.sendAppointmentReminderZns(any(), any())).thenReturn(true);
 
         // Act
         NoShowPredictionDto result = noShowPredictionService.predictAndSaveLog(mockBooking);
@@ -115,8 +110,6 @@ class NoShowPredictionServiceImplTest {
         assertEquals("HIGH", result.getRiskLevel());
         assertTrue(result.getProbabilityPercentage() >= 70.0);
         assertTrue(result.getIsWarningTriggered());
-        assertTrue(result.getSmsSent());
-        verify(zaloZnsService, times(1)).sendAppointmentReminderZns(any(), any());
     }
 
     @Test
@@ -149,6 +142,5 @@ class NoShowPredictionServiceImplTest {
         assertNotEquals("HIGH", result.getRiskLevel());
         assertTrue(result.getProbabilityPercentage() < 70.0);
         assertFalse(result.getIsWarningTriggered());
-        verify(zaloZnsService, never()).sendAppointmentReminderZns(any(), any());
     }
 }

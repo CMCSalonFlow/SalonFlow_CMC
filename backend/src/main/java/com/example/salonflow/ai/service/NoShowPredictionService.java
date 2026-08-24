@@ -39,7 +39,7 @@ public interface NoShowPredictionService {
     NoShowModelConfig updateModelConfig(UpdateNoShowModelConfigDto dto);
 
     /**
-     * Tự động gửi SMS / Zalo ZNS nhắc nhở thêm thủ công hoặc tự động.
+     * Tự động/thủ công gửi Email nhắc nhở cho khách.
      */
     boolean sendManualReminder(Long bookingId);
 }

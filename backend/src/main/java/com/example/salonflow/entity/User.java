@@ -37,9 +37,6 @@ public class User extends BaseEntity {
     @Column(name = "avatar_url")
     private String avatarUrl;
 
-    @Column(name = "zalo_user_id")
-    private String zaloUserId;
-
     @Enumerated(EnumType.STRING)
     private UserStatus status;
 

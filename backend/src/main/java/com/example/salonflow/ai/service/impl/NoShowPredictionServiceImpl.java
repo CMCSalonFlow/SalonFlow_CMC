@@ -8,7 +8,6 @@ import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.SubscriptionService;
-import com.example.salonflow.services.service.ZaloZnsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,7 +36,6 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     private final NoShowModelConfigRepository configRepository;
     private final BookingRepository bookingRepository;
     private final UserRepository userRepository;
-    private final ZaloZnsService zaloZnsService;
     private final EmailService emailService;
     private final SubscriptionService subscriptionService;
     private final BranchRepository branchRepository;
@@ -100,13 +98,13 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
             log.error("Không thể Serialize features Json", e);
         }
 
-        // 7. Auto Trigger gửi Email / SMS / Zalo ZNS nếu Nguy cơ cao & Cấu hình cho phép & chưa gửi trước đó
+        // 7. Auto Trigger gửi Email nếu Nguy cơ cao & Cấu hình cho phép & chưa gửi trước đó
         if (isWarning && Boolean.TRUE.equals(config.getAutoSendReminder()) && !Boolean.TRUE.equals(predictionLog.getSmsSent())) {
             boolean sent = sendReminderToCustomer(booking, customer);
             if (sent) {
                 predictionLog.setSmsSent(true);
                 predictionLog.setSmsSentAt(LocalDateTime.now());
-                log.info("Đã tự động gửi Email/Zalo ZNS nhắc nhở cho Booking nguy cơ cao ID: {}", booking.getId());
+                log.info("Đã tự động gửi Email nhắc nhở cho Booking nguy cơ cao ID: {}", booking.getId());
             }
         }
 
@@ -243,8 +241,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
             }
         }
 
-        boolean znsSent = zaloZnsService.sendAppointmentReminderZns(booking, customer);
-        return emailSent || znsSent;
+        return emailSent;
     }
 
     // --- PRIVATE HELPER METHODS ---

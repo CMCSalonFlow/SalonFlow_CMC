@@ -25,5 +25,9 @@ public class BranchResponse {
 
     private Boolean isActive;
 
+    private Boolean isSmsEnabled;
+
+    private String smsTemplate;
+
     private java.util.List<BranchHourResponse> hours;
 }

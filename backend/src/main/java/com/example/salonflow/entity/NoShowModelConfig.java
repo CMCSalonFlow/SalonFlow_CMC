@@ -52,7 +52,7 @@ public class NoShowModelConfig extends BaseEntity {
     @Builder.Default
     private BigDecimal riskThreshold = new BigDecimal("0.700");
 
-    // Tự động kích hoạt SMS/Zalo ZNS khi risk_level = HIGH
+    // Tự động kích hoạt Email/SMS khi risk_level = HIGH
     @Column(name = "auto_send_reminder")
     @Builder.Default
     private Boolean autoSendReminder = true;

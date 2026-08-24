@@ -154,6 +154,8 @@ public class BranchServiceImpl implements BranchService {
                                 .latitude(lat)
                                 .longitude(lng)
                                 .isActive(true)
+                                .isSmsEnabled(request.getIsSmsEnabled() != null ? request.getIsSmsEnabled() : true)
+                                .smsTemplate(request.getSmsTemplate())
                                 .salon(salon)
                                 .build();
 
@@ -206,8 +208,17 @@ public class BranchServiceImpl implements BranchService {
 
                 branch.setLongitude(lng);
 
-                branch.setIsActive(
-                                request.getIsActive());
+                if (request.getIsActive() != null) {
+                        branch.setIsActive(request.getIsActive());
+                }
+
+                if (request.getIsSmsEnabled() != null) {
+                        branch.setIsSmsEnabled(request.getIsSmsEnabled());
+                }
+
+                if (request.getSmsTemplate() != null) {
+                        branch.setSmsTemplate(request.getSmsTemplate());
+                }
 
                 Branch saved = branchRepository.save(branch);
                 branchHourRepository.deleteByBranch(saved);
@@ -386,6 +397,8 @@ public class BranchServiceImpl implements BranchService {
                                 .latitude(branch.getLatitude())
                                 .longitude(branch.getLongitude())
                                 .isActive(branch.getIsActive())
+                                .isSmsEnabled(branch.getIsSmsEnabled())
+                                .smsTemplate(branch.getSmsTemplate())
                                 .hours(hourResponses)
                                 .build();
         }
