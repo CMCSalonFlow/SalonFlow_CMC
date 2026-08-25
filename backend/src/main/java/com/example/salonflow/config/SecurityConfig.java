@@ -76,7 +76,7 @@ public class SecurityConfig {
                         // public APIs
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/v1/chatbot/**").permitAll()
+                        .requestMatchers("/api/ai/**", "/api/v1/chatbot/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator", "/actuator/**").permitAll()
                         .requestMatchers("/api/v1/monitoring", "/api/v1/monitoring/**").permitAll()

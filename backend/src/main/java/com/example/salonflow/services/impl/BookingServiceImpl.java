@@ -76,6 +76,7 @@ public class BookingServiceImpl implements BookingService {
     private final ApplicationEventPublisher applicationEventPublisher;
     private final BookingQrSignatureService bookingQrSignatureService;
 
+    private final SmartSchedulingLogRepository smartSchedulingLogRepository;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private final CustomerProfileRepository customerProfileRepository;
@@ -712,6 +713,21 @@ public class BookingServiceImpl implements BookingService {
                     .build();
 
             booking = bookingRepository.save(booking);
+
+            try {
+                List<SmartSchedulingLog> logs = smartSchedulingLogRepository.findByBranchIdOrderByCreatedAtDesc(branchId);
+                if (!logs.isEmpty()) {
+                    SmartSchedulingLog latestLog = logs.get(0);
+                    latestLog.setIsBooked(true);
+                    latestLog.setSelectedSlotTime(startTime != null ? startTime.toString() : null);
+                    if (customer != null && latestLog.getCustomerId() == null) {
+                        latestLog.setCustomerId(customer.getId());
+                    }
+                    smartSchedulingLogRepository.save(latestLog);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to update AI scheduling log booking status: {}", ex.getMessage());
+            }
 
             List<BookingItem> items = new ArrayList<>();
             if (bundle != null) {
