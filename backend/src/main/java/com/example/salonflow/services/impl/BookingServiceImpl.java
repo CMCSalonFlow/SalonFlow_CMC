@@ -737,15 +737,12 @@ public class BookingServiceImpl implements BookingService {
 
             publishBookingCreatedEvent(booking);
 
-            // Generate invoice and send confirmation email directly since the booking is confirmed immediately
+            // Send booking confirmation email upon creation (invoice & payment email will be sent when COMPLETED)
             try {
-                String invoiceUrl = invoicePdfService.generateInvoice(booking);
-                booking.setInvoiceUrl(invoiceUrl);
-                emailService.sendInvoiceEmail(booking, invoiceUrl);
-                booking = bookingRepository.save(booking);
-                log.info("Invoice generated and confirmation email sent for booking ID: {}", booking.getId());
+                emailService.sendBookingConfirmationEmail(booking);
+                log.info("Booking confirmation email sent for booking ID: {}", booking.getId());
             } catch (Exception ex) {
-                log.error("Failed to generate invoice or send confirmation email for booking ID: {}", booking.getId(), ex);
+                log.error("Failed to send booking confirmation email for booking ID: {}", booking.getId(), ex);
             }
 
             try {
@@ -1054,6 +1051,17 @@ public BookingResponse createWalkInBooking(
         }
 
         booking.setStatus(BookingStatus.COMPLETED);
+
+        // Generate invoice & send payment completed email ONLY when booking status is COMPLETED
+        try {
+            String invoiceUrl = invoicePdfService.generateInvoice(booking);
+            booking.setInvoiceUrl(invoiceUrl);
+            emailService.sendInvoiceEmail(booking, invoiceUrl);
+            log.info("Invoice generated and payment email sent for COMPLETED booking ID: {}", booking.getId());
+        } catch (Exception ex) {
+            log.error("Failed to generate invoice or send payment email for COMPLETED booking ID: {}", booking.getId(), ex);
+        }
+
         booking = bookingRepository.save(booking);
 
         if (booking.getCustomer() != null) {

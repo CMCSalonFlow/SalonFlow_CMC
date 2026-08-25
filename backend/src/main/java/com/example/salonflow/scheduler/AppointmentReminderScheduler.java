@@ -191,11 +191,11 @@ public class AppointmentReminderScheduler {
         // Nếu dùng Brandname thử nghiệm Baotrixemay của ESMS, bắt buộc dùng mẫu tin test ghép mã linh hoạt [BK{Id}-{Giờ}]
         if ("Baotrixemay".equalsIgnoreCase(esmsBrandName)) {
             String hourStr = booking.getStartTime() != null
-                    ? booking.getStartTime().format(DateTimeFormatter.ofPattern("HH'h'")) : "";
+                    ? (booking.getStartTime().getMinute() == 0
+                            ? booking.getStartTime().format(DateTimeFormatter.ofPattern("HH'h'"))
+                            : booking.getStartTime().format(DateTimeFormatter.ofPattern("HH'h'mm")))
+                    : "";
             String code = String.format("BK%d-%s", booking.getId(), hourStr);
-            if (code.length() > 10) {
-                code = code.substring(0, 10);
-            }
             msg = String.format("%s la ma xac minh dang ky Baotrixemay cua ban", code);
         } else if (booking.getBranch() != null && booking.getBranch().getSmsTemplate() != null && !booking.getBranch().getSmsTemplate().isBlank()) {
             msg = booking.getBranch().getSmsTemplate()

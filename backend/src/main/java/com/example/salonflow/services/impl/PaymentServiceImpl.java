@@ -245,7 +245,9 @@ public class PaymentServiceImpl implements PaymentService {
                 try {
                     String invoiceUrl = invoicePdfService.generateInvoice(booking);
                     booking.setInvoiceUrl(invoiceUrl);
-                    emailService.sendInvoiceEmail(booking, invoiceUrl);
+                    if (booking.getStatus() == BookingStatus.COMPLETED) {
+                        emailService.sendInvoiceEmail(booking, invoiceUrl);
+                    }
                     log.info("Invoice created: {}", invoiceUrl);
                 } catch (Exception ex) {
                     log.error("Generate invoice failed", ex);
@@ -360,7 +362,9 @@ public class PaymentServiceImpl implements PaymentService {
                 try {
                     String invoiceUrl = invoicePdfService.generateInvoice(booking);
                     booking.setInvoiceUrl(invoiceUrl);
-                    emailService.sendInvoiceEmail(booking, invoiceUrl);
+                    if (booking.getStatus() == BookingStatus.COMPLETED) {
+                        emailService.sendInvoiceEmail(booking, invoiceUrl);
+                    }
                     log.info("Invoice created: {}", invoiceUrl);
                 } catch (Exception ex) {
                     log.error("Generate invoice failed", ex);
@@ -671,7 +675,9 @@ public class PaymentServiceImpl implements PaymentService {
         try {
             String invoiceUrl = invoicePdfService.generateInvoice(booking);
             booking.setInvoiceUrl(invoiceUrl);
-            emailService.sendInvoiceEmail(booking, invoiceUrl);
+            if (booking.getStatus() == BookingStatus.COMPLETED) {
+                emailService.sendInvoiceEmail(booking, invoiceUrl);
+            }
             log.info("Invoice created for POS cash payment: {}", invoiceUrl);
         } catch (Exception ex) {
             log.error("Generate invoice failed for POS cash payment", ex);
