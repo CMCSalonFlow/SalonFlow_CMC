@@ -92,13 +92,6 @@ public class Booking extends BaseEntity {
     @Builder.Default
     private List<BookingItem> items = new ArrayList<>();
 
-    /**
-     * THÊM MỚI: liên kết tới RecurringBooking nếu booking này
-     * là 1 phần của chuỗi lặp định kỳ. NULL nếu là booking đơn lẻ.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "recurring_booking_id")
-    private RecurringBooking recurringBooking;
 
     /**
      * Key dùng trong Redis để lock slot.
