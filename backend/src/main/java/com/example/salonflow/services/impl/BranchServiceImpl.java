@@ -132,6 +132,14 @@ public class BranchServiceImpl implements BranchService {
 
                 subscriptionService.validateBranchLimit(salon.getId());
 
+                if (branchRepository.existsByNameIgnoreCaseAndSalonId(request.getName(), salon.getId())) {
+                        throw new BadRequestException("Tên chi nhánh đã tồn tại trong hệ thống Salon của bạn.");
+                }
+
+                if (request.getPhone() != null && !request.getPhone().isBlank() && branchRepository.existsByPhoneAndSalonId(request.getPhone(), salon.getId())) {
+                        throw new BadRequestException("Số điện thoại hotline đã tồn tại trong hệ thống Salon của bạn.");
+                }
+
                 Double lat = request.getLatitude();
                 Double lng = request.getLongitude();
                 if (lat == null || lng == null) {
@@ -177,6 +185,14 @@ public class BranchServiceImpl implements BranchService {
                 Branch branch = branchOwnershipValidator
                                 .validateOwnerBranch(
                                                 branchId);
+
+                if (!branch.getName().equalsIgnoreCase(request.getName()) && branchRepository.existsByNameIgnoreCaseAndSalonId(request.getName(), branch.getSalon().getId())) {
+                        throw new BadRequestException("Tên chi nhánh đã tồn tại trong hệ thống Salon của bạn.");
+                }
+
+                if (request.getPhone() != null && !request.getPhone().isBlank() && !request.getPhone().equals(branch.getPhone()) && branchRepository.existsByPhoneAndSalonId(request.getPhone(), branch.getSalon().getId())) {
+                        throw new BadRequestException("Số điện thoại hotline đã tồn tại trong hệ thống Salon của bạn.");
+                }
 
                 Double lat = request.getLatitude();
                 Double lng = request.getLongitude();
