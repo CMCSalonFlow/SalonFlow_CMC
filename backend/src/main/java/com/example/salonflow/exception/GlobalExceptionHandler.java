@@ -166,12 +166,6 @@ public class GlobalExceptionHandler {
         @ExceptionHandler(Exception.class)
         public ResponseEntity<Map<String, Object>> handleGeneralException(
                         Exception ex) {
-                // Gửi lỗi lên Sentry tự động
-                try {
-                        io.sentry.Sentry.captureException(ex);
-                } catch (Exception sentryEx) {
-                        log.warn("[Sentry] Không thể gửi exception lên Sentry: {}", sentryEx.getMessage());
-                }
 
                 log.error("[GlobalExceptionHandler] Unhandled exception: {}", ex.getMessage(), ex);
 
