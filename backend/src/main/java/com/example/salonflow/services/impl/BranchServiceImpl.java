@@ -9,6 +9,7 @@ import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.BranchService;
 import com.example.salonflow.services.service.GeocodingService;
 import com.example.salonflow.services.service.SubscriptionService;
+import com.example.salonflow.entity.enums.BookingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,8 @@ import com.example.salonflow.validation.BranchOwnershipValidator;
 import com.example.salonflow.search.service.BranchSearchService;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -39,6 +42,8 @@ public class BranchServiceImpl implements BranchService {
         private final GeocodingService geocodingService;
 
         private final SubscriptionService subscriptionService;
+
+        private final BookingRepository bookingRepository;
 
         @Override
         @Transactional(readOnly = true)
@@ -132,6 +137,14 @@ public class BranchServiceImpl implements BranchService {
 
                 subscriptionService.validateBranchLimit(salon.getId());
 
+                if (branchRepository.existsByNameIgnoreCaseAndSalonId(request.getName(), salon.getId())) {
+                        throw new BadRequestException("Tên chi nhánh đã tồn tại trong hệ thống Salon của bạn.");
+                }
+
+                if (request.getPhone() != null && !request.getPhone().isBlank() && branchRepository.existsByPhoneAndSalonId(request.getPhone(), salon.getId())) {
+                        throw new BadRequestException("Số điện thoại hotline đã tồn tại trong hệ thống Salon của bạn.");
+                }
+
                 Double lat = request.getLatitude();
                 Double lng = request.getLongitude();
                 if (lat == null || lng == null) {
@@ -154,6 +167,8 @@ public class BranchServiceImpl implements BranchService {
                                 .latitude(lat)
                                 .longitude(lng)
                                 .isActive(true)
+                                .isSmsEnabled(request.getIsSmsEnabled() != null ? request.getIsSmsEnabled() : true)
+                                .smsTemplate(request.getSmsTemplate())
                                 .salon(salon)
                                 .build();
 
@@ -175,6 +190,14 @@ public class BranchServiceImpl implements BranchService {
                 Branch branch = branchOwnershipValidator
                                 .validateOwnerBranch(
                                                 branchId);
+
+                if (!branch.getName().equalsIgnoreCase(request.getName()) && branchRepository.existsByNameIgnoreCaseAndSalonId(request.getName(), branch.getSalon().getId())) {
+                        throw new BadRequestException("Tên chi nhánh đã tồn tại trong hệ thống Salon của bạn.");
+                }
+
+                if (request.getPhone() != null && !request.getPhone().isBlank() && !request.getPhone().equals(branch.getPhone()) && branchRepository.existsByPhoneAndSalonId(request.getPhone(), branch.getSalon().getId())) {
+                        throw new BadRequestException("Số điện thoại hotline đã tồn tại trong hệ thống Salon của bạn.");
+                }
 
                 Double lat = request.getLatitude();
                 Double lng = request.getLongitude();
@@ -206,8 +229,29 @@ public class BranchServiceImpl implements BranchService {
 
                 branch.setLongitude(lng);
 
-                branch.setIsActive(
-                                request.getIsActive());
+                if (request.getIsActive() != null) {
+                        if (!request.getIsActive() && Boolean.TRUE.equals(branch.getIsActive())) {
+                                // Checking for uncompleted future bookings when deactivating
+                                boolean hasUncompletedBookings = bookingRepository.existsFutureBookingsByBranchAndStatuses(
+                                                branchId,
+                                                List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED),
+                                                LocalDate.now(),
+                                                LocalTime.now()
+                                );
+                                if (hasUncompletedBookings) {
+                                        throw new BadRequestException("Không thể đóng cửa chi nhánh do vẫn còn lịch hẹn chưa hoàn thành. Vui lòng hủy hoặc chuyển lịch sang chi nhánh khác trước khi thực hiện.");
+                                }
+                        }
+                        branch.setIsActive(request.getIsActive());
+                }
+
+                if (request.getIsSmsEnabled() != null) {
+                        branch.setIsSmsEnabled(request.getIsSmsEnabled());
+                }
+
+                if (request.getSmsTemplate() != null) {
+                        branch.setSmsTemplate(request.getSmsTemplate());
+                }
 
                 Branch saved = branchRepository.save(branch);
                 branchHourRepository.deleteByBranch(saved);
@@ -386,6 +430,8 @@ public class BranchServiceImpl implements BranchService {
                                 .latitude(branch.getLatitude())
                                 .longitude(branch.getLongitude())
                                 .isActive(branch.getIsActive())
+                                .isSmsEnabled(branch.getIsSmsEnabled())
+                                .smsTemplate(branch.getSmsTemplate())
                                 .hours(hourResponses)
                                 .build();
         }

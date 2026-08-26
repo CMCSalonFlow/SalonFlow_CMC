@@ -6,9 +6,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Tích hợp ESMS để gửi SMS nhắc hẹn (US-037).
@@ -31,6 +33,9 @@ public class SmsServiceImpl implements SmsService {
     @Value("${esms.api-url:https://rest.esms.vn/MainService.svc/json/SendMultipleMessage_V4_post_json/}")
     private String apiUrl;
 
+    @Value("${esms.sms-type:2}")
+    private int smsType;
+
     @Value("${esms.mock-enable:true}")
     private boolean mockEnable;
 
@@ -51,26 +56,53 @@ public class SmsServiceImpl implements SmsService {
         if (mockEnable) {
             log.info("=== [ESMS MOCK] ===");
             log.info("Phone  : {}", formattedPhone);
+            log.info("SmsType: {}", smsType);
             log.info("Message: {}", message);
             log.info("===================");
             return true;
         }
 
         try {
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<Map> response;
+            String requestId = UUID.randomUUID().toString().replace("-", "");
+            if (requestId.length() > 30) requestId = requestId.substring(0, 30);
+            String unicodeVal = containsUnicode(message) ? "1" : "0";
 
-            Map<String, Object> body = new HashMap<>();
-            body.put("ApiKey", apiKey);
-            body.put("SecretKey", secretKey);
-            body.put("Phone", formattedPhone);
-            body.put("Content", message);
-            body.put("SmsType", 2); // Tin nhắn brandname
-            body.put("Brandname", brandName);
-            body.put("IsUnicode", 0); // 0 = không unicode, 1 = unicode
+            if (apiUrl != null && apiUrl.contains("_get")) {
+                UriComponentsBuilder builder = UriComponentsBuilder.fromHttpUrl(apiUrl)
+                        .queryParam("Phone", formattedPhone)
+                        .queryParam("Content", message)
+                        .queryParam("ApiKey", apiKey)
+                        .queryParam("SecretKey", secretKey)
+                        .queryParam("IsUnicode", unicodeVal)
+                        .queryParam("Unicode", unicodeVal)
+                        .queryParam("SmsType", String.valueOf(smsType))
+                        .queryParam("RequestId", requestId);
 
-            HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
-            ResponseEntity<Map> response = restTemplate.postForEntity(apiUrl, request, Map.class);
+                if (brandName != null && !brandName.isBlank()) {
+                    builder.queryParam("Brandname", brandName);
+                }
+
+                response = restTemplate.getForEntity(builder.toUriString(), Map.class);
+            } else {
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_JSON);
+
+                Map<String, Object> body = new HashMap<>();
+                body.put("ApiKey", apiKey);
+                body.put("SecretKey", secretKey);
+                body.put("Phone", formattedPhone);
+                body.put("Content", message);
+                body.put("SmsType", String.valueOf(smsType));
+                body.put("IsUnicode", unicodeVal);
+                body.put("RequestId", requestId);
+                if (brandName != null && !brandName.isBlank()) {
+                    body.put("Brandname", brandName);
+                }
+
+                HttpEntity<Map<String, Object>> request = new HttpEntity<>(body, headers);
+                response = restTemplate.postForEntity(apiUrl, request, Map.class);
+            }
 
             if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
                 Map<?, ?> respBody = response.getBody();
@@ -78,7 +110,7 @@ public class SmsServiceImpl implements SmsService {
                 String code = codeObj != null ? codeObj.toString() : "";
 
                 if ("100".equals(code)) {
-                    log.info("Gui SMS ESMS thanh cong toi {}", formattedPhone);
+                    log.info("Gui SMS ESMS thanh cong toi {} (SMSID: {})", formattedPhone, respBody.get("SMSID"));
                     return true;
                 } else {
                     log.warn("ESMS tra ve loi: CodeResult={}, Message={}", code, respBody.get("ErrorMessage"));
@@ -105,5 +137,10 @@ public class SmsServiceImpl implements SmsService {
             return phone;
         }
         return null;
+    }
+
+    private boolean containsUnicode(String s) {
+        if (s == null) return false;
+        return s.chars().anyMatch(c -> c > 127);
     }
 }

@@ -7,8 +7,16 @@ import com.example.salonflow.dto.review.ReviewSentimentSummaryResponse;
 import com.example.salonflow.entity.Review;
 import com.example.salonflow.entity.enums.ReviewSentiment;
 import com.example.salonflow.entity.enums.ReviewSentimentStatus;
+import com.example.salonflow.entity.enums.ReviewReportStatus;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.ReviewRepository;
+import com.example.salonflow.repository.ReviewReportRepository;
+import com.example.salonflow.repository.UserRepository;
+import com.example.salonflow.entity.ReviewReport;
+import com.example.salonflow.entity.User;
+import com.example.salonflow.dto.review.ReviewReportResponse;
+import com.example.salonflow.dto.review.ResolveReviewReportRequest;
+import java.time.Instant;
 import com.example.salonflow.services.service.ReviewAdminService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
@@ -26,6 +34,8 @@ import java.util.Locale;
 public class ReviewAdminServiceImpl implements ReviewAdminService {
 
     private final ReviewRepository reviewRepository;
+    private final ReviewReportRepository reviewReportRepository;
+    private final UserRepository userRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -72,6 +82,57 @@ public class ReviewAdminServiceImpl implements ReviewAdminService {
                 .positive(positive)
                 .neutral(neutral)
                 .negative(negative)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<ReviewReportResponse> getReviewReports(ReviewReportStatus status, Pageable pageable) {
+        Page<ReviewReport> reports;
+        if (status != null) {
+            reports = reviewReportRepository.findByStatus(status, pageable);
+        } else {
+            reports = reviewReportRepository.findAll(pageable);
+        }
+        return reports.map(this::toReportResponse);
+    }
+
+    @Override
+    @Transactional
+    public ReviewReportResponse resolveReport(Long reportId, ResolveReviewReportRequest request, Long adminId) {
+        ReviewReport report = reviewReportRepository.findById(reportId)
+                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy report với id: " + reportId));
+        
+        User admin = userRepository.findById(adminId)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
+
+        report.setStatus(ReviewReportStatus.RESOLVED);
+        report.setAdminNotes(request.getAdminNotes());
+        report.setResolvedBy(admin);
+        report.setResolvedAt(Instant.now());
+
+        report = reviewReportRepository.save(report);
+        return toReportResponse(report);
+    }
+
+    private ReviewReportResponse toReportResponse(ReviewReport report) {
+        return ReviewReportResponse.builder()
+                .id(report.getId())
+                .reviewId(report.getReview() != null ? report.getReview().getId() : null)
+                .reviewRating(report.getReview() != null ? report.getReview().getRating() : null)
+                .reviewComment(report.getReview() != null ? report.getReview().getComment() : null)
+                .reviewAuthorName(report.getReview() != null && report.getReview().getUser() != null ? report.getReview().getUser().getFullName() : null)
+                .reviewAuthorEmail(report.getReview() != null && report.getReview().getUser() != null ? report.getReview().getUser().getEmail() : null)
+                .reporterId(report.getReporter() != null ? report.getReporter().getId() : null)
+                .reporterName(report.getReporter() != null ? report.getReporter().getFullName() : null)
+                .reporterEmail(report.getReporter() != null ? report.getReporter().getEmail() : null)
+                .reason(report.getReason())
+                .status(report.getStatus())
+                .adminNotes(report.getAdminNotes())
+                .resolvedById(report.getResolvedBy() != null ? report.getResolvedBy().getId() : null)
+                .resolvedByName(report.getResolvedBy() != null ? report.getResolvedBy().getFullName() : null)
+                .resolvedAt(report.getResolvedAt())
+                .createdAt(report.getCreatedAt())
                 .build();
     }
 

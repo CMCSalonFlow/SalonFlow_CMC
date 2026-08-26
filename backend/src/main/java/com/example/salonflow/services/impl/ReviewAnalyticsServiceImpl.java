@@ -2,6 +2,7 @@ package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.reviewanalytics.*;
 import com.example.salonflow.entity.Review;
+import com.example.salonflow.entity.enums.ReviewSentiment;
 import com.example.salonflow.exception.BadRequestException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.BranchRepository;
@@ -106,7 +107,7 @@ public class ReviewAnalyticsServiceImpl implements ReviewAnalyticsService {
     }
 
     // ---------------------------------------------------------------
-    // 2) Top reviews
+    // 2) Top reviews - dùng AI sentiment (US-045 update, thay cho rating cao/thấp)
     // ---------------------------------------------------------------
     @Override
     @Transactional(readOnly = true)
@@ -118,11 +119,11 @@ public class ReviewAnalyticsServiceImpl implements ReviewAnalyticsService {
         List<Review> positives;
         List<Review> negatives;
         if (branchId != null) {
-            positives = reviewRepository.findByBranchIdAndIsHiddenFalseOrderByRatingDescCreatedAtDesc(branchId, page).getContent();
-            negatives = reviewRepository.findByBranchIdAndIsHiddenFalseOrderByRatingAscCreatedAtDesc(branchId, page).getContent();
+            positives = reviewRepository.findTopBySentimentAndBranchId(branchId, ReviewSentiment.POSITIVE, page).getContent();
+            negatives = reviewRepository.findTopBySentimentAndBranchId(branchId, ReviewSentiment.NEGATIVE, page).getContent();
         } else {
-            positives = reviewRepository.findBySalonIdAndIsHiddenFalseOrderByRatingDescCreatedAtDesc(salonId, page).getContent();
-            negatives = reviewRepository.findBySalonIdAndIsHiddenFalseOrderByRatingAscCreatedAtDesc(salonId, page).getContent();
+            positives = reviewRepository.findTopBySentimentAndSalonId(salonId, ReviewSentiment.POSITIVE, page).getContent();
+            negatives = reviewRepository.findTopBySentimentAndSalonId(salonId, ReviewSentiment.NEGATIVE, page).getContent();
         }
 
         return TopReviewListResponse.builder()
@@ -140,6 +141,7 @@ public class ReviewAnalyticsServiceImpl implements ReviewAnalyticsService {
                 .title(review.getTitle())
                 .comment(review.getComment())
                 .sentiment(review.getSentiment() != null ? review.getSentiment().name() : null)
+                .sentimentConfidence(review.getSentimentConfidence())
                 .branchName(review.getBranch() != null ? review.getBranch().getName() : null)
                 .createdAt(review.getCreatedAt())
                 .build();

@@ -19,4 +19,7 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
 
     // Tìm tất cả nhân viên thuộc một Salon
     List<Staff> findByBranchSalonId(Long salonId);
+
+    // Tìm nhân viên theo User ID
+    Optional<Staff> findFirstByUserId(Long userId);
 }

@@ -18,7 +18,10 @@ public interface EmailService {
     void sendCancellationEmail(Booking booking, CancellationResult result);
     void sendOverdueCancellationEmail(Booking booking);
 
-    // Gửi email sau khi thanh toán thành công
+    // Gửi email sau khi tạo lịch hẹn thành công (Xác nhận đặt lịch)
+    void sendBookingConfirmationEmail(Booking booking);
+
+    // Gửi email sau khi hoàn tất dịch vụ & thanh toán thành công (Hóa đơn)
     void sendInvoiceEmail(Booking booking, String invoiceUrl);
 
     void sendNotificationEmail(String to, String subject, String body);

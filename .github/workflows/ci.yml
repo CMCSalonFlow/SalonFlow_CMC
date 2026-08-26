@@ -1,16 +1,20 @@
-name: Spring Boot CI
+name: SalonFlow Backend CI
 
 on:
   push:
     branches:
       - main
-
+      - develop
+      - 'feature/**'
   pull_request:
     branches:
       - main
+      - develop
+      - 'feature/**'
 
 jobs:
-  build:
+  unit-tests-and-build:
+    name: Run Unit Tests & Build Package
     runs-on: ubuntu-latest
 
     defaults:
@@ -18,23 +22,47 @@ jobs:
         working-directory: backend
 
     steps:
-      - name: Checkout source code
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 21
+          cache: 'maven'
 
-      - name: Grant execute permission
+      - name: Grant Execute Permission for Maven Wrapper
         run: chmod +x mvnw
 
-      - name: Build project
-        run: ./mvnw clean install -DskipTests
+      - name: Execute All Backend Unit Tests
+        run: ./mvnw test
 
-      - name: Start infrastructure
-        run: docker compose up -d
+      - name: Compile and Package JAR
+        run: ./mvnw package -DskipTests
 
-      - name: Show running containers
-        run: docker ps
+      - name: Verify JAR Artifact
+        run: ls -la target/*.jar
+
+      - name: Upload Surefire Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-test-reports
+          path: backend/target/surefire-reports/
+          retention-days: 7
+
+  docker-smoke-test:
+    name: Docker Containerization Smoke Test
+    needs: unit-tests-and-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Test Docker Compose Infrastructure
+        run: |
+          docker compose up -d
+          docker ps
+          docker compose down

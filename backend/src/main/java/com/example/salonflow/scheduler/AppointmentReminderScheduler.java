@@ -9,7 +9,6 @@ import com.example.salonflow.notification.BookingNotificationType;
 import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.SmsReminderLogRepository;
 import com.example.salonflow.services.service.SmsService;
-import com.example.salonflow.services.service.ZaloZnsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
@@ -27,7 +26,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
- * Cron job chạy mỗi 15 phút để gửi SMS nhắc hẹn trước 24h và 1h (US-037), đồng thời bắn notification event và Zalo ZNS.
+ * Cron job chạy mỗi 15 phút để gửi SMS nhắc hẹn trước 24h và 1h (US-037), đồng thời bắn notification event.
  */
 @Component
 @RequiredArgsConstructor
@@ -37,7 +36,6 @@ public class AppointmentReminderScheduler {
     private final BookingRepository bookingRepository;
     private final SmsReminderLogRepository smsReminderLogRepository;
     private final SmsService smsService;
-    private final ZaloZnsService zaloZnsService;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final StringRedisTemplate redisTemplate;
 
@@ -46,7 +44,7 @@ public class AppointmentReminderScheduler {
 
     /**
      * Chạy mỗi 15 phút.
-     * Check booking sắp tới trong khoảng 24h và 1h để gửi SMS, Zalo ZNS và Email Event nhắc hẹn.
+     * Check booking sắp tới trong khoảng 24h và 1h để gửi SMS và Email Event nhắc hẹn.
      */
     @Scheduled(cron = "0 */15 * * * *")
     @Transactional
@@ -89,19 +87,16 @@ public class AppointmentReminderScheduler {
             if (!in24hWindow && !in1hWindow) continue;
 
             if (in24hWindow) {
-                // Logic 24h Notification Event & Zalo ZNS (Current/HEAD)
+                // Logic 24h Notification Event (Current/HEAD)
                 String reminderKey = "email:reminder:24h:booking:" + booking.getId();
                 Boolean firstTime = redisTemplate.opsForValue().setIfAbsent(reminderKey, "1", Duration.ofDays(2));
                 if (Boolean.TRUE.equals(firstTime)) {
                     try {
                         publishReminderEvent(booking);
-                        if (booking.getCustomer().getPhone() != null && !booking.getCustomer().getPhone().isBlank()) {
-                            zaloZnsService.sendAppointmentReminderZns(booking, booking.getCustomer());
-                        }
-                        log.info("Processed 24h event & ZNS reminder for booking ID={}", booking.getId());
+                        log.info("Processed 24h reminder event for booking ID={}", booking.getId());
                     } catch (Exception e) {
                         redisTemplate.delete(reminderKey);
-                        log.error("Failed to process 24h event & ZNS reminder for booking ID={}: {}", booking.getId(), e.getMessage());
+                        log.error("Failed to process 24h reminder event for booking ID={}: {}", booking.getId(), e.getMessage());
                     }
                 }
 
@@ -127,6 +122,12 @@ public class AppointmentReminderScheduler {
      */
     private boolean sendReminder(Booking booking, String reminderType) {
         Long bookingId = booking.getId();
+
+        // Check per-branch SMS toggle
+        if (booking.getBranch() != null && Boolean.FALSE.equals(booking.getBranch().getIsSmsEnabled())) {
+            log.debug("SMS bi tat cho chi nhanh ID={}, bo qua booking {}", booking.getBranch().getId(), bookingId);
+            return false;
+        }
 
         // Dedup check
         if (smsReminderLogRepository.existsByBookingIdAndReminderType(bookingId, reminderType)) {
@@ -168,7 +169,11 @@ public class AppointmentReminderScheduler {
 
     /**
      * Tạo nội dung SMS ngắn gọn ≤160 ký tự.
+     * Hỗ trợ custom template từng chi nhánh nếu có.
      */
+    @org.springframework.beans.factory.annotation.Value("${esms.brand-name:Baotrixemay}")
+    private String esmsBrandName;
+
     private String buildSmsMessage(Booking booking, String reminderType) {
         String time = booking.getStartTime() != null
                 ? booking.getStartTime().format(TIME_FMT) : "?";
@@ -178,15 +183,43 @@ public class AppointmentReminderScheduler {
                 ? booking.getBranch().getName() : "SalonFlow";
         String customerName = booking.getCustomer() != null
                 && booking.getCustomer().getFullName() != null
-                ? booking.getCustomer().getFullName() : "Quy khach";
+                ? booking.getCustomer().getFullName() : "Qúy khách";
 
-        String timeLabel = "24H".equals(reminderType) ? "24 gio" : "1 gio";
+        String timeLabel = "24H".equals(reminderType) ? "24 giờ" : "1 giờ";
 
-        // Template SMS ≤160 ký tự
-        String msg = String.format(
-                "SalonFlow: %s oi, lich hen luc %s ngay %s tai %s sap den sau %s nua. Vui long den dung gio!",
-                customerName, time, date, branch, timeLabel
-        );
+        String msg;
+        // Nếu dùng Brandname thử nghiệm Baotrixemay của ESMS, bắt buộc dùng mẫu tin test ghép mã linh hoạt [BK{Id}-{Giờ}]
+        if ("Baotrixemay".equalsIgnoreCase(esmsBrandName)) {
+            String hourStr = booking.getStartTime() != null
+                    ? (booking.getStartTime().getMinute() == 0
+                            ? booking.getStartTime().format(DateTimeFormatter.ofPattern("HH'h'"))
+                            : booking.getStartTime().format(DateTimeFormatter.ofPattern("HH'h'mm")))
+                    : "";
+            String code = String.format("BK%d-%s", booking.getId(), hourStr);
+            msg = String.format("%s la ma xac minh dang ky Baotrixemay cua ban", code);
+        } else if (booking.getBranch() != null && booking.getBranch().getSmsTemplate() != null && !booking.getBranch().getSmsTemplate().isBlank()) {
+            msg = booking.getBranch().getSmsTemplate()
+                    .replace("{customerName}", customerName)
+                    .replace("{time}", time)
+                    .replace("{date}", date)
+                    .replace("{branchName}", branch)
+                    .replace("{bookingId}", String.valueOf(booking.getId()))
+                    .replace("{timeLabel}", timeLabel);
+        } else {
+            if ("24H".equals(reminderType)) {
+                // Template SMS trang trọng 24H
+                msg = String.format(
+                        "SalonFlow: Kính chào %s, xin nhắc lịch hẹn mã #BK-%d vào lúc %s ngày %s tại %s (diễn ra sau 24 giờ). Trân trọng cảm ơn!",
+                        customerName, booking.getId(), time, date, branch
+                );
+            } else {
+                // Template SMS trang trọng 1H
+                msg = String.format(
+                        "SalonFlow: Kính chào %s, lịch hẹn mã #BK-%d tại %s sẽ bắt đầu trong 1 giờ nữa (lúc %s ngày %s). Rất hân hạnh được phục vụ quý khách!",
+                        customerName, booking.getId(), branch, time, date
+                );
+            }
+        }
 
         // Đảm bảo không quá 160 ký tự
         if (msg.length() > 160) {

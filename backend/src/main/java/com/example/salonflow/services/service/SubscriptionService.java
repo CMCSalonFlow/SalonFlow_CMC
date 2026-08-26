@@ -49,8 +49,10 @@ public interface SubscriptionService {
 
     void cancelSubscriptionForAdmin(Long id);
 
-    com.example.salonflow.dto.payment.PaymentResponse verifySubscriptionPayment(java.util.Map<String, String> params);
+    SubscriptionResponse cancelMySubscription(Long salonId);
 
-    java.util.Map<String, String> verifySubscriptionIpn(java.util.Map<String, String> params);
+    SubscriptionResponse createVietQrSubscriptionSession(Long salonId, StripeCheckoutRequest request);
+
+    SubscriptionResponse activateSubscriptionViaBankTransfer(Long subscriptionId);
 }
 

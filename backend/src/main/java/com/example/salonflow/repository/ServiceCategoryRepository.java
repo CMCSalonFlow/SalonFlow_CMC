@@ -14,4 +14,8 @@ public interface ServiceCategoryRepository extends JpaRepository<ServiceCategory
 
     @Query("SELECT MAX(s.displayOrder) FROM ServiceCategory s")
     Integer findMaxDisplayOrder();
+
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
 }

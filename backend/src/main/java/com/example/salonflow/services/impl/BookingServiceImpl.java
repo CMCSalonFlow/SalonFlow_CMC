@@ -76,6 +76,7 @@ public class BookingServiceImpl implements BookingService {
     private final ApplicationEventPublisher applicationEventPublisher;
     private final BookingQrSignatureService bookingQrSignatureService;
 
+    private final SmartSchedulingLogRepository smartSchedulingLogRepository;
     private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     private final CustomerProfileRepository customerProfileRepository;
@@ -260,9 +261,7 @@ public class BookingServiceImpl implements BookingService {
         java.util.Map<Long, List<Shift>> staffShiftsMap = new java.util.HashMap<>();
 
         for (Staff staff : qualifiedStaff) {
-            boolean isOff = staffOffDayRepository.existsByStaffIdAndDateFromLessThanEqualAndDateToGreaterThanEqual(
-                    staff.getId(), date, date
-            );
+            boolean isOff = staffOffDayRepository != null && staffOffDayRepository.isStaffApprovedOffOnDate(staff.getId(), date);
             staffOffDaysMap.put(staff.getId(), isOff);
 
             if (!isOff && staff.getUserId() != null) {
@@ -277,12 +276,20 @@ public class BookingServiceImpl implements BookingService {
 
         // 5. Quét các khung giờ cách nhau 15 phút
         List<LocalTime> availableStartTimes = new ArrayList<>();
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
         LocalTime current = openTime;
         LocalTime lastPossibleStart = closeTime.minusMinutes(totalDuration);
 
         while (!current.isAfter(lastPossibleStart)) {
             LocalTime slotStart = current;
             LocalTime slotEnd = current.plusMinutes(totalDuration);
+
+            // 0. Nếu là ngày hôm nay, bỏ qua các khung giờ đã trôi qua trong quá khứ
+            if (date.equals(today) && slotStart.isBefore(now)) {
+                current = current.plusMinutes(15);
+                continue;
+            }
 
             // Kiểm tra xem có ít nhất một nhân viên đủ điều kiện đang trống lịch trong khung giờ này không
             boolean anyStaffFree = false;
@@ -557,6 +564,17 @@ public class BookingServiceImpl implements BookingService {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
 
+        LocalDate today = LocalDate.now();
+        LocalTime now = LocalTime.now();
+        
+        if (bookingDate.isBefore(today)) {
+            throw new BusinessException("Không thể đặt lịch cho ngày trong quá khứ");
+        }
+        
+        if (bookingDate.equals(today) && startTime.isBefore(now)) {
+            throw new BusinessException("Thời gian đặt lịch không hợp lệ vì đã qua thời điểm hiện tại");
+        }
+
         BigDecimal totalPrice = BigDecimal.ZERO;
         int totalDuration = 0;
         List<SalonService> services = new ArrayList<>();
@@ -613,6 +631,10 @@ public class BookingServiceImpl implements BookingService {
                     .orElseThrow(() -> new ResourceNotFoundException(
                             "Không tìm thấy nhân viên với id: " + preferredStaffId + " tại chi nhánh này"));
 
+            if (staffOffDayRepository != null && staffOffDayRepository.isStaffApprovedOffOnDate(preferredStaffId, bookingDate)) {
+                throw new BusinessException("Nhân viên " + preferredStaff.getName() + " đã xin nghỉ phép vào ngày " + bookingDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". Vui lòng chọn nhân viên khác hoặc ngày khác!");
+            }
+
             if (!isStaffQualified(preferredStaff, services)) {
                 throw new BusinessException("Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện một số dịch vụ đã chọn");
             }
@@ -636,6 +658,9 @@ public class BookingServiceImpl implements BookingService {
 
             List<Staff> availableStaff = new ArrayList<>();
             for (Staff staff : qualifiedStaff) {
+                if (staffOffDayRepository != null && staffOffDayRepository.isStaffApprovedOffOnDate(staff.getId(), bookingDate)) {
+                    continue;
+                }
                 List<Booking> overlapping = bookingRepository.findOverlappingBookings(
                         staff.getId(), bookingDate, startTime, endTime, activeStatuses);
                 if (overlapping.isEmpty()) {
@@ -689,6 +714,21 @@ public class BookingServiceImpl implements BookingService {
 
             booking = bookingRepository.save(booking);
 
+            try {
+                List<SmartSchedulingLog> logs = smartSchedulingLogRepository.findByBranchIdOrderByCreatedAtDesc(branchId);
+                if (!logs.isEmpty()) {
+                    SmartSchedulingLog latestLog = logs.get(0);
+                    latestLog.setIsBooked(true);
+                    latestLog.setSelectedSlotTime(startTime != null ? startTime.toString() : null);
+                    if (customer != null && latestLog.getCustomerId() == null) {
+                        latestLog.setCustomerId(customer.getId());
+                    }
+                    smartSchedulingLogRepository.save(latestLog);
+                }
+            } catch (Exception ex) {
+                log.error("Failed to update AI scheduling log booking status: {}", ex.getMessage());
+            }
+
             List<BookingItem> items = new ArrayList<>();
             if (bundle != null) {
                 BookingItem item = BookingItem.builder()
@@ -713,15 +753,12 @@ public class BookingServiceImpl implements BookingService {
 
             publishBookingCreatedEvent(booking);
 
-            // Generate invoice and send confirmation email directly since the booking is confirmed immediately
+            // Send booking confirmation email upon creation (invoice & payment email will be sent when COMPLETED)
             try {
-                String invoiceUrl = invoicePdfService.generateInvoice(booking);
-                booking.setInvoiceUrl(invoiceUrl);
-                emailService.sendInvoiceEmail(booking, invoiceUrl);
-                booking = bookingRepository.save(booking);
-                log.info("Invoice generated and confirmation email sent for booking ID: {}", booking.getId());
+                emailService.sendBookingConfirmationEmail(booking);
+                log.info("Booking confirmation email sent for booking ID: {}", booking.getId());
             } catch (Exception ex) {
-                log.error("Failed to generate invoice or send confirmation email for booking ID: {}", booking.getId(), ex);
+                log.error("Failed to send booking confirmation email for booking ID: {}", booking.getId(), ex);
             }
 
             try {
@@ -828,22 +865,7 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
 
     PaymentResponse refundedPayment = null;
     if (result.isFreeCancel()) {
-        BigDecimal refundableAmount = result.getRefundAmount();
-        boolean hasSuccessfulVnpayPayment = paymentRepository
-                .findFirstByBookingIdAndPaymentMethodAndStatusOrderByCreatedAtDesc(
-                        bookingId,
-                        com.example.salonflow.entity.enums.PaymentMethod.VNPAY,
-                        com.example.salonflow.entity.enums.PaymentStatus.SUCCESS
-                )
-                .isPresent();
-
-        if (hasSuccessfulVnpayPayment && refundableAmount != null && refundableAmount.compareTo(BigDecimal.ZERO) > 0) {
-            refundedPayment = paymentService.refundDeposit(bookingId, refundableAmount, reason);
-            result.setRefundAmount(refundedPayment.getRefundAmount());
-            result.setMessage("Hủy miễn phí theo chính sách, đã hoàn tiền " + refundableAmount + " VND qua VNPay");
-        } else {
-            result.setRefundAmount(BigDecimal.ZERO);
-        }
+        result.setRefundAmount(BigDecimal.ZERO);
     }
 
     paymentRepository.findByBookingId(bookingId).stream()
@@ -1030,6 +1052,17 @@ public BookingResponse createWalkInBooking(
         }
 
         booking.setStatus(BookingStatus.COMPLETED);
+
+        // Generate invoice & send payment completed email ONLY when booking status is COMPLETED
+        try {
+            String invoiceUrl = invoicePdfService.generateInvoice(booking);
+            booking.setInvoiceUrl(invoiceUrl);
+            emailService.sendInvoiceEmail(booking, invoiceUrl);
+            log.info("Invoice generated and payment email sent for COMPLETED booking ID: {}", booking.getId());
+        } catch (Exception ex) {
+            log.error("Failed to generate invoice or send payment email for COMPLETED booking ID: {}", booking.getId(), ex);
+        }
+
         booking = bookingRepository.save(booking);
 
         if (booking.getCustomer() != null) {

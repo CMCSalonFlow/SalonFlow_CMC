@@ -43,6 +43,13 @@ public class Branch extends BaseEntity {
     @Builder.Default
     private Integer ratingCount = 0;
 
+    @Column(name = "is_sms_enabled")
+    @Builder.Default
+    private Boolean isSmsEnabled = true;
+
+    @Column(name = "sms_template")
+    private String smsTemplate;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "salon_id", nullable = false)
     private Salon salon;

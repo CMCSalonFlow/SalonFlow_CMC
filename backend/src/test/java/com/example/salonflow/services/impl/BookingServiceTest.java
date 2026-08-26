@@ -102,6 +102,15 @@ class BookingServiceTest {
         @Mock
         private NoShowPredictionService noShowPredictionService;
 
+        @Mock
+        private ReviewRepository reviewRepository;
+
+        @Mock
+        private com.example.salonflow.services.service.InvoicePdfService invoicePdfService;
+
+        @Mock
+        private com.example.salonflow.services.service.EmailService emailService;
+
         @InjectMocks
         private BookingServiceImpl bookingService;
 
@@ -174,7 +183,7 @@ class BookingServiceTest {
                                 .branch(branch)
                                 .startTime(LocalTime.of(8, 0))
                                 .endTime(LocalTime.of(20, 0))
-                                .shiftDate(LocalDate.of(2026, 7, 1))
+                                .shiftDate(LocalDate.of(2026, 12, 2))
                                 .status(ShiftStatus.SCHEDULED)
                                 .build();
                 lenient().when(shiftRepository.findByUserIdAndShiftDate(anyLong(), any()))
@@ -186,7 +195,7 @@ class BookingServiceTest {
         void create_withPreferredStaffAvailable_shouldCreateSuccessfully() {
                 CreateBookingRequest request = CreateBookingRequest.builder()
                                 .customerId(2L)
-                                .bookingDate(LocalDate.of(2026, 7, 1)) // 2026-07-01 là Thứ tư
+                                .bookingDate(LocalDate.of(2026, 12, 2)) // 2026-07-01 là Thứ tư
                                 .startTime(LocalTime.of(9, 0))
                                 .preferredStaffId(6L)
                                 .serviceIds(List.of(11L))
@@ -217,7 +226,7 @@ class BookingServiceTest {
                 assertThat(response.getAssignedStaffId()).isEqualTo(6L);
                 assertThat(response.getEndTime()).isEqualTo(LocalTime.of(9, 30));
                 assertThat(response.getTotalPrice()).isEqualByComparingTo("80000.00");
-                assertThat(response.getDepositAmount()).isEqualByComparingTo("8000.00");
+                assertThat(response.getDepositAmount()).isEqualByComparingTo("0.00");
         }
 
         @Test
@@ -225,7 +234,7 @@ class BookingServiceTest {
         void create_withPreferredStaffBusy_shouldThrowBusinessException() {
                 CreateBookingRequest request = CreateBookingRequest.builder()
                                 .customerId(2L)
-                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .bookingDate(LocalDate.of(2026, 12, 2))
                                 .startTime(LocalTime.of(9, 0))
                                 .preferredStaffId(6L)
                                 .serviceIds(List.of(11L))
@@ -251,7 +260,7 @@ class BookingServiceTest {
         void create_withAnyStaff_shouldAllocateToStaffWithLeastBookings() {
                 CreateBookingRequest request = CreateBookingRequest.builder()
                                 .customerId(2L)
-                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .bookingDate(LocalDate.of(2026, 12, 2))
                                 .startTime(LocalTime.of(9, 0))
                                 .preferredStaffId(null) // Chọn "Bất kỳ nhân viên"
                                 .serviceIds(List.of(11L))
@@ -293,7 +302,7 @@ class BookingServiceTest {
         @Test
         @DisplayName("✅ Kiểm tra các khung giờ trống khả dụng thời gian thực")
         void getAvailability_shouldScanCorrectSlots() {
-                LocalDate date = LocalDate.of(2026, 7, 1);
+                LocalDate date = LocalDate.of(2026, 12, 2);
                 when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
                 BookingPricingResult pricingResult = BookingPricingResult.builder()
                                 .totalPrice(BigDecimal.valueOf(80000.00))
@@ -335,7 +344,7 @@ class BookingServiceTest {
                                 .branch(branch)
                                 .customer(customer)
                                 .assignedStaff(staff1)
-                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .bookingDate(LocalDate.of(2026, 12, 2))
                                 .startTime(LocalTime.of(9, 0))
                                 .endTime(LocalTime.of(9, 30))
                                 .totalPrice(BigDecimal.valueOf(80000.00))
@@ -359,7 +368,7 @@ class BookingServiceTest {
                                 .branch(branch)
                                 .customer(customer)
                                 .assignedStaff(staff1)
-                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .bookingDate(LocalDate.of(2026, 12, 2))
                                 .startTime(LocalTime.of(9, 0))
                                 .endTime(LocalTime.of(9, 30))
                                 .totalPrice(BigDecimal.valueOf(80000.00))
@@ -399,7 +408,7 @@ class BookingServiceTest {
                                 .branch(branch)
                                 .customer(customer)
                                 .assignedStaff(staff1)
-                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .bookingDate(LocalDate.of(2026, 12, 2))
                                 .startTime(LocalTime.of(9, 0))
                                 .endTime(LocalTime.of(9, 30))
                                 .totalPrice(BigDecimal.valueOf(80000.00))
@@ -424,7 +433,7 @@ class BookingServiceTest {
                                 .branch(branch)
                                 .customer(customer)
                                 .assignedStaff(staff1)
-                                .bookingDate(LocalDate.of(2026, 7, 1))
+                                .bookingDate(LocalDate.of(2026, 12, 2))
                                 .startTime(LocalTime.of(9, 0))
                                 .endTime(LocalTime.of(9, 30))
                                 .totalPrice(BigDecimal.valueOf(80000.00))

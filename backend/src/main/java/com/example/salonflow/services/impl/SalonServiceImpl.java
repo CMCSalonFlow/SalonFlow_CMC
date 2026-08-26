@@ -1,10 +1,13 @@
 package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.Salon.*;
+import com.example.salonflow.dto.audit.CreateAuditLogRequest;
 import com.example.salonflow.entity.*;
+import com.example.salonflow.entity.enums.AuditAction;
 import com.example.salonflow.exception.BusinessException;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
+import com.example.salonflow.services.service.AuditLogService;
 import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.SalonService;
 import com.example.salonflow.util.SecurityUtil;
@@ -31,6 +34,7 @@ public class SalonServiceImpl implements SalonService {
         private final SalonApprovalAuditRepository auditRepository;
         private final EmailService emailService;
         private final BranchRepository branchRepository;
+        private final AuditLogService auditLogService; // thêm
 
         @Override
         public SalonResponse create(CreateSalonRequest request) {
@@ -113,17 +117,18 @@ public class SalonServiceImpl implements SalonService {
 
         private SalonResponse mapToResponse(Salon salon) {
 
-                List<SalonPhotoResponse> photoResponses = salon.getPhotos() == null ? List.of() : salon.getPhotos().stream()
-                                .map(photo -> {
-                                        MediaFile media = photo.getMedia();
+                List<SalonPhotoResponse> photoResponses = salon.getPhotos() == null ? List.of()
+                                : salon.getPhotos().stream()
+                                                .map(photo -> {
+                                                        MediaFile media = photo.getMedia();
 
-                                        return SalonPhotoResponse.builder()
-                                                        .mediaId(media != null ? media.getId() : null)
-                                                        .url(media != null ? media.getUrl() : null)
-                                                        .isPrimary(photo.getIsPrimary())
-                                                        .build();
-                                })
-                                .toList();
+                                                        return SalonPhotoResponse.builder()
+                                                                        .mediaId(media != null ? media.getId() : null)
+                                                                        .url(media != null ? media.getUrl() : null)
+                                                                        .isPrimary(photo.getIsPrimary())
+                                                                        .build();
+                                                })
+                                                .toList();
 
                 boolean canAppeal = false;
                 long daysUntilAppeal = 0;
@@ -254,9 +259,11 @@ public class SalonServiceImpl implements SalonService {
         @Override
         public SalonResponse approve(Long salonId, Long adminUserId) {
                 Salon salon = salonRepository.findById(salonId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy Salon với ID: " + salonId));
                 User admin = userRepository.findById(adminUserId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản Admin với ID: " + adminUserId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy tài khoản Admin với ID: " + adminUserId));
 
                 salon.setStatus(SalonStatus.APPROVED);
                 salon.setApprovedAt(LocalDateTime.now());
@@ -271,12 +278,21 @@ public class SalonServiceImpl implements SalonService {
                                 .build();
                 auditRepository.save(audit);
 
+                // Cách A: ghi audit log nghiệp vụ nhạy cảm
+                auditLogService.log(CreateAuditLogRequest.builder()
+                                .userId(adminUserId)
+                                .userEmail(admin.getEmail())
+                                .action(AuditAction.APPROVE)
+                                .resourceType("Salon")
+                                .resourceId(String.valueOf(salonId))
+                                .newValue("Salon '" + salon.getName() + "' được duyệt bởi admin " + admin.getEmail())
+                                .build());
+
                 try {
                         emailService.sendSalonApprovedEmail(
                                         salon.getOwner() != null ? salon.getOwner().getEmail() : salon.getEmail(),
                                         salon.getName(),
-                                        salon.getOwner() != null ? salon.getOwner().getFullName() : "Chủ Salon"
-                        );
+                                        salon.getOwner() != null ? salon.getOwner().getFullName() : "Chủ Salon");
                 } catch (Exception e) {
                         log.error("Lỗi gửi email duyệt salon: {}", e.getMessage());
                 }
@@ -287,11 +303,14 @@ public class SalonServiceImpl implements SalonService {
         @Override
         public SalonResponse reject(Long salonId, RejectSalonRequest request, Long adminUserId) {
                 Salon salon = salonRepository.findById(salonId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon với ID: " + salonId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy Salon với ID: " + salonId));
                 User admin = userRepository.findById(adminUserId)
-                                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy tài khoản Admin với ID: " + adminUserId));
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Không tìm thấy tài khoản Admin với ID: " + adminUserId));
 
-                String reason = request != null && request.getReason() != null ? request.getReason().trim() : "Hồ sơ chưa đạt tiêu chuẩn.";
+                String reason = request != null && request.getReason() != null ? request.getReason().trim()
+                                : "Hồ sơ chưa đạt tiêu chuẩn.";
 
                 salon.setStatus(SalonStatus.REJECTED);
                 salon.setRejectionReason(reason);
@@ -306,13 +325,23 @@ public class SalonServiceImpl implements SalonService {
                                 .build();
                 auditRepository.save(audit);
 
+                // Cách A: ghi audit log nghiệp vụ nhạy cảm
+                auditLogService.log(CreateAuditLogRequest.builder()
+                                .userId(adminUserId)
+                                .userEmail(admin.getEmail())
+                                .action(AuditAction.REJECT)
+                                .resourceType("Salon")
+                                .resourceId(String.valueOf(salonId))
+                                .oldValue("status=PENDING")
+                                .newValue("status=REJECTED, reason=" + reason)
+                                .build());
+
                 try {
                         emailService.sendSalonRejectedEmail(
                                         salon.getOwner() != null ? salon.getOwner().getEmail() : salon.getEmail(),
                                         salon.getName(),
                                         salon.getOwner() != null ? salon.getOwner().getFullName() : "Chủ Salon",
-                                        reason
-                        );
+                                        reason);
                 } catch (Exception e) {
                         log.error("Lỗi gửi email từ chối salon: {}", e.getMessage());
                 }
@@ -331,13 +360,16 @@ public class SalonServiceImpl implements SalonService {
                 }
 
                 if (salon.getStatus() != SalonStatus.REJECTED) {
-                        throw new BusinessException("Chỉ những Salon ở trạng thái Bị từ chối (REJECTED) mới có thể gửi lại đơn.");
+                        throw new BusinessException(
+                                        "Chỉ những Salon ở trạng thái Bị từ chối (REJECTED) mới có thể gửi lại đơn.");
                 }
 
                 if (salon.getRejectedAt() != null) {
                         long daysBetween = ChronoUnit.DAYS.between(salon.getRejectedAt(), LocalDateTime.now());
                         if (daysBetween < 7) {
-                                throw new BusinessException("Bạn chỉ có thể gửi lại đơn sau 7 ngày kể từ ngày bị từ chối. Còn lại " + (7 - daysBetween) + " ngày.");
+                                throw new BusinessException(
+                                                "Bạn chỉ có thể gửi lại đơn sau 7 ngày kể từ ngày bị từ chối. Còn lại "
+                                                                + (7 - daysBetween) + " ngày.");
                         }
                 }
 
@@ -384,15 +416,16 @@ public class SalonServiceImpl implements SalonService {
 
         @Override
         @Transactional(readOnly = true)
-        public List<NearbySalonBranchResponse> getNearbySalons(Double lat, Double lng, Double radiusInMeters, Integer limit) {
+        public List<NearbySalonBranchResponse> getNearbySalons(Double lat, Double lng, Double radiusInMeters,
+                        Integer limit) {
                 if (lat == null || lng == null) {
                         throw new BusinessException("Vui lòng cung cấp tọa độ vĩ độ (lat) và kinh độ (lng).");
                 }
                 double radius = (radiusInMeters != null && radiusInMeters > 0) ? radiusInMeters : 5000.0;
                 int maxLimit = (limit != null && limit > 0 && limit <= 100) ? limit : 50;
 
-                List<com.example.salonflow.repository.projection.NearbyBranchProjection> projections = 
-                        branchRepository.findNearbyBranches(lat, lng, radius, maxLimit);
+                List<com.example.salonflow.repository.projection.NearbyBranchProjection> projections = branchRepository
+                                .findNearbyBranches(lat, lng, radius, maxLimit);
 
                 return projections.stream().map(p -> {
                         Double distanceM = p.getDistanceMeters();
@@ -411,7 +444,8 @@ public class SalonServiceImpl implements SalonService {
                                         .logoUrl(p.getLogoUrl())
                                         .distanceMeters(distanceM != null ? Math.round(distanceM * 10.0) / 10.0 : null)
                                         .distanceKm(distanceKm)
-                                        .ratingAverage(p.getRatingAverage() != null ? p.getRatingAverage() : java.math.BigDecimal.ZERO)
+                                        .ratingAverage(p.getRatingAverage() != null ? p.getRatingAverage()
+                                                        : java.math.BigDecimal.ZERO)
                                         .ratingCount(p.getRatingCount() != null ? p.getRatingCount() : 0)
                                         .isOpen(true)
                                         .build();

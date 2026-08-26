@@ -133,10 +133,12 @@ public class StaffServiceImpl implements StaffService {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
         }
 
-        // Tìm danh sách nhân viên đang hoạt động của chi nhánh và ánh xạ sang DTO trả về
+        // Tìm danh sách nhân viên đang hoạt động của chi nhánh và ánh xạ sang DTO trả
+        // về
         return staffRepository.findByBranchId(branchId).stream()
                 .filter(staff -> {
-                    if (staff.getUserId() == null) return true;
+                    if (staff.getUserId() == null)
+                        return true;
                     User user = userRepository.findById(staff.getUserId()).orElse(null);
                     return user != null && user.getStatus() == UserStatus.ACTIVE;
                 })
@@ -153,7 +155,8 @@ public class StaffServiceImpl implements StaffService {
 
         return staffRepository.findByBranchId(branchId).stream()
                 .filter(staff -> {
-                    if (staff.getUserId() == null) return true;
+                    if (staff.getUserId() == null)
+                        return true;
                     User user = userRepository.findById(staff.getUserId()).orElse(null);
                     return user != null && user.getStatus() == UserStatus.ACTIVE;
                 })
@@ -299,13 +302,32 @@ public class StaffServiceImpl implements StaffService {
     }
 
     private PublicStaffResponse toPublicResponse(Staff staff) {
-        return PublicStaffResponse.builder()
-                .id(staff.getId())
-                .branchId(staff.getBranch().getId())
-                .name(staff.getName())
-                .avatarUrl(staff.getAvatarUrl())
-                .bio(staff.getBio())
-                .specialties(staff.getSpecialties())
-                .build();
+        List<ServiceResponse> serviceResponses = new ArrayList<>();
+        if (staff.getServices() != null) {
+            for (com.example.salonflow.entity.SalonService service : staff.getServices()) {
+                serviceResponses.add(ServiceResponse.builder()
+                        .id(service.getId())
+                        .branchId(service.getBranch().getId())
+                        .categoryId(service.getCategory() != null ? service.getCategory().getId() : null)
+                        .categoryName(service.getCategory() != null ? service.getCategory().getName() : null)
+                        .name(service.getName())
+                        .price(service.getPrice())
+                        .durationMinutes(service.getDurationMinutes())
+                        .description(service.getDescription())
+                        .isActive(service.getIsActive())
+                        .build());
+            }
+        }
+
+        PublicStaffResponse response = new PublicStaffResponse();
+        response.setId(staff.getId());
+        response.setBranchId(staff.getBranch().getId());
+        response.setName(staff.getName());
+        response.setAvatarUrl(staff.getAvatarUrl());
+        response.setBio(staff.getBio());
+        response.setSpecialties(staff.getSpecialties());
+        response.setServices(serviceResponses);
+        response.setUserId(staff.getUserId());
+        return response;
     }
 }

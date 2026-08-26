@@ -22,6 +22,10 @@ public class UpdateBranchRequest {
 
     private Boolean isActive;
 
+    private Boolean isSmsEnabled;
+
+    private String smsTemplate;
+
     @jakarta.validation.Valid
     private java.util.List<BranchHourRequest> hours;
 }

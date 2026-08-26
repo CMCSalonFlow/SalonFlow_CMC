@@ -69,6 +69,31 @@ services:
     networks:
       - salon-network
 
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: salonflow-backend
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+      - elasticsearch
+    env_file:
+      - .env
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_URL=jdbc:postgresql://postgres:5432/salonflow
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - REDIS_HOST=redis
+      - ELASTICSEARCH_URI=http://elasticsearch:9200
+      - MINIO_ENDPOINT=http://minio:9000
+    networks:
+      - salon-network
+
 volumes:
   redis_data:
   minio_data:

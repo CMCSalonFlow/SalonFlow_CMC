@@ -74,8 +74,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
 
                         // public APIs
+                        .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/api/v1/chatbot/**").permitAll()
+                        .requestMatchers("/api/ai/**", "/api/v1/chatbot/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator", "/actuator/**").permitAll()
                         .requestMatchers("/api/v1/monitoring", "/api/v1/monitoring/**").permitAll()
@@ -89,8 +90,9 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/branches/*/bundles/public").permitAll()
                         .requestMatchers("/api/v1/branches/*/staff/public").permitAll()
                         .requestMatchers("/api/v1/branches/*/staff/*/availability").permitAll()
+                        .requestMatchers("/api/v1/shifts/branch/*/availability").permitAll()
                         .requestMatchers("/api/v1/branches/*/guest-bookings").permitAll()
-                        .requestMatchers("/api/v1/payments/vnpay-callback", "/api/v1/payments/vnpay-ipn", "/api/v1/payments/sepay-webhook", "/api/v1/payments/auto-confirm/**").permitAll()
+                        .requestMatchers("/api/v1/payments/sepay-webhook", "/api/v1/payments/auto-confirm/**").permitAll()
                         .requestMatchers("/api/v1/vouchers/validate").permitAll()
                         .requestMatchers("/api/v1/system-off-days/check-branch", "/api/v1/system-off-days/branch-range").permitAll()
                         .requestMatchers("/api/v1/subscriptions/webhook").permitAll()

@@ -26,7 +26,7 @@ public class RevenueForecastController {
     @GetMapping("/history")
     public ResponseEntity<List<DailyRevenuePoint>> getHistory(
             @PathVariable Long branchId,
-            @RequestParam(defaultValue = "6") int months
+            @RequestParam(defaultValue = "2") int months
     ) {
         return ResponseEntity.ok(revenueForecastService.getDailyRevenueHistory(branchId, months));
     }
@@ -34,7 +34,7 @@ public class RevenueForecastController {
     @GetMapping("/forecast")
     public ResponseEntity<RevenueForecastResponse> forecast(
             @PathVariable Long branchId,
-            @RequestParam(defaultValue = "6") int months,
+            @RequestParam(defaultValue = "2") int months,
             @RequestParam(defaultValue = "7") int periods
     ) {
         return ResponseEntity.ok(revenueForecastService.forecastBranchRevenue(branchId, months, periods));
@@ -43,7 +43,7 @@ public class RevenueForecastController {
     @GetMapping("/forecast/saved")
     public ResponseEntity<RevenueForecastResponse> forecastFromSavedModel(
             @PathVariable Long branchId,
-            @RequestParam(defaultValue = "6") int months,
+            @RequestParam(defaultValue = "2") int months,
             @RequestParam(defaultValue = "7") int periods
     ) {
         return ResponseEntity.ok(revenueForecastService.forecastBranchRevenueFromSavedModel(branchId, months, periods));
@@ -59,7 +59,7 @@ public class RevenueForecastController {
     @PostMapping("/forecast/train")
     public ResponseEntity<RevenueForecastTrainResponse> train(
             @PathVariable Long branchId,
-            @RequestParam(defaultValue = "6") int months
+            @RequestParam(defaultValue = "2") int months
     ) {
         return ResponseEntity.ok(revenueForecastService.trainBranchRevenueModel(branchId, months));
     }

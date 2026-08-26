@@ -31,7 +31,9 @@ public interface SupportTicketRepository extends JpaRepository<SupportTicket, Lo
           AND (:category IS NULL OR t.category = :category)
           AND (:slaBreached IS NULL OR t.slaBreached = :slaBreached)
           AND (:assignedToId IS NULL OR t.assignedTo.id = :assignedToId)
-          AND (:search IS NULL OR LOWER(t.subject) LIKE LOWER(CONCAT('%', :search, '%')) OR LOWER(t.ticketCode) LIKE LOWER(CONCAT('%', :search, '%')))
+          AND (:search IS NULL
+               OR LOWER(t.subject) LIKE LOWER(CONCAT('%', cast(:search as string), '%'))
+               OR LOWER(t.ticketCode) LIKE LOWER(CONCAT('%', cast(:search as string), '%')))
     """)
     Page<SupportTicket> findAdminTickets(
             @Param("status") TicketStatus status,

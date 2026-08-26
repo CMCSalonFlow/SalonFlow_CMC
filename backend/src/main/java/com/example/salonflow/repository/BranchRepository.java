@@ -20,6 +20,11 @@ public interface BranchRepository
             Long salonId
     );
 
+    boolean existsByNameIgnoreCaseAndSalonId(String name, Long salonId);
+
+    boolean existsByPhoneAndSalonId(String phone, Long salonId);
+
+
     @Query("SELECT AVG(b.ratingAverage) FROM Branch b WHERE b.salon.id = :salonId AND b.ratingCount > 0")
     Double calculateAverageBranchRatingBySalonId(@Param("salonId") Long salonId);
 

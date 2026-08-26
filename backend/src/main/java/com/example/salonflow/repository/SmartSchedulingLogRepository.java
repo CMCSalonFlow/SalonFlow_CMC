@@ -10,8 +10,7 @@ import java.util.List;
 
 @Repository
 public interface SmartSchedulingLogRepository extends JpaRepository<SmartSchedulingLog, Long> {
-
     Page<SmartSchedulingLog> findByBranchIdOrderByCreatedAtDesc(Long branchId, Pageable pageable);
-
-    List<SmartSchedulingLog> findByCustomerIdOrderByCreatedAtDesc(Long customerId);
+    List<SmartSchedulingLog> findByBranchIdOrderByCreatedAtDesc(Long branchId);
+    List<SmartSchedulingLog> findAllByOrderByCreatedAtDesc();
 }

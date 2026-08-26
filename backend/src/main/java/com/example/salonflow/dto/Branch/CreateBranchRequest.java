@@ -20,6 +20,10 @@ public class CreateBranchRequest {
 
     private Double longitude;
 
+    private Boolean isSmsEnabled;
+
+    private String smsTemplate;
+
     @jakarta.validation.Valid
     private java.util.List<BranchHourRequest> hours;
 

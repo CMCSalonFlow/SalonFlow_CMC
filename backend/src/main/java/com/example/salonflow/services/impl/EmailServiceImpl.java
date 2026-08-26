@@ -102,6 +102,44 @@ public class EmailServiceImpl implements EmailService {
     }
 
     @Override
+    public void sendBookingConfirmationEmail(Booking booking) {
+        if (booking == null || booking.getCustomer() == null || booking.getCustomer().getEmail() == null) {
+            return;
+        }
+
+        String recipientEmail = booking.getCustomer().getEmail().trim();
+        if (recipientEmail.isBlank() || recipientEmail.endsWith("@walkin.local") || recipientEmail.endsWith("@guest.local")) {
+            log.info("Skip sending booking confirmation email to dummy guest/walkin email: {}", recipientEmail);
+            return;
+        }
+
+        String branchName = booking.getBranch() != null ? booking.getBranch().getName() : "SalonFlow";
+        String dateStr = booking.getBookingDate() != null ? booking.getBookingDate().toString() : "";
+        String timeStr = booking.getStartTime() != null ? booking.getStartTime().toString() : "";
+
+        String subject = "Xác nhận đặt lịch hẹn - Lịch hẹn #" + booking.getId();
+        String body = """
+                <div style="font-family:Arial,Helvetica,sans-serif;padding:24px;color:#2c221d;">
+                  <h2 style="color:#1677ff;margin-top:0;">Xác nhận đặt lịch hẹn thành công</h2>
+                  <p>Cảm ơn bạn đã sử dụng dịch vụ tại <b>%s</b>.</p>
+                  <p><b>Mã lịch hẹn:</b> #%d</p>
+                  <p><b>Ngày hẹn:</b> %s</p>
+                  <p><b>Giờ hẹn:</b> %s</p>
+                  <p><b>Tổng giá trị đơn:</b> %s VND</p>
+                  <p style="margin-top:20px;color:#595959;">Lịch hẹn của bạn đã được tiếp nhận. Hóa đơn thanh toán chính thức sẽ được gửi sau khi bạn hoàn tất dịch vụ tại Salon.</p>
+                </div>
+                """.formatted(
+                branchName,
+                booking.getId(),
+                dateStr,
+                timeStr,
+                booking.getTotalPrice() != null ? String.format("%,.0f", booking.getTotalPrice()) : "0"
+        );
+
+        sendNotificationEmail(recipientEmail, subject, body);
+    }
+
+    @Override
     public void sendInvoiceEmail(Booking booking, String invoiceUrl) {
         if (booking == null || booking.getCustomer() == null || booking.getCustomer().getEmail() == null) {
             return;
