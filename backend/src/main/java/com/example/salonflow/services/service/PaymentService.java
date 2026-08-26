@@ -18,20 +18,6 @@ public interface PaymentService {
      */
     PaymentResponse getPaymentStatus(Long bookingId);
 
-    /**
-     * Xác thực thông tin thanh toán từ callback của VNPay.
-     */
-    PaymentResponse verifyPayment(Map<String, String> params);
-
-    /**
-     * Xác thực thông tin thanh toán từ IPN của VNPay.
-     */
-    Map<String, String> verifyIpn(Map<String, String> params);
-
-    /**
-     * Hoàn tiền cho khoản deposit đã thanh toán qua VNPay.
-     */
-    PaymentResponse refundDeposit(Long bookingId, BigDecimal refundAmount, String reason);
 
     /**
      * Xử lý thanh toán tiền mặt tại quầy (POS Mode) bỏ qua các cổng trực tuyến.

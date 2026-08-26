@@ -39,27 +39,6 @@ public class PaymentController {
         return ResponseEntity.ok(response);
     }
 
-    /**
-     * Tiếp nhận phản hồi kết quả thanh toán từ VNPay (Redirect trên client).
-     */
-    @GetMapping("/vnpay-callback")
-    public ResponseEntity<PaymentResponse> handleVNPayCallback(
-            @RequestParam Map<String, String> params
-    ) {
-        PaymentResponse response = paymentService.verifyPayment(params);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Nhận phản hồi IPN trực tiếp từ server VNPay.
-     */
-    @GetMapping("/vnpay-ipn")
-    public ResponseEntity<Map<String, String>> handleVNPayIpn(
-            @RequestParam Map<String, String> params
-    ) {
-        Map<String, String> response = paymentService.verifyIpn(params);
-        return ResponseEntity.ok(response);
-    }
 
     /**
      * Endpoint riêng xử lý Thanh toán Tiền Mặt tại quầy (POS Mode) do Staff xác nhận.

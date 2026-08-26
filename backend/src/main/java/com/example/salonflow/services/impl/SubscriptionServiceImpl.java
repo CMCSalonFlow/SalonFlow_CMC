@@ -40,24 +40,6 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Collections;
-import java.util.Calendar;
-import java.util.TimeZone;
-import java.text.SimpleDateFormat;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
-import org.springframework.beans.factory.annotation.Value;
-import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
-import com.example.salonflow.dto.payment.PaymentResponse;
-import com.example.salonflow.entity.enums.PaymentMethod;
-import com.example.salonflow.entity.enums.PaymentStatus;
-
 
 @Service
 @RequiredArgsConstructor
@@ -71,16 +53,6 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final StaffRepository staffRepository;
     private final EmailService emailService;
     private final StripeProperties stripeProperties;
-
-    @Value("${vnpay.tmn-code}")
-    private String tmnCode;
-
-    @Value("${vnpay.hash-secret}")
-    private String hashSecret;
-
-    @Value("${vnpay.pay-url}")
-    private String payUrl;
-
 
     @Override
     @Transactional(readOnly = true)
@@ -128,9 +100,11 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         // 1. Calculate price
         BigDecimal price;
         if (request.getPlan() == SubscriptionPlan.PRO) {
-            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(4788000) : BigDecimal.valueOf(499000);
+            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(4788000)
+                    : BigDecimal.valueOf(499000);
         } else if (request.getPlan() == SubscriptionPlan.ENTERPRISE) {
-            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(28800000) : BigDecimal.valueOf(3000000);
+            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(28800000)
+                    : BigDecimal.valueOf(3000000);
         } else {
             throw new BusinessException("Gói FREE không yêu cầu thanh toán.");
         }
@@ -149,61 +123,54 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
         subscription = subscriptionRepository.save(subscription);
 
-        // 3. Generate VNPay URL
+        // 3. Create Stripe Checkout session (or mock auto-activate)
+        if (stripeProperties.isMockEnable() || Stripe.apiKey == null || Stripe.apiKey.isEmpty()) {
+            expireActiveSubscriptions(salonId);
+            subscription.setStatus(SubscriptionStatus.ACTIVE);
+            subscriptionRepository.save(subscription);
+            log.info("Mock Stripe Checkout: Subscription ID {} activated automatically.", subscription.getId());
+            return request.getSuccessUrl();
+        }
+
         try {
-            HttpServletRequest servletRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
-            String clientIp = getClientIp(servletRequest);
+            SessionCreateParams params = SessionCreateParams.builder()
+                    .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
+                    .setSuccessUrl(request.getSuccessUrl())
+                    .setCancelUrl(request.getCancelUrl())
+                    .setClientReferenceId(String.valueOf(subscription.getId()))
+                    .addLineItem(
+                            SessionCreateParams.LineItem.builder()
+                                    .setQuantity(1L)
+                                    .setPriceData(
+                                            SessionCreateParams.LineItem.PriceData.builder()
+                                                    .setCurrency("vnd")
+                                                    .setUnitAmount(price.longValue())
+                                                    .setProductData(
+                                                            SessionCreateParams.LineItem.PriceData.ProductData.builder()
+                                                                    .setName("SalonFlow " + request.getPlan().name()
+                                                                            + " (" + request.getBillingCycle().name()
+                                                                            + ")")
+                                                                    .build())
+                                                    .setRecurring(
+                                                            SessionCreateParams.LineItem.PriceData.Recurring.builder()
+                                                                    .setInterval(request
+                                                                            .getBillingCycle() == BillingCycle.YEARLY
+                                                                                    ? SessionCreateParams.LineItem.PriceData.Recurring.Interval.YEAR
+                                                                                    : SessionCreateParams.LineItem.PriceData.Recurring.Interval.MONTH)
+                                                                    .build())
+                                                    .build())
+                                    .build())
+                    .build();
 
-            String vnp_Version = "2.1.0";
-            String vnp_Command = "pay";
-            String orderType = "other";
-            long amount = price.multiply(new BigDecimal(100)).longValue();
-            String vnp_TxnRef = "sub_" + subscription.getId();
-
-            Map<String, String> vnp_Params = new HashMap<>();
-            vnp_Params.put("vnp_Version", vnp_Version);
-            vnp_Params.put("vnp_Command", vnp_Command);
-            vnp_Params.put("vnp_TmnCode", tmnCode);
-            vnp_Params.put("vnp_Amount", String.valueOf(amount));
-            vnp_Params.put("vnp_CurrCode", "VND");
-            vnp_Params.put("vnp_TxnRef", vnp_TxnRef);
-            vnp_Params.put("vnp_OrderInfo", "Thanh toan goi cuoc " + request.getPlan().name() + " (" + request.getBillingCycle().name() + ")");
-            vnp_Params.put("vnp_OrderType", orderType);
-            vnp_Params.put("vnp_Locale", "vn");
-            vnp_Params.put("vnp_ReturnUrl", request.getSuccessUrl());
-            vnp_Params.put("vnp_IpAddr", clientIp);
-
-            Calendar cld = Calendar.getInstance(TimeZone.getTimeZone("Etc/GMT+7"));
-            SimpleDateFormat formatter = new SimpleDateFormat("yyyyMMddHHmmss");
-            String vnp_CreateDate = formatter.format(cld.getTime());
-            vnp_Params.put("vnp_CreateDate", vnp_CreateDate);
-
-            cld.add(Calendar.MINUTE, 15);
-            String vnp_ExpireDate = formatter.format(cld.getTime());
-            vnp_Params.put("vnp_ExpireDate", vnp_ExpireDate);
-
-            List<String> fieldNames = new ArrayList<>(vnp_Params.keySet());
-            Collections.sort(fieldNames);
-            List<String> parts = new ArrayList<>();
-            for (String fieldName : fieldNames) {
-                String fieldValue = vnp_Params.get(fieldName);
-                if (fieldValue != null && !fieldValue.isEmpty()) {
-                    parts.add(encode(fieldName) + "=" + encode(fieldValue));
-                }
-            }
-            String hashData = String.join("&", parts);
-            String vnp_SecureHash = hmacSHA512(hashSecret, hashData);
-            String queryUrl = hashData + "&vnp_SecureHash=" + vnp_SecureHash;
-            String generatedUrl = payUrl + "?" + queryUrl;
-
-            log.info("Generated VNPay subscription URL: {} for subscription ID: {}", generatedUrl, subscription.getId());
-            return generatedUrl;
+            Session session = Session.create(params);
+            log.info("Generated Stripe Checkout URL: {} for subscription ID: {}", session.getUrl(),
+                    subscription.getId());
+            return session.getUrl();
         } catch (Exception e) {
-            log.error("Error creating VNPay checkout session for subscription: ", e);
-            throw new BusinessException("Failed to generate payment session: " + e.getMessage());
+            log.error("Error creating Stripe checkout session: ", e);
+            throw new BusinessException("Failed to generate Stripe payment session: " + e.getMessage());
         }
     }
-
 
     @Override
     @Transactional(readOnly = true)
@@ -219,12 +186,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
 
         try {
-            com.stripe.param.billingportal.SessionCreateParams params =
-                    com.stripe.param.billingportal.SessionCreateParams.builder()
-                            .setCustomer(active.getStripeCustomerId())
-                            .setReturnUrl(returnUrl)
-                            .build();
-            com.stripe.model.billingportal.Session portalSession = com.stripe.model.billingportal.Session.create(params);
+            com.stripe.param.billingportal.SessionCreateParams params = com.stripe.param.billingportal.SessionCreateParams
+                    .builder()
+                    .setCustomer(active.getStripeCustomerId())
+                    .setReturnUrl(returnUrl)
+                    .build();
+            com.stripe.model.billingportal.Session portalSession = com.stripe.model.billingportal.Session
+                    .create(params);
             return portalSession.getUrl();
         } catch (Exception e) {
             log.error("Error creating Stripe portal session: ", e);
@@ -260,11 +228,13 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 handleCheckoutCompleted(session);
                 break;
             case "customer.subscription.updated":
-                com.stripe.model.Subscription stripeSubUpdated = (com.stripe.model.Subscription) dataObjectDeserializer.getObject().get();
+                com.stripe.model.Subscription stripeSubUpdated = (com.stripe.model.Subscription) dataObjectDeserializer
+                        .getObject().get();
                 handleSubscriptionUpdated(stripeSubUpdated);
                 break;
             case "customer.subscription.deleted":
-                com.stripe.model.Subscription stripeSubDeleted = (com.stripe.model.Subscription) dataObjectDeserializer.getObject().get();
+                com.stripe.model.Subscription stripeSubDeleted = (com.stripe.model.Subscription) dataObjectDeserializer
+                        .getObject().get();
                 handleSubscriptionDeleted(stripeSubDeleted);
                 break;
             default:
@@ -297,14 +267,17 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (stripeSubscriptionId != null) {
             try {
                 com.stripe.model.Subscription stripeSub = com.stripe.model.Subscription.retrieve(stripeSubscriptionId);
-                startDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodStart()), ZoneId.systemDefault());
-                endDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodEnd()), ZoneId.systemDefault());
+                startDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodStart()),
+                        ZoneId.systemDefault());
+                endDate = LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodEnd()),
+                        ZoneId.systemDefault());
             } catch (Exception e) {
                 log.error("Failed to retrieve subscription details from Stripe: ", e);
             }
         }
 
-        BigDecimal price = BigDecimal.valueOf(session.getAmountTotal() != null ? session.getAmountTotal() / 100.0 : 0.0);
+        BigDecimal price = BigDecimal
+                .valueOf(session.getAmountTotal() != null ? session.getAmountTotal() / 100.0 : 0.0);
 
         Subscription subscription = Subscription.builder()
                 .salon(salon)
@@ -327,8 +300,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Optional<Subscription> localSubOpt = subscriptionRepository.findByStripeSubscriptionId(stripeSub.getId());
         if (localSubOpt.isPresent()) {
             Subscription localSub = localSubOpt.get();
-            localSub.setStartDate(LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodStart()), ZoneId.systemDefault()));
-            localSub.setEndDate(LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodEnd()), ZoneId.systemDefault()));
+            localSub.setStartDate(LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodStart()),
+                    ZoneId.systemDefault()));
+            localSub.setEndDate(LocalDateTime.ofInstant(Instant.ofEpochSecond(stripeSub.getCurrentPeriodEnd()),
+                    ZoneId.systemDefault()));
 
             String stripeStatus = stripeSub.getStatus();
             if ("active".equals(stripeStatus)) {
@@ -377,7 +352,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .build();
 
         subscription = subscriptionRepository.save(subscription);
-        log.info("Super Admin manually activated subscription {} (Plan: {}) for Salon {}", subscription.getId(), request.getPlan(), request.getSalonId());
+        log.info("Super Admin manually activated subscription {} (Plan: {}) for Salon {}", subscription.getId(),
+                request.getPlan(), request.getSalonId());
 
         return mapToResponse(subscription);
     }
@@ -394,14 +370,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             log.info("Subscription ID {} for Salon {} has expired.", sub.getId(), sub.getSalon().getId());
 
             try {
-                String ownerEmail = sub.getSalon().getOwner() != null ? sub.getSalon().getOwner().getEmail() : sub.getSalon().getEmail();
+                String ownerEmail = sub.getSalon().getOwner() != null ? sub.getSalon().getOwner().getEmail()
+                        : sub.getSalon().getEmail();
                 if (ownerEmail != null) {
                     emailService.sendNotificationEmail(
                             ownerEmail,
                             "Gói đăng ký dịch vụ đã hết hạn - SalonFlow",
-                            String.format("Chào bạn,<br/><br/>Gói dịch vụ <b>%s</b> của salon <b>%s</b> đã hết hạn vào ngày %s. Vui lòng gia hạn gói dịch vụ để tiếp tục sử dụng hệ thống.<br/><br/>Trân trọng,<br/>Đội ngũ SalonFlow.",
-                                    sub.getPlan(), sub.getSalon().getName(), sub.getEndDate())
-                    );
+                            String.format(
+                                    "Chào bạn,<br/><br/>Gói dịch vụ <b>%s</b> của salon <b>%s</b> đã hết hạn vào ngày %s. Vui lòng gia hạn gói dịch vụ để tiếp tục sử dụng hệ thống.<br/><br/>Trân trọng,<br/>Đội ngũ SalonFlow.",
+                                    sub.getPlan(), sub.getSalon().getName(), sub.getEndDate()));
                 }
             } catch (Exception e) {
                 log.error("Failed to send expiry email for subscription ID: {}", sub.getId(), e);
@@ -415,7 +392,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionFeatures features = getActiveFeatures(salonId);
         long currentBranches = branchRepository.findBySalonId(salonId).size();
         if (currentBranches >= features.getMaxBranches()) {
-            throw new BusinessException(String.format("Giới hạn số lượng chi nhánh của bạn là %d. Bạn đã tạo %d chi nhánh. Vui lòng nâng cấp gói đăng ký để tạo thêm chi nhánh.",
+            throw new BusinessException(String.format(
+                    "Giới hạn số lượng chi nhánh của bạn là %d. Bạn đã tạo %d chi nhánh. Vui lòng nâng cấp gói đăng ký để tạo thêm chi nhánh.",
                     features.getMaxBranches(), currentBranches));
         }
     }
@@ -426,7 +404,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         SubscriptionFeatures features = getActiveFeatures(salonId);
         long currentStaff = staffRepository.findByBranchSalonId(salonId).size();
         if (currentStaff >= features.getMaxStaff()) {
-            throw new BusinessException(String.format("Giới hạn số lượng nhân viên của bạn là %d. Salon của bạn hiện có %d nhân viên. Vui lòng nâng cấp gói đăng ký để tuyển thêm nhân viên.",
+            throw new BusinessException(String.format(
+                    "Giới hạn số lượng nhân viên của bạn là %d. Salon của bạn hiện có %d nhân viên. Vui lòng nâng cấp gói đăng ký để tuyển thêm nhân viên.",
                     features.getMaxStaff(), currentStaff));
         }
     }
@@ -436,7 +415,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     public void validateAdvancedAnalytics(Long salonId) {
         SubscriptionFeatures features = getActiveFeatures(salonId);
         if (!features.isAnalyticsAdvanced()) {
-            throw new BusinessException("Tính năng xem Báo cáo phân tích chuyên sâu yêu cầu gói đăng ký PRO hoặc ENTERPRISE.");
+            throw new BusinessException(
+                    "Tính năng xem Báo cáo phân tích chuyên sâu yêu cầu gói đăng ký PRO hoặc ENTERPRISE.");
         }
     }
 
@@ -485,7 +465,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .billingCycle(BillingCycle.MANUAL)
                 .price(BigDecimal.ZERO)
                 .status(SubscriptionStatus.ACTIVE)
-                .startDate(salon.getCreatedAt() != null ? LocalDateTime.ofInstant(salon.getCreatedAt(), ZoneId.systemDefault()) : LocalDateTime.now())
+                .startDate(salon.getCreatedAt() != null
+                        ? LocalDateTime.ofInstant(salon.getCreatedAt(), ZoneId.systemDefault())
+                        : LocalDateTime.now())
                 .endDate(null) // Unlimited for FREE
                 .build();
     }
@@ -504,7 +486,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .endDate(sub.getEndDate())
                 .stripeSubscriptionId(sub.getStripeSubscriptionId())
                 .stripeCustomerId(sub.getStripeCustomerId())
-                .createdAt(sub.getCreatedAt() != null ? LocalDateTime.ofInstant(sub.getCreatedAt(), ZoneId.systemDefault()) : null)
+                .createdAt(
+                        sub.getCreatedAt() != null ? LocalDateTime.ofInstant(sub.getCreatedAt(), ZoneId.systemDefault())
+                                : null)
                 .build();
     }
 
@@ -514,10 +498,9 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             Long salonId,
             SubscriptionPlan plan,
             SubscriptionStatus status,
-            Pageable pageable
-    ) {
+            Pageable pageable) {
         Specification<Subscription> spec = (root, query, cb) -> cb.conjunction();
-        
+
         if (salonId != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("salon").get("id"), salonId));
         }
@@ -527,7 +510,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), status));
         }
-        
+
         return subscriptionRepository.findAll(spec, pageable).map(this::mapToResponse);
     }
 
@@ -596,156 +579,69 @@ public class SubscriptionServiceImpl implements SubscriptionService {
 
     @Override
     @Transactional
-    public com.example.salonflow.dto.payment.PaymentResponse verifySubscriptionPayment(java.util.Map<String, String> params) {
-        String vnp_TxnRef = params.get("vnp_TxnRef");
-        if (vnp_TxnRef == null || !vnp_TxnRef.startsWith("sub_")) {
-            throw new IllegalArgumentException("Mã giao dịch không hợp lệ cho subscription");
-        }
+    public SubscriptionResponse cancelMySubscription(Long salonId) {
+        Salon salon = salonRepository.findById(salonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + salonId));
 
-        Long subscriptionId = Long.parseLong(vnp_TxnRef.substring(4));
-        Subscription subscription = subscriptionRepository.findById(subscriptionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Subscription ID: " + subscriptionId));
-
-        BigDecimal vnpAmount = new BigDecimal(params.get("vnp_Amount")).divide(new BigDecimal(100));
-        if (subscription.getPrice().compareTo(vnpAmount) != 0) {
-            throw new IllegalArgumentException("Số tiền thanh toán không khớp");
-        }
-
-        String responseCode = params.get("vnp_ResponseCode");
-        if ("00".equals(responseCode)) {
-            if (subscription.getStatus() != SubscriptionStatus.ACTIVE) {
-                expireActiveSubscriptions(subscription.getSalon().getId());
-                subscription.setStatus(SubscriptionStatus.ACTIVE);
-                subscription.setStartDate(LocalDateTime.now());
-                subscription.setEndDate(calculateEndDate(LocalDateTime.now(), subscription.getBillingCycle()));
-                subscription.setStripeSubscriptionId(params.get("vnp_TransactionNo")); // Lưu mã giao dịch cổng thanh toán
-                subscription.setStripeCustomerId(params.get("vnp_BankCode")); // Lưu mã ngân hàng
-                subscriptionRepository.save(subscription);
-                log.info("Subscription ID {} activated successfully via VNPay callback.", subscriptionId);
+        List<Subscription> activeSubs = subscriptionRepository.findActiveSubscriptions(salonId, LocalDateTime.now());
+        for (Subscription sub : activeSubs) {
+            if (sub.getPlan() != SubscriptionPlan.FREE) {
+                sub.setStatus(SubscriptionStatus.CANCELED);
+                subscriptionRepository.save(sub);
             }
-            return com.example.salonflow.dto.payment.PaymentResponse.builder()
-                    .paymentId(subscriptionId)
-                    .paymentMethod(com.example.salonflow.entity.enums.PaymentMethod.VNPAY)
-                    .amount(subscription.getPrice())
-                    .status(com.example.salonflow.entity.enums.PaymentStatus.SUCCESS)
-                    .build();
-        } else {
-            subscription.setStatus(SubscriptionStatus.CANCELED);
-            subscriptionRepository.save(subscription);
-            log.warn("Subscription ID {} payment failed with VNPay response code: {}", subscriptionId, responseCode);
-            return com.example.salonflow.dto.payment.PaymentResponse.builder()
-                    .paymentId(subscriptionId)
-                    .paymentMethod(com.example.salonflow.entity.enums.PaymentMethod.VNPAY)
-                    .amount(subscription.getPrice())
-                    .status(com.example.salonflow.entity.enums.PaymentStatus.FAILED)
-                    .build();
         }
+        log.info("Salon ID {} successfully cancelled active subscriptions.", salonId);
+        return getActiveSubscription(salonId);
     }
 
     @Override
     @Transactional
-    public java.util.Map<String, String> verifySubscriptionIpn(java.util.Map<String, String> params) {
-        java.util.Map<String, String> response = new java.util.HashMap<>();
-        try {
-            String vnp_TxnRef = params.get("vnp_TxnRef");
-            if (vnp_TxnRef == null || !vnp_TxnRef.startsWith("sub_")) {
-                response.put("RspCode", "01");
-                response.put("Message", "Order not Found");
-                return response;
-            }
+    public SubscriptionResponse createVietQrSubscriptionSession(Long salonId, StripeCheckoutRequest request) {
+        Salon salon = salonRepository.findById(salonId)
+                .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + salonId));
 
-            Long subscriptionId = Long.parseLong(vnp_TxnRef.substring(4));
-            Optional<Subscription> subOpt = subscriptionRepository.findById(subscriptionId);
-            if (subOpt.isEmpty()) {
-                response.put("RspCode", "01");
-                response.put("Message", "Order not Found");
-                return response;
-            }
-
-            Subscription subscription = subOpt.get();
-
-            BigDecimal vnpAmount = new BigDecimal(params.get("vnp_Amount")).divide(new BigDecimal(100));
-            if (subscription.getPrice().compareTo(vnpAmount) != 0) {
-                response.put("RspCode", "04");
-                response.put("Message", "Invalid Amount");
-                return response;
-            }
-
-            if (subscription.getStatus() == SubscriptionStatus.ACTIVE) {
-                response.put("RspCode", "02");
-                response.put("Message", "Order already confirmed");
-                return response;
-            }
-
-            String responseCode = params.get("vnp_ResponseCode");
-            if ("00".equals(responseCode)) {
-                expireActiveSubscriptions(subscription.getSalon().getId());
-                subscription.setStatus(SubscriptionStatus.ACTIVE);
-                subscription.setStartDate(LocalDateTime.now());
-                subscription.setEndDate(calculateEndDate(LocalDateTime.now(), subscription.getBillingCycle()));
-                subscription.setStripeSubscriptionId(params.get("vnp_TransactionNo"));
-                subscription.setStripeCustomerId(params.get("vnp_BankCode"));
-                subscriptionRepository.save(subscription);
-                log.info("Subscription ID {} activated successfully via VNPay IPN.", subscriptionId);
-            } else {
-                subscription.setStatus(SubscriptionStatus.CANCELED);
-                subscriptionRepository.save(subscription);
-            }
-
-            response.put("RspCode", "00");
-            response.put("Message", "Confirm Success");
-            return response;
-        } catch (Exception e) {
-            log.error("Subscription IPN handling failed", e);
-            response.put("RspCode", "99");
-            response.put("Message", "Unknown error");
-            return response;
+        BigDecimal price;
+        if (request.getPlan() == SubscriptionPlan.PRO) {
+            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(4788000)
+                    : BigDecimal.valueOf(499000);
+        } else if (request.getPlan() == SubscriptionPlan.ENTERPRISE) {
+            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(28800000)
+                    : BigDecimal.valueOf(3000000);
+        } else {
+            throw new BusinessException("Gói FREE không yêu cầu thanh toán.");
         }
+
+        Subscription subscription = Subscription.builder()
+                .salon(salon)
+                .plan(request.getPlan())
+                .features(getFeaturesForPlan(request.getPlan()))
+                .billingCycle(request.getBillingCycle())
+                .price(price)
+                .status(SubscriptionStatus.PAST_DUE)
+                .startDate(LocalDateTime.now())
+                .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
+                .build();
+
+        subscription = subscriptionRepository.save(subscription);
+        log.info("Created VietQR subscription request ID: {} for Salon ID: {}", subscription.getId(), salonId);
+        return mapToResponse(subscription);
     }
 
-    private String getClientIp(HttpServletRequest request) {
-        String ipAddress = request.getHeader("X-Forwarded-For");
-        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-            ipAddress = request.getHeader("Proxy-Client-IP");
-        }
-        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-            ipAddress = request.getHeader("WL-Proxy-Client-IP");
-        }
-        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
-            ipAddress = request.getRemoteAddr();
-        }
-        if (ipAddress != null && ipAddress.contains(",")) {
-            ipAddress = ipAddress.split(",")[0].trim();
-        }
-        if ("0:0:0:0:0:0:0:1".equals(ipAddress) || (ipAddress != null && ipAddress.contains(":"))) {
-            ipAddress = "127.0.0.1";
-        }
-        return ipAddress;
-    }
+    @Override
+    @Transactional
+    public SubscriptionResponse activateSubscriptionViaBankTransfer(Long subscriptionId) {
+        Subscription subscription = subscriptionRepository.findById(subscriptionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Subscription not found with ID: " + subscriptionId));
 
-    private String hmacSHA512(String key, String data) {
-        try {
-            Mac hmac512 = Mac.getInstance("HmacSHA512");
-            SecretKeySpec secretKey = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA512");
-            hmac512.init(secretKey);
-            byte[] result = hmac512.doFinal(data.getBytes(StandardCharsets.UTF_8));
-            StringBuilder sb = new StringBuilder(2 * result.length);
-            for (byte b : result) {
-                sb.append(String.format("%02x", b & 0xff));
-            }
-            return sb.toString();
-        } catch (Exception ex) {
-            log.error("Error creating hmacSHA512 hash", ex);
-            return "";
+        if (subscription.getStatus() != SubscriptionStatus.ACTIVE) {
+            expireActiveSubscriptions(subscription.getSalon().getId());
+            subscription.setStatus(SubscriptionStatus.ACTIVE);
+            subscription.setStartDate(LocalDateTime.now());
+            subscription.setEndDate(calculateEndDate(LocalDateTime.now(), subscription.getBillingCycle()));
+            subscription = subscriptionRepository.save(subscription);
+            log.info("Subscription ID {} activated successfully via Bank Transfer / VietQR.", subscriptionId);
         }
-    }
 
-    private String encode(String value) {
-        try {
-            return URLEncoder.encode(value, StandardCharsets.UTF_8.toString());
-        } catch (Exception e) {
-            log.error("Error URL encoding value: {}", value, e);
-            return "";
-        }
+        return mapToResponse(subscription);
     }
 }

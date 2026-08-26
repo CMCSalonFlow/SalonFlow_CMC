@@ -865,22 +865,7 @@ public CancellationResult cancelBooking(Long bookingId, String reason) {
 
     PaymentResponse refundedPayment = null;
     if (result.isFreeCancel()) {
-        BigDecimal refundableAmount = result.getRefundAmount();
-        boolean hasSuccessfulVnpayPayment = paymentRepository
-                .findFirstByBookingIdAndPaymentMethodAndStatusOrderByCreatedAtDesc(
-                        bookingId,
-                        com.example.salonflow.entity.enums.PaymentMethod.VNPAY,
-                        com.example.salonflow.entity.enums.PaymentStatus.SUCCESS
-                )
-                .isPresent();
-
-        if (hasSuccessfulVnpayPayment && refundableAmount != null && refundableAmount.compareTo(BigDecimal.ZERO) > 0) {
-            refundedPayment = paymentService.refundDeposit(bookingId, refundableAmount, reason);
-            result.setRefundAmount(refundedPayment.getRefundAmount());
-            result.setMessage("Hủy miễn phí theo chính sách, đã hoàn tiền " + refundableAmount + " VND qua VNPay");
-        } else {
-            result.setRefundAmount(BigDecimal.ZERO);
-        }
+        result.setRefundAmount(BigDecimal.ZERO);
     }
 
     paymentRepository.findByBookingId(bookingId).stream()

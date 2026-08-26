@@ -65,6 +65,33 @@ public class SubscriptionController {
         return ResponseEntity.ok(Map.of("url", portalUrl));
     }
 
+    @PostMapping("/cancel")
+    @PreAuthorize("hasRole('SALON_OWNER')")
+    public ResponseEntity<SubscriptionResponse> cancelMySubscription() {
+        SalonResponse mySalon = salonService.getMine();
+        SubscriptionResponse response = subscriptionService.cancelMySubscription(mySalon.getId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/vietqr-checkout")
+    @PreAuthorize("hasRole('SALON_OWNER')")
+    public ResponseEntity<SubscriptionResponse> createVietQrCheckout(
+            @Valid @RequestBody StripeCheckoutRequest request
+    ) {
+        SalonResponse mySalon = salonService.getMine();
+        SubscriptionResponse response = subscriptionService.createVietQrSubscriptionSession(mySalon.getId(), request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{id}/confirm-bank-transfer")
+    @PreAuthorize("hasRole('SALON_OWNER') or hasRole('SUPER_ADMIN')")
+    public ResponseEntity<SubscriptionResponse> confirmBankTransfer(
+            @PathVariable("id") Long subscriptionId
+    ) {
+        SubscriptionResponse response = subscriptionService.activateSubscriptionViaBankTransfer(subscriptionId);
+        return ResponseEntity.ok(response);
+    }
+
     @PostMapping("/webhook")
     @ResponseStatus(HttpStatus.OK)
     public void stripeWebhook(
