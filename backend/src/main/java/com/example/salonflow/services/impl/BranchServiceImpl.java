@@ -9,6 +9,7 @@ import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.BranchService;
 import com.example.salonflow.services.service.GeocodingService;
 import com.example.salonflow.services.service.SubscriptionService;
+import com.example.salonflow.entity.enums.BookingStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,8 @@ import com.example.salonflow.validation.BranchOwnershipValidator;
 import com.example.salonflow.search.service.BranchSearchService;
 
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -39,6 +42,8 @@ public class BranchServiceImpl implements BranchService {
         private final GeocodingService geocodingService;
 
         private final SubscriptionService subscriptionService;
+
+        private final BookingRepository bookingRepository;
 
         @Override
         @Transactional(readOnly = true)
@@ -225,6 +230,18 @@ public class BranchServiceImpl implements BranchService {
                 branch.setLongitude(lng);
 
                 if (request.getIsActive() != null) {
+                        if (!request.getIsActive() && Boolean.TRUE.equals(branch.getIsActive())) {
+                                // Checking for uncompleted future bookings when deactivating
+                                boolean hasUncompletedBookings = bookingRepository.existsFutureBookingsByBranchAndStatuses(
+                                                branchId,
+                                                List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED),
+                                                LocalDate.now(),
+                                                LocalTime.now()
+                                );
+                                if (hasUncompletedBookings) {
+                                        throw new BadRequestException("Không thể đóng cửa chi nhánh do vẫn còn lịch hẹn chưa hoàn thành. Vui lòng hủy hoặc chuyển lịch sang chi nhánh khác trước khi thực hiện.");
+                                }
+                        }
                         branch.setIsActive(request.getIsActive());
                 }
 

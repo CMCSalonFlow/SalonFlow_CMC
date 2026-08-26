@@ -128,5 +128,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findByBranchSalonId(Long salonId);
 
     List<Booking> findByBranchId(Long branchId);
+
+    @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.branch.id = :branchId " +
+           "AND b.status IN :statuses " +
+           "AND (b.bookingDate > :today OR (b.bookingDate = :today AND b.startTime >= :nowTime))")
+    boolean existsFutureBookingsByBranchAndStatuses(
+            @Param("branchId") Long branchId,
+            @Param("statuses") Collection<BookingStatus> statuses,
+            @Param("today") LocalDate today,
+            @Param("nowTime") LocalTime nowTime
+    );
 }
 

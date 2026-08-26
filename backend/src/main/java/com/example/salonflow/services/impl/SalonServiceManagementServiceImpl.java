@@ -16,7 +16,12 @@ import com.example.salonflow.services.service.ServiceManagementService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.salonflow.validation.ServiceValidator;
+import com.example.salonflow.repository.BookingItemRepository;
+import com.example.salonflow.exception.BadRequestException;
+import com.example.salonflow.entity.enums.BookingStatus;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -35,6 +40,7 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
     private final ServiceCategoryRepository categoryRepository;
     private final ServiceValidator serviceValidator;
     private final BranchSearchService branchSearchService;
+    private final BookingItemRepository bookingItemRepository;
 
     @Override
     @Transactional
@@ -159,6 +165,17 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
     public void delete(Long branchId, Long serviceId) {
 
         SalonService service = findOwnedService(branchId, serviceId);
+
+        boolean hasFutureBookings = bookingItemRepository.existsFutureBookingsByServiceAndStatuses(
+                serviceId,
+                List.of(BookingStatus.PENDING, BookingStatus.CONFIRMED),
+                LocalDate.now(),
+                LocalTime.now()
+        );
+
+        if (hasFutureBookings) {
+            throw new BadRequestException("Không thể xóa dịch vụ đang có lịch hẹn. Vui lòng chuyển trạng thái sang Tạm ngưng (Inactive) thay vì xóa.");
+        }
 
         serviceRepository.delete(service);
         branchSearchService.indexBranch(branchId);

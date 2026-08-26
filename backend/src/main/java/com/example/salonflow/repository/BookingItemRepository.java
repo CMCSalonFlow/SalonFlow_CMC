@@ -69,4 +69,15 @@ public interface BookingItemRepository extends JpaRepository<BookingItem, Long> 
             "GROUP BY bi.service.id " +
             "ORDER BY COUNT(bi) DESC")
     List<Long> findTopPopularServiceIdsByBranch(@Param("branchId") Long branchId, Pageable pageable);
+
+    @Query("SELECT COUNT(bi) > 0 FROM BookingItem bi JOIN bi.booking b " +
+           "WHERE bi.service.id = :serviceId " +
+           "AND b.status IN :statuses " +
+           "AND (b.bookingDate > :today OR (b.bookingDate = :today AND b.startTime >= :nowTime))")
+    boolean existsFutureBookingsByServiceAndStatuses(
+            @Param("serviceId") Long serviceId,
+            @Param("statuses") java.util.Collection<com.example.salonflow.entity.enums.BookingStatus> statuses,
+            @Param("today") java.time.LocalDate today,
+            @Param("nowTime") java.time.LocalTime nowTime
+    );
 }
