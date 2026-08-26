@@ -72,9 +72,12 @@ public class GlobalExceptionHandler {
                                                 null));
         }
 
-        @ExceptionHandler(BusinessAccessDeniedException.class)
+        @ExceptionHandler({
+                        BusinessAccessDeniedException.class,
+                        org.springframework.security.access.AccessDeniedException.class
+        })
         public ResponseEntity<Map<String, Object>> handleAccessDenied(
-                        BusinessAccessDeniedException ex) {
+                        RuntimeException ex) {
 
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                                 .body(errorBody(
