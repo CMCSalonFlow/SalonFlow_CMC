@@ -230,6 +230,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
                                 .map(Role::getCode)
                                 .toList()
                 )
+                .mustChangePassword(Boolean.TRUE.equals(user.getMustChangePassword()))
                 .build();
     }
 
@@ -453,5 +454,22 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         }
 
         return username;
+    }
+
+    @Override
+    @Transactional
+    public void changePassword(Long userId, ChangePasswordRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Người dùng không tồn tại"));
+
+        if (!Boolean.TRUE.equals(user.getMustChangePassword()) && request.getCurrentPassword() != null && !request.getCurrentPassword().isBlank()) {
+            if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
+                throw new BusinessException("Mật khẩu hiện tại không đúng");
+            }
+        }
+
+        user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
     }
 }

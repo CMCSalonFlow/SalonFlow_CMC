@@ -94,6 +94,14 @@ public class AuthController {
                 return ResponseEntity.ok().build();
         }
 
+        @PostMapping("/change-password")
+        public ResponseEntity<Void> changePassword(
+                        @Valid @RequestBody ChangePasswordRequest request) {
+                Long userId = com.example.salonflow.security.SecurityUtils.getCurrentUserId();
+                authenticationService.changePassword(userId, request);
+                return ResponseEntity.ok().build();
+        }
+
 
     @GetMapping("/oauth2/{provider}")
     public ResponseEntity<Void> loginWithOAuth2(

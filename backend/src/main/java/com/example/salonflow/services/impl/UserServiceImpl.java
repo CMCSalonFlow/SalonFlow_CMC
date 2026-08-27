@@ -40,6 +40,7 @@ public class UserServiceImpl implements UserService {
                 .fullName(request.getFullName())
                 .phone(request.getPhone())
                 .status(UserStatus.ACTIVE)
+                .mustChangePassword(true)
                 .build();
         User saved = userRepository.save(user);
             if (request.getRoleIds() != null) {

@@ -41,6 +41,10 @@ public class User extends BaseEntity {
     private UserStatus status;
 
     @Builder.Default
+    @Column(name = "must_change_password")
+    private Boolean mustChangePassword = false;
+
+    @Builder.Default
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<UserRole> userRoles = new HashSet<>();
 

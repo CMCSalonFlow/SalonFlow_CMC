@@ -33,4 +33,8 @@ public interface AuthenticationService {
     void resetPassword(
             String token,
             String newPassword);
+
+    void changePassword(
+            Long userId,
+            ChangePasswordRequest request);
 }
