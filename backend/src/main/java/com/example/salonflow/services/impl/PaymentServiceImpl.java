@@ -221,19 +221,42 @@ public class PaymentServiceImpl implements PaymentService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Booking ID: " + bookingId));
 
+        if (booking.getStatus() == BookingStatus.COMPLETED) {
+            log.info("Booking ID {} đã ở trạng thái COMPLETED từ trước.", bookingId);
+            Payment existingPayment = paymentRepository.findFirstByBookingIdOrderByCreatedAtDesc(bookingId)
+                    .orElse(null);
+            return PaymentResponse.builder()
+                    .paymentId(existingPayment != null ? existingPayment.getId() : null)
+                    .bookingId(booking.getId())
+                    .paymentMethod(PaymentMethod.BANK_TRANSFER)
+                    .amount(booking.getTotalPrice())
+                    .status(PaymentStatus.SUCCESS)
+                    .invoiceUrl(booking.getInvoiceUrl())
+                    .build();
+        }
+
         booking.setStatus(BookingStatus.COMPLETED);
         booking = bookingRepository.save(booking);
 
         BigDecimal amount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
 
-        Payment payment = Payment.builder()
-                .booking(booking)
-                .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                .amount(amount)
-                .status(PaymentStatus.SUCCESS)
-                .idempotencyKey("vietqr_auto_" + booking.getId() + "_" + System.currentTimeMillis())
-                .gatewayTransactionId("VIETQR_" + System.currentTimeMillis())
-                .build();
+        Payment payment = paymentRepository.findFirstByBookingIdOrderByCreatedAtDesc(bookingId)
+                .orElse(null);
+
+        if (payment == null) {
+            payment = Payment.builder()
+                    .booking(booking)
+                    .paymentMethod(PaymentMethod.BANK_TRANSFER)
+                    .amount(amount)
+                    .status(PaymentStatus.SUCCESS)
+                    .idempotencyKey("vietqr_auto_" + booking.getId() + "_" + System.currentTimeMillis())
+                    .gatewayTransactionId("VIETQR_" + System.currentTimeMillis())
+                    .build();
+        } else {
+            payment.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
+            payment.setAmount(amount);
+            payment.setStatus(PaymentStatus.SUCCESS);
+        }
 
         payment = paymentRepository.save(payment);
 
