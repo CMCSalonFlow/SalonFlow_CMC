@@ -264,30 +264,29 @@ public class PaymentServiceImpl implements PaymentService {
         String content = payload != null ? String.valueOf(payload.getOrDefault("content", "")) : "";
         Long bookingId = null;
 
-        if (content.toUpperCase().contains("SUB")) {
+        // Parse Subscription ID (ví dụ: SUB12, SUB 12, SUB-12, SF SUB12)
+        java.util.regex.Matcher subMatcher = java.util.regex.Pattern.compile("SUB[\\s\\-_]*(\\d+)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(content);
+        if (subMatcher.find()) {
             try {
-                String numericPart = content.replaceAll("[^0-9]", "");
-                if (!numericPart.isEmpty()) {
-                    Long subId = Long.parseLong(numericPart);
-                    subscriptionService.activateSubscriptionViaBankTransfer(subId);
-                    log.info("Xác nhận tự động gói dịch vụ ID {} qua SePay Webhook.", subId);
-                    return PaymentResponse.builder()
-                            .paymentId(subId)
-                            .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                            .status(PaymentStatus.SUCCESS)
-                            .build();
-                }
+                Long subId = Long.parseLong(subMatcher.group(1));
+                subscriptionService.activateSubscriptionViaBankTransfer(subId);
+                log.info("Xác nhận tự động gói dịch vụ Subscription ID {} qua SePay Webhook.", subId);
+                return PaymentResponse.builder()
+                        .paymentId(subId)
+                        .paymentMethod(PaymentMethod.BANK_TRANSFER)
+                        .status(PaymentStatus.SUCCESS)
+                        .build();
             } catch (Exception e) {
-                log.error("Lỗi parse subscription ID từ webhook content: {}", content, e);
+                log.error("Lỗi parse/kích hoạt subscription ID từ webhook content: {}", content, e);
             }
         }
 
-        if (content.contains("SF")) {
+        // Parse Booking ID (ví dụ: SF34, SF 34, SF-34)
+        java.util.regex.Matcher sfMatcher = java.util.regex.Pattern.compile("SF[\\s\\-_]*(\\d+)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(content);
+        if (sfMatcher.find()) {
             try {
-                String numericPart = content.replaceAll("[^0-9]", "");
-                if (!numericPart.isEmpty()) {
-                    bookingId = Long.parseLong(numericPart);
-                }
+                bookingId = Long.parseLong(sfMatcher.group(1));
+                log.info("Parse thành công Booking ID: {} từ nội dung giao dịch: {}", bookingId, content);
             } catch (Exception e) {
                 log.error("Lỗi parse booking ID từ webhook content: {}", content, e);
             }
@@ -304,6 +303,6 @@ public class PaymentServiceImpl implements PaymentService {
             return autoConfirmBankTransfer(bookingId);
         }
 
-        throw new IllegalArgumentException("Không thể tìm thấy Booking ID hoặc Subscription ID từ nội dung Webhook");
+        throw new IllegalArgumentException("Không thể tìm thấy Booking ID (mã SF) hoặc Subscription ID (mã SUB) từ nội dung Webhook: " + content);
     }
 }

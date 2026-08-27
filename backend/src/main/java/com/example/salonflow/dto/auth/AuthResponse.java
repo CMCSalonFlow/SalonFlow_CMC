@@ -25,4 +25,6 @@ public class AuthResponse {
     private String tokenType;
 
     private List<String> roles;
+
+    private boolean mustChangePassword;
 }

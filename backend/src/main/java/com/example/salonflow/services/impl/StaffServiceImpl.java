@@ -83,6 +83,7 @@ public class StaffServiceImpl implements StaffService {
                 .fullName(request.getName())
                 .phone(request.getPhone())
                 .status(UserStatus.ACTIVE)
+                .mustChangePassword(true)
                 .build();
         user = userRepository.save(user);
 
