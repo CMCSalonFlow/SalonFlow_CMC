@@ -4,6 +4,7 @@ import com.example.salonflow.entity.RefreshToken;
 import com.example.salonflow.entity.User;
 import com.example.salonflow.repository.RefreshTokenRepository;
 import com.example.salonflow.services.service.RefreshTokenService;
+import com.example.salonflow.exception.InvalidTokenException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -50,7 +51,7 @@ public class RefreshTokenServiceImpl
         RefreshToken refreshToken =
                 repository.findByToken(token)
                         .orElseThrow(() ->
-                                new RuntimeException(
+                                new InvalidTokenException(
                                         "Invalid refresh token"
                                 ));
 
@@ -59,7 +60,7 @@ public class RefreshTokenServiceImpl
 
             repository.delete(refreshToken);
 
-            throw new RuntimeException(
+            throw new InvalidTokenException(
                     "Refresh token expired"
             );
         }
