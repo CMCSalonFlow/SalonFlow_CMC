@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -43,7 +44,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public NoShowPredictionDto predictAndSaveLog(Booking booking) {
         log.info("Bắt đầu AI dự đoán No-Show cho Booking ID: {}", booking.getId());
 
@@ -119,13 +120,19 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Booking với ID: " + bookingId));
 
-        subscriptionService.validateAiFeatures(booking.getBranch().getSalon().getId());
+        SubscriptionFeatures activeFeatures =
+                subscriptionService.getActiveFeatures(booking.getBranch().getSalon().getId());
+
+        if (activeFeatures == null || !activeFeatures.isAiFeatures()) {
+            return null;
+        }
 
         NoShowPredictionLog predictionLog = predictionRepository.findByBookingId(bookingId)
-                .orElseGet(() -> {
-                    // Nếu chưa có log dự đoán, thực hiện dự đoán realtime
-                    return saveRealtimePredictionLog(booking);
-                });
+                .orElse(null);
+
+        if (predictionLog == null) {
+            return null;
+        }
 
         NoShowFeaturesDto features = parseFeaturesJson(predictionLog.getFeaturesJson());
         return mapToDto(predictionLog, booking, booking.getCustomer(), features);
@@ -158,7 +165,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public NoShowModelConfig getModelConfig() {
         return configRepository.findFirstByOrderByIdAsc()
                 .orElseGet(() -> configRepository.save(NoShowModelConfig.builder()
