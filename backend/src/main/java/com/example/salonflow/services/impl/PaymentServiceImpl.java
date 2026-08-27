@@ -48,6 +48,9 @@ public class PaymentServiceImpl implements PaymentService {
     private final com.example.salonflow.services.service.SubscriptionService subscriptionService;
     private final AuditLogService auditLogService; // thêm
 
+    @Value("${sepay.secret-key:}")
+    private String sepaySecretKey;
+
 
     @Override
     @Transactional
