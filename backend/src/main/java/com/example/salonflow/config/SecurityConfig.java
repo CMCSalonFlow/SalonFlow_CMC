@@ -96,6 +96,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/vouchers/validate").permitAll()
                         .requestMatchers("/api/v1/system-off-days/check-branch", "/api/v1/system-off-days/branch-range").permitAll()
                         .requestMatchers("/api/v1/subscriptions/webhook").permitAll()
+                        .requestMatchers("/api/v1/subscription-plans/public").permitAll()
 
                         // media upload (tuỳ bạn có thể đổi authenticated)
                         .requestMatchers("/api/v1/media/**").authenticated()

@@ -29,6 +29,8 @@ public interface PaymentService {
      */
     PaymentResponse autoConfirmBankTransfer(Long bookingId);
 
+    PaymentResponse autoConfirmBankTransfer(Long bookingId, BigDecimal transferAmount);
+
     /**
      * Tiếp nhận và xử lý Webhook tự động từ SePay / Casso / Ngân hàng.
      */

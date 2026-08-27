@@ -41,6 +41,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import com.example.salonflow.entity.SubscriptionPlanConfig;
+import com.example.salonflow.repository.SubscriptionPlanConfigRepository;
+
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -53,6 +56,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     private final StaffRepository staffRepository;
     private final EmailService emailService;
     private final StripeProperties stripeProperties;
+    private final SubscriptionPlanConfigRepository planConfigRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -98,16 +102,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + salonId));
 
         // 1. Calculate price
-        BigDecimal price;
-        if (request.getPlan() == SubscriptionPlan.PRO) {
-            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(4788000)
-                    : BigDecimal.valueOf(499000);
-        } else if (request.getPlan() == SubscriptionPlan.ENTERPRISE) {
-            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(28800000)
-                    : BigDecimal.valueOf(3000000);
-        } else {
+        if (request.getPlan() == SubscriptionPlan.FREE) {
             throw new BusinessException("Gói FREE không yêu cầu thanh toán.");
         }
+        BigDecimal price = calculatePriceForPlan(request.getPlan(), request.getBillingCycle());
 
         // 2. Create pending subscription record (PAST_DUE means pending payment)
         Subscription subscription = Subscription.builder()
@@ -438,6 +436,15 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     private SubscriptionFeatures getFeaturesForPlan(SubscriptionPlan plan) {
+        SubscriptionPlanConfig config = planConfigRepository.findByPlan(plan).orElse(null);
+        if (config != null) {
+            return SubscriptionFeatures.builder()
+                    .maxBranches(config.getMaxBranches())
+                    .maxStaff(config.getMaxStaffPerBranch())
+                    .analyticsAdvanced(config.getHasAnalytics())
+                    .aiFeatures(config.getHasAi())
+                    .build();
+        }
         switch (plan) {
             case PRO:
                 return SubscriptionFeatures.proDefaults();
@@ -446,6 +453,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
             default:
                 return SubscriptionFeatures.freeDefaults();
         }
+    }
+
+    private BigDecimal calculatePriceForPlan(SubscriptionPlan plan, BillingCycle cycle) {
+        SubscriptionPlanConfig config = planConfigRepository.findByPlan(plan).orElse(null);
+        if (config != null) {
+            return cycle == BillingCycle.YEARLY ? config.getYearlyPrice() : config.getMonthlyPrice();
+        }
+        if (plan == SubscriptionPlan.PRO) {
+            return cycle == BillingCycle.YEARLY ? BigDecimal.valueOf(4788000) : BigDecimal.valueOf(499000);
+        } else if (plan == SubscriptionPlan.ENTERPRISE) {
+            return cycle == BillingCycle.YEARLY ? BigDecimal.valueOf(9990000) : BigDecimal.valueOf(999000);
+        }
+        return BigDecimal.ZERO;
     }
 
     private LocalDateTime calculateEndDate(LocalDateTime start, BillingCycle cycle) {
@@ -600,16 +620,10 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + salonId));
 
-        BigDecimal price;
-        if (request.getPlan() == SubscriptionPlan.PRO) {
-            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(4788000)
-                    : BigDecimal.valueOf(499000);
-        } else if (request.getPlan() == SubscriptionPlan.ENTERPRISE) {
-            price = request.getBillingCycle() == BillingCycle.YEARLY ? BigDecimal.valueOf(28800000)
-                    : BigDecimal.valueOf(3000000);
-        } else {
+        if (request.getPlan() == SubscriptionPlan.FREE) {
             throw new BusinessException("Gói FREE không yêu cầu thanh toán.");
         }
+        BigDecimal price = calculatePriceForPlan(request.getPlan(), request.getBillingCycle());
 
         Subscription subscription = Subscription.builder()
                 .salon(salon)

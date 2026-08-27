@@ -218,8 +218,20 @@ public class PaymentServiceImpl implements PaymentService {
     @Override
     @Transactional
     public PaymentResponse autoConfirmBankTransfer(Long bookingId) {
+        return autoConfirmBankTransfer(bookingId, null);
+    }
+
+    @Override
+    @Transactional
+    public PaymentResponse autoConfirmBankTransfer(Long bookingId, BigDecimal transferAmount) {
         Booking booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy Booking ID: " + bookingId));
+
+        BigDecimal finalAmount = (transferAmount != null && transferAmount.compareTo(BigDecimal.ZERO) > 0)
+                ? transferAmount
+                : (booking.getRemainingAmount() != null && booking.getRemainingAmount().compareTo(BigDecimal.ZERO) > 0
+                        ? booking.getRemainingAmount()
+                        : (booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO));
 
         if (booking.getStatus() == BookingStatus.COMPLETED) {
             log.info("Booking ID {} đã ở trạng thái COMPLETED từ trước.", bookingId);
@@ -229,7 +241,7 @@ public class PaymentServiceImpl implements PaymentService {
                     .paymentId(existingPayment != null ? existingPayment.getId() : null)
                     .bookingId(booking.getId())
                     .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                    .amount(booking.getTotalPrice())
+                    .amount(existingPayment != null ? existingPayment.getAmount() : finalAmount)
                     .status(PaymentStatus.SUCCESS)
                     .invoiceUrl(booking.getInvoiceUrl())
                     .build();
@@ -238,8 +250,6 @@ public class PaymentServiceImpl implements PaymentService {
         booking.setStatus(BookingStatus.COMPLETED);
         booking = bookingRepository.save(booking);
 
-        BigDecimal amount = booking.getTotalPrice() != null ? booking.getTotalPrice() : BigDecimal.ZERO;
-
         Payment payment = paymentRepository.findFirstByBookingIdOrderByCreatedAtDesc(bookingId)
                 .orElse(null);
 
@@ -247,14 +257,14 @@ public class PaymentServiceImpl implements PaymentService {
             payment = Payment.builder()
                     .booking(booking)
                     .paymentMethod(PaymentMethod.BANK_TRANSFER)
-                    .amount(amount)
+                    .amount(finalAmount)
                     .status(PaymentStatus.SUCCESS)
                     .idempotencyKey("vietqr_auto_" + booking.getId() + "_" + System.currentTimeMillis())
                     .gatewayTransactionId("VIETQR_" + System.currentTimeMillis())
                     .build();
         } else {
             payment.setPaymentMethod(PaymentMethod.BANK_TRANSFER);
-            payment.setAmount(amount);
+            payment.setAmount(finalAmount);
             payment.setStatus(PaymentStatus.SUCCESS);
         }
 
@@ -268,7 +278,7 @@ public class PaymentServiceImpl implements PaymentService {
             log.error("Failed to generate invoice during auto confirm", ex);
         }
 
-        log.info("Tự động xác nhận thanh toán Chuyển khoản VietQR cho Booking ID: {}", bookingId);
+        log.info("Tự động xác nhận thanh toán Chuyển khoản VietQR cho Booking ID: {} với số tiền: {}", bookingId, finalAmount);
 
         return PaymentResponse.builder()
                 .paymentId(payment.getId())
@@ -286,6 +296,13 @@ public class PaymentServiceImpl implements PaymentService {
         log.info("Nhận Webhook SePay / VietQR: {}", payload);
         String content = payload != null ? String.valueOf(payload.getOrDefault("content", "")) : "";
         Long bookingId = null;
+
+        BigDecimal transferAmount = null;
+        if (payload != null && payload.containsKey("transferAmount")) {
+            try {
+                transferAmount = new BigDecimal(payload.get("transferAmount").toString());
+            } catch (Exception ignored) {}
+        }
 
         // Parse Subscription ID (ví dụ: SUB12, SUB 12, SUB-12, SF SUB12)
         java.util.regex.Matcher subMatcher = java.util.regex.Pattern.compile("SUB[\\s\\-_]*(\\d+)", java.util.regex.Pattern.CASE_INSENSITIVE).matcher(content);
@@ -323,7 +340,7 @@ public class PaymentServiceImpl implements PaymentService {
         }
 
         if (bookingId != null) {
-            return autoConfirmBankTransfer(bookingId);
+            return autoConfirmBankTransfer(bookingId, transferAmount);
         }
 
         throw new IllegalArgumentException("Không thể tìm thấy Booking ID (mã SF) hoặc Subscription ID (mã SUB) từ nội dung Webhook: " + content);
