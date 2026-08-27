@@ -3,6 +3,7 @@ package com.example.salonflow.scheduler;
 import com.example.salonflow.entity.Booking;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.repository.BookingRepository;
+import com.example.salonflow.repository.PaymentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -25,6 +26,7 @@ import java.util.List;
 public class AppointmentAutoExpiryScheduler {
 
     private final BookingRepository bookingRepository;
+    private final PaymentRepository paymentRepository;
 
     /**
      * Chạy mỗi 10 phút, và tự động chạy sau 5 giây khi backend khởi động.
@@ -89,6 +91,20 @@ public class AppointmentAutoExpiryScheduler {
                     autoCompleted++;
                     log.info("Auto-completed checked-in booking ID={} (Date: {}, Time: {})", 
                             booking.getId(), booking.getBookingDate(), booking.getStartTime());
+                            
+                    boolean hasPayment = paymentRepository.findByBookingId(booking.getId()).stream()
+                            .anyMatch(p -> p.getStatus() == com.example.salonflow.entity.enums.PaymentStatus.SUCCESS);
+                    if (!hasPayment) {
+                        com.example.salonflow.entity.Payment payment = com.example.salonflow.entity.Payment.builder()
+                                .booking(booking)
+                                .paymentMethod(com.example.salonflow.entity.enums.PaymentMethod.CASH)
+                                .amount(booking.getTotalPrice() != null ? booking.getTotalPrice() : java.math.BigDecimal.ZERO)
+                                .status(com.example.salonflow.entity.enums.PaymentStatus.SUCCESS)
+                                .idempotencyKey("auto_cash_" + booking.getId() + "_" + System.currentTimeMillis())
+                                .gatewayTransactionId("AUTO_CASH")
+                                .build();
+                        paymentRepository.save(payment);
+                    }
                 }
             }
         }

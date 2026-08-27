@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 
-from app.forecasting import predict_next_days, train_model
+from app.forecasting import predict_next_days, train_model, evaluate_metrics, generate_forecast_chart
 from app.model_store import load_model, load_model_status, save_model
 from app.scheduler import start_scheduler
 from app.schemas import (
@@ -45,12 +45,17 @@ def health() -> HealthResponse:
 
 @app.post("/forecast/revenue", response_model=ForecastResponse)
 def forecast_revenue(request: ForecastRequest) -> ForecastResponse:
+    mae, mape = evaluate_metrics(request.history, interval_width=request.interval_width)
     model = train_model(request.history, interval_width=request.interval_width)
     forecast = predict_next_days(model, request.periods)
+    chart_base64 = generate_forecast_chart(request.history, forecast)
     return ForecastResponse(
         salon_id=request.salon_id,
         periods=request.periods,
         forecast=forecast,
+        mae=mae,
+        mape=mape,
+        chart_base64=chart_base64,
     )
 
 

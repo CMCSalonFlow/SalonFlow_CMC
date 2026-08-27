@@ -4,6 +4,12 @@ from typing import Iterable
 
 import pandas as pd
 from prophet import Prophet
+import io
+import base64
+from sklearn.metrics import mean_absolute_error, mean_absolute_percentage_error
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 from app.schemas import ForecastPoint, RevenuePoint
 
@@ -54,3 +60,57 @@ def predict_next_days(model: Prophet, periods: int) -> list[ForecastPoint]:
         )
         for row in forecast[["ds", "yhat", "yhat_lower", "yhat_upper"]].itertuples(index=False)
     ]
+
+
+def evaluate_metrics(history: Iterable[RevenuePoint], interval_width: float = 0.8) -> tuple[float | None, float | None]:
+    frame = build_history_frame(history)
+    if len(frame) < 14:
+        return None, None
+        
+    train_size = len(frame) - 7
+    train_df = frame.iloc[:train_size]
+    test_df = frame.iloc[train_size:]
+    
+    model = create_model(interval_width=interval_width)
+    model.fit(train_df)
+    
+    future = model.make_future_dataframe(periods=7, freq="D", include_history=False)
+    forecast = model.predict(future)
+    
+    predictions = forecast['yhat'].values
+    actuals = test_df['y'].values
+    
+    mae = mean_absolute_error(actuals, predictions)
+    mape = mean_absolute_percentage_error(actuals, predictions)
+    
+    return float(mae), float(mape)
+
+
+def generate_forecast_chart(history: Iterable[RevenuePoint], forecast: list[ForecastPoint]) -> str:
+    frame = build_history_frame(history)
+    
+    forecast_dates = [pd.to_datetime(p.date) for p in forecast]
+    forecast_yhat = [p.yhat for p in forecast]
+    forecast_lower = [p.yhat_lower for p in forecast]
+    forecast_upper = [p.yhat_upper for p in forecast]
+    
+    plt.figure(figsize=(10, 5))
+    
+    plt.plot(frame['ds'], frame['y'], label='Actual Revenue', color='blue', marker='o', markersize=4)
+    plt.plot(forecast_dates, forecast_yhat, label='Forecast', color='purple', linestyle='--', marker='x', markersize=4)
+    plt.fill_between(forecast_dates, forecast_lower, forecast_upper, color='purple', alpha=0.2, label='Confidence Interval')
+    
+    plt.title('Revenue Forecast (Prophet)')
+    plt.xlabel('Date')
+    plt.ylabel('Revenue')
+    plt.legend()
+    plt.grid(True, linestyle=':', alpha=0.6)
+    plt.tight_layout()
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    plt.close()
+    buf.seek(0)
+    
+    return base64.b64encode(buf.read()).decode('utf-8')
+

@@ -1065,6 +1065,22 @@ public BookingResponse createWalkInBooking(
 
         booking = bookingRepository.save(booking);
 
+        boolean hasPayment = paymentRepository.findByBookingId(booking.getId()).stream()
+                .anyMatch(p -> p.getStatus() == com.example.salonflow.entity.enums.PaymentStatus.SUCCESS);
+        
+        if (!hasPayment) {
+            com.example.salonflow.entity.Payment payment = com.example.salonflow.entity.Payment.builder()
+                    .booking(booking)
+                    .paymentMethod(com.example.salonflow.entity.enums.PaymentMethod.CASH)
+                    .amount(booking.getTotalPrice() != null ? booking.getTotalPrice() : java.math.BigDecimal.ZERO)
+                    .status(com.example.salonflow.entity.enums.PaymentStatus.SUCCESS)
+                    .idempotencyKey("auto_cash_" + booking.getId() + "_" + System.currentTimeMillis())
+                    .gatewayTransactionId("AUTO_CASH")
+                    .build();
+            paymentRepository.save(payment);
+            log.info("Auto-created CASH payment for COMPLETED booking ID: {}", booking.getId());
+        }
+
         if (booking.getCustomer() != null) {
             loyaltyPointService.earnPointsForBooking(
                     booking.getCustomer().getId(),
