@@ -32,7 +32,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Lớp triển khai các nghiệp vụ quản lý nhân viên (StaffService).
@@ -129,20 +133,20 @@ public class StaffServiceImpl implements StaffService {
     @Override
     @Transactional(readOnly = true)
     public List<StaffResponse> getByBranch(Long branchId) {
-        // Kiểm tra xem chi nhánh có tồn tại không
         if (!branchRepository.existsById(branchId)) {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
         }
 
-        // Tìm danh sách nhân viên đang hoạt động của chi nhánh và ánh xạ sang DTO trả
-        // về
-        return staffRepository.findByBranchId(branchId).stream()
-                .filter(staff -> {
-                    if (staff.getUserId() == null)
-                        return true;
-                    User user = userRepository.findById(staff.getUserId()).orElse(null);
-                    return user != null && user.getStatus() == UserStatus.ACTIVE;
-                })
+        List<Staff> staffList = staffRepository.findByBranchId(branchId);
+        List<Long> userIds = staffList.stream().map(Staff::getUserId).filter(Objects::nonNull).toList();
+        Set<Long> activeUserIds = userIds.isEmpty() ? Collections.emptySet() :
+                userRepository.findAllById(userIds).stream()
+                        .filter(u -> u.getStatus() == UserStatus.ACTIVE)
+                        .map(User::getId)
+                        .collect(Collectors.toSet());
+
+        return staffList.stream()
+                .filter(staff -> staff.getUserId() == null || activeUserIds.contains(staff.getUserId()))
                 .map(this::toResponse)
                 .toList();
     }
@@ -154,13 +158,16 @@ public class StaffServiceImpl implements StaffService {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
         }
 
-        return staffRepository.findByBranchId(branchId).stream()
-                .filter(staff -> {
-                    if (staff.getUserId() == null)
-                        return true;
-                    User user = userRepository.findById(staff.getUserId()).orElse(null);
-                    return user != null && user.getStatus() == UserStatus.ACTIVE;
-                })
+        List<Staff> staffList = staffRepository.findByBranchId(branchId);
+        List<Long> userIds = staffList.stream().map(Staff::getUserId).filter(Objects::nonNull).toList();
+        Set<Long> activeUserIds = userIds.isEmpty() ? Collections.emptySet() :
+                userRepository.findAllById(userIds).stream()
+                        .filter(u -> u.getStatus() == UserStatus.ACTIVE)
+                        .map(User::getId)
+                        .collect(Collectors.toSet());
+
+        return staffList.stream()
+                .filter(staff -> staff.getUserId() == null || activeUserIds.contains(staff.getUserId()))
                 .map(this::toPublicResponse)
                 .toList();
     }

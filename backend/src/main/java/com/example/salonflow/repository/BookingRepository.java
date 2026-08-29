@@ -2,6 +2,9 @@ package com.example.salonflow.repository;
 
 import com.example.salonflow.entity.Booking;
 import com.example.salonflow.entity.enums.BookingStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -80,6 +83,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
+    @EntityGraph(attributePaths = {"customer", "assignedStaff", "branch", "items", "items.service", "items.bundle"})
     List<Booking> findByCustomerId(Long customerId);
 
     List<Booking> findByAssignedStaffIdAndBookingDate(Long staffId, LocalDate date);
@@ -127,7 +131,36 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
 
     List<Booking> findByBranchSalonId(Long salonId);
 
+    @EntityGraph(attributePaths = {"customer", "assignedStaff", "branch", "items", "items.service", "items.bundle"})
     List<Booking> findByBranchId(Long branchId);
+
+    @Query(value = """
+        SELECT DISTINCT b FROM Booking b 
+        LEFT JOIN FETCH b.customer c 
+        LEFT JOIN FETCH b.assignedStaff s 
+        LEFT JOIN FETCH b.branch br 
+        WHERE b.branch.id = :branchId 
+          AND (:status IS NULL OR b.status = :status)
+          AND (:fromDate IS NULL OR b.bookingDate >= :fromDate)
+          AND (:toDate IS NULL OR b.bookingDate <= :toDate)
+          AND (:search IS NULL OR LOWER(c.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR c.phone LIKE CONCAT('%', :search, '%'))
+    """, countQuery = """
+        SELECT COUNT(b) FROM Booking b 
+        LEFT JOIN b.customer c 
+        WHERE b.branch.id = :branchId 
+          AND (:status IS NULL OR b.status = :status)
+          AND (:fromDate IS NULL OR b.bookingDate >= :fromDate)
+          AND (:toDate IS NULL OR b.bookingDate <= :toDate)
+          AND (:search IS NULL OR LOWER(c.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR c.phone LIKE CONCAT('%', :search, '%'))
+    """)
+    Page<Booking> searchBookings(
+            @Param("branchId") Long branchId,
+            @Param("status") BookingStatus status,
+            @Param("fromDate") LocalDate fromDate,
+            @Param("toDate") LocalDate toDate,
+            @Param("search") String search,
+            Pageable pageable
+    );
 
     @Query("SELECT COUNT(b) > 0 FROM Booking b WHERE b.branch.id = :branchId " +
            "AND b.status IN :statuses " +

@@ -27,8 +27,12 @@ import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
+
+import org.springframework.data.domain.PageImpl;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -37,7 +41,10 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -86,6 +93,7 @@ public class BookingServiceImpl implements BookingService {
     private final BookingPricingService bookingPricingService;
     private final com.example.salonflow.services.service.LoyaltyPointService loyaltyPointService;
     private final com.example.salonflow.ai.service.NoShowPredictionService noShowPredictionService;
+    private final NoShowPredictionRepository predictionRepository;
     private final ReviewRepository reviewRepository;
     private final com.example.salonflow.services.service.InvoicePdfService invoicePdfService;
     private final com.example.salonflow.services.service.EmailService emailService;
@@ -153,10 +161,106 @@ public class BookingServiceImpl implements BookingService {
         if (!branchRepository.existsById(branchId)) {
             throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
         }
-        return bookingRepository.findAll().stream()
-                .filter(b -> b.getBranch().getId().equals(branchId))
-                .map(this::toResponse)
-                .toList();
+        return toResponses(bookingRepository.findByBranchId(branchId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<BookingResponse> getByCustomerId(Long customerId) {
+        return toResponses(bookingRepository.findByCustomerId(customerId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<BookingResponse> searchBookings(Long branchId, BookingStatus status, LocalDate fromDate, LocalDate toDate, String search, Pageable pageable) {
+        if (!branchRepository.existsById(branchId)) {
+            throw new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId);
+        }
+        String cleanSearch = (search != null && !search.trim().isEmpty()) ? search.trim() : null;
+        Page<Booking> page = bookingRepository.searchBookings(branchId, status, fromDate, toDate, cleanSearch, pageable);
+        List<BookingResponse> responses = toResponses(page.getContent());
+        return new PageImpl<>(responses, pageable, page.getTotalElements());
+    }
+
+    private List<BookingResponse> toResponses(List<Booking> bookings) {
+        if (bookings == null || bookings.isEmpty()) {
+            return List.of();
+        }
+
+        List<Long> bookingIds = bookings.stream().map(Booking::getId).toList();
+
+        // 1. Batch fetch reviews for all bookings in 1 query
+        Set<Long> reviewedBookingIds = reviewRepository.findByBookingIdIn(bookingIds).stream()
+                .map(r -> r.getBooking().getId())
+                .collect(Collectors.toSet());
+
+        // 2. Batch fetch prediction logs for all bookings in 1 query
+        Map<Long, NoShowPredictionLog> predictionLogMap = predictionRepository.findByBookingIdIn(bookingIds).stream()
+                .collect(Collectors.toMap(NoShowPredictionLog::getBookingId, p -> p, (a, b) -> a));
+
+        return bookings.stream().map(booking -> {
+            List<BookingItemResponse> itemResponses = booking.getItems().stream()
+                    .map(item -> BookingItemResponse.builder()
+                            .id(item.getId())
+                            .serviceId(item.getService() != null ? item.getService().getId() : null)
+                            .serviceName(item.getService() != null ? item.getService().getName() : null)
+                            .bundleId(item.getBundle() != null ? item.getBundle().getId() : null)
+                            .bundleName(item.getBundle() != null ? item.getBundle().getName() : null)
+                            .price(item.getPrice())
+                            .durationMinutes(item.getDurationMinutes())
+                            .build())
+                    .toList();
+
+            NoShowPredictionLog predLog = predictionLogMap.get(booking.getId());
+            com.example.salonflow.ai.dto.noshow.NoShowPredictionDto predictionDto = null;
+            if (predLog != null) {
+                double prob = predLog.getProbability() != null ? predLog.getProbability() : 0.0;
+                predictionDto = com.example.salonflow.ai.dto.noshow.NoShowPredictionDto.builder()
+                        .logId(predLog.getId())
+                        .bookingId(booking.getId())
+                        .riskLevel(predLog.getRiskLevel())
+                        .probability(prob)
+                        .probabilityPercentage(Math.round(prob * 1000.0) / 10.0)
+                        .explanation(predLog.getExplanation())
+                        .smsSent(Boolean.TRUE.equals(predLog.getSmsSent()))
+                        .build();
+            }
+
+            LocalDateTime reviewedAt = booking.getReviewedAt();
+            if (reviewedAt == null && reviewedBookingIds.contains(booking.getId())) {
+                reviewedAt = LocalDateTime.now();
+            }
+
+            String customerPhone = (booking.getCustomer() != null && booking.getCustomer().getPhone() != null && !booking.getCustomer().getPhone().isBlank())
+                    ? booking.getCustomer().getPhone()
+                    : ((booking.getCustomer() != null && booking.getCustomer().getUsername() != null && booking.getCustomer().getUsername().matches("^0[0-9]{9,10}$")) ? booking.getCustomer().getUsername() : null);
+
+            return BookingResponse.builder()
+                    .id(booking.getId())
+                    .customerId(booking.getCustomer().getId())
+                    .customerName(booking.getCustomer().getFullName())
+                    .customerPhone(customerPhone)
+                    .branchId(booking.getBranch().getId())
+                    .branchName(booking.getBranch().getName())
+                    .bookingDate(booking.getBookingDate())
+                    .startTime(booking.getStartTime())
+                    .endTime(booking.getEndTime())
+                    .preferredStaffId(booking.getPreferredStaff() != null ? booking.getPreferredStaff().getId() : null)
+                    .preferredStaffName(booking.getPreferredStaff() != null ? booking.getPreferredStaff().getName() : null)
+                    .assignedStaffId(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getId() : null)
+                    .assignedStaffName(booking.getAssignedStaff() != null ? booking.getAssignedStaff().getName() : null)
+                    .status(booking.getStatus().name())
+                    .totalPrice(booking.getTotalPrice())
+                    .depositAmount(booking.getDepositAmount())
+                    .remainingAmount(booking.getRemainingAmount())
+                    .totalDurationMinutes(booking.getTotalDurationMinutes())
+                    .notes(booking.getNotes())
+                    .invoiceUrl(booking.getInvoiceUrl())
+                    .reviewedAt(reviewedAt)
+                    .items(itemResponses)
+                    .noShowPrediction(predictionDto)
+                    .build();
+        }).toList();
     }
 
     @Override

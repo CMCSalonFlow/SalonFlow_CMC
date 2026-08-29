@@ -22,6 +22,8 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, JpaSpecif
 
     Optional<Review> findByBookingId(Long bookingId);
 
+    List<Review> findByBookingIdIn(List<Long> bookingIds);
+
     Page<Review> findBySalonId(Long salonId, Pageable pageable);
 
     @Query("SELECT r FROM Review r WHERE (r.salon.id = :salonId OR r.branch.salon.id = :salonId) AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")

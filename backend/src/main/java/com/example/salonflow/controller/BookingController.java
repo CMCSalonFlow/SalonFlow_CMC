@@ -17,6 +17,10 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 
 import java.time.LocalDate;
@@ -50,12 +54,37 @@ public class BookingController {
         return ResponseEntity.ok(bookingService.createGuestBooking(branchId, request));
     }
 
-    // API GET: Lấy toàn bộ danh sách lịch hẹn của chi nhánh
+    // API GET: Lấy toàn bộ danh sách lịch hẹn của chi nhánh (không phân trang)
     @GetMapping("/api/v1/branches/{branchId}/bookings")
     public ResponseEntity<List<BookingResponse>> getByBranch(
             @PathVariable Long branchId
     ) {
         return ResponseEntity.ok(bookingService.getByBranch(branchId));
+    }
+
+    // API GET: Lấy danh sách lịch hẹn phân trang & tìm kiếm phía Server
+    @GetMapping("/api/v1/branches/{branchId}/bookings/search")
+    public ResponseEntity<Page<BookingResponse>> searchBookings(
+            @PathVariable Long branchId,
+            @RequestParam(required = false) BookingStatus status,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "bookingDate") String sortBy,
+            @RequestParam(defaultValue = "DESC") String sortDir
+    ) {
+        Sort sort = sortDir.equalsIgnoreCase("ASC") ? Sort.by(sortBy).ascending() : Sort.by(sortBy).descending();
+        PageRequest pageable = PageRequest.of(page, size, sort);
+        return ResponseEntity.ok(bookingService.searchBookings(branchId, status, fromDate, toDate, search, pageable));
+    }
+
+    // API GET: Lấy toàn bộ lịch hẹn cá nhân của khách hàng đang đăng nhập
+    @GetMapping("/api/v1/bookings/my-bookings")
+    public ResponseEntity<List<BookingResponse>> getMyBookings() {
+        Long customerId = SecurityUtils.getCurrentUserId();
+        return ResponseEntity.ok(bookingService.getByCustomerId(customerId));
     }
 
     // API GET: Lấy chi tiết thông tin của một lịch hẹn cụ thể

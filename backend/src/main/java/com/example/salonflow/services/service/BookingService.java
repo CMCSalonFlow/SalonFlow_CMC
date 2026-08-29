@@ -8,6 +8,10 @@ import com.example.salonflow.dto.booking.CancellationResult;
 import com.example.salonflow.dto.booking.CheckInBookingResponse;
 import com.example.salonflow.dto.booking.CreateWalkInBookingRequest;
 
+import com.example.salonflow.entity.enums.BookingStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -24,6 +28,12 @@ public interface BookingService {
 
     // Lấy danh sách lịch hẹn đặt chỗ của chi nhánh
     List<BookingResponse> getByBranch(Long branchId);
+
+    // Lấy danh sách lịch hẹn của một khách hàng
+    List<BookingResponse> getByCustomerId(Long customerId);
+
+    // Phân trang & tìm kiếm danh sách lịch hẹn đặt chỗ của chi nhánh
+    Page<BookingResponse> searchBookings(Long branchId, BookingStatus status, LocalDate fromDate, LocalDate toDate, String search, Pageable pageable);
 
     // Lấy thông tin chi tiết của một lịch hẹn đặt chỗ
     BookingResponse getById(Long branchId, Long bookingId);
