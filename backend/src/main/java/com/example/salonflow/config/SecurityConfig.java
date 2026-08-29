@@ -84,7 +84,7 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/v1/recommendations", "/api/v1/recommendations/**").permitAll()
                         .requestMatchers("/api/v1/branches/search").permitAll()
-                        .requestMatchers("/api/v1/salons/public", "/api/v1/salons/nearby").permitAll()
+                        .requestMatchers("/api/v1/salons/public", "/api/v1/salons/nearby", "/api/v1/salons/*/reviews").permitAll()
                         .requestMatchers("/api/v1/branches/public").permitAll()
                         .requestMatchers("/api/v1/branches/*/services/public").permitAll()
                         .requestMatchers("/api/v1/branches/*/bundles/public").permitAll()
