@@ -33,8 +33,16 @@ public class JwtServiceImpl
     public String generateToken(
             UserDetails userDetails
     ) {
-        List<String> roles = userDetails.getAuthorities().stream()
+        List<String> authorities = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
+                .toList();
+
+        List<String> roles = authorities.stream()
+                .filter(auth -> auth.startsWith("ROLE_"))
+                .toList();
+
+        List<String> permissions = authorities.stream()
+                .filter(auth -> !auth.startsWith("ROLE_"))
                 .toList();
 
         return Jwts.builder()
@@ -42,6 +50,7 @@ public class JwtServiceImpl
                         userDetails.getUsername()
                 )
                 .claim("roles", roles)
+                .claim("permissions", permissions)
                 .issuedAt(new Date())
                 .expiration(
                         new Date(
