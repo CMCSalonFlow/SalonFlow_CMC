@@ -336,6 +336,28 @@ public class StaffServiceImpl implements StaffService {
         response.setSpecialties(staff.getSpecialties());
         response.setServices(serviceResponses);
         response.setUserId(staff.getUserId());
+
+        String roleCode = "STAFF";
+        String roleName = "Stylist";
+        if (staff.getUserId() != null) {
+            com.example.salonflow.entity.User user = userRepository.findByIdWithRoles(staff.getUserId()).orElse(null);
+            if (user != null && user.getUserRoles() != null && !user.getUserRoles().isEmpty()) {
+                boolean isManager = user.getUserRoles().stream()
+                        .anyMatch(ur -> ur.getRole() != null && (
+                                "MANAGER".equalsIgnoreCase(ur.getRole().getCode()) ||
+                                "SALON_OWNER".equalsIgnoreCase(ur.getRole().getCode()) ||
+                                "BRANCH_MANAGER".equalsIgnoreCase(ur.getRole().getCode()) ||
+                                (ur.getRole().getName() != null && ur.getRole().getName().toLowerCase().contains("quản lý"))
+                        ));
+                if (isManager) {
+                    roleCode = "MANAGER";
+                    roleName = "Quản lý";
+                }
+            }
+        }
+        response.setRoleCode(roleCode);
+        response.setRoleName(roleName);
+
         return response;
     }
 }

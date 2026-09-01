@@ -240,6 +240,8 @@ public class SalonServiceManagementServiceImpl implements ServiceManagementServi
                         ? service.getCategory().getId() : null)
                 .categoryName(service.getCategory() != null
                         ? service.getCategory().getName() : null)
+                .categoryDisplayOrder(service.getCategory() != null
+                        ? service.getCategory().getDisplayOrder() : 99)
                 .name(service.getName())
                 .price(service.getPrice())
                 .durationMinutes(service.getDurationMinutes())

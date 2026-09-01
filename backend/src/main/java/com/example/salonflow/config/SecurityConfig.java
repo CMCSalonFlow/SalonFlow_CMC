@@ -76,6 +76,7 @@ public class SecurityConfig {
                         // public APIs
                         .requestMatchers("/api/test/**").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/api/ai/**", "/api/v1/chatbot/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator", "/actuator/**").permitAll()
@@ -83,8 +84,8 @@ public class SecurityConfig {
                         .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/api/v1/recommendations", "/api/v1/recommendations/**").permitAll()
-                        .requestMatchers("/api/v1/branches/search").permitAll()
-                        .requestMatchers("/api/v1/salons/public", "/api/v1/salons/nearby", "/api/v1/salons/*/reviews").permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/branches", "/api/v1/branches/**").permitAll()
+                        .requestMatchers("/api/v1/branches/search", "/api/v1/salons/public", "/api/v1/salons/nearby", "/api/v1/salons/*", "/api/v1/salons/*/reviews").permitAll()
                         .requestMatchers("/api/v1/branches/public").permitAll()
                         .requestMatchers("/api/v1/branches/*/services/public").permitAll()
                         .requestMatchers("/api/v1/branches/*/bundles/public").permitAll()

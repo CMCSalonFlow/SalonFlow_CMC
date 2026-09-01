@@ -39,5 +39,9 @@ public class SalonResponse {
 
     private Long daysUntilAppeal;
 
+    private Double rating;
+
+    private Long reviewCount;
+
     private List<SalonPhotoResponse> photos;
 }

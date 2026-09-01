@@ -35,4 +35,8 @@ public class PublicStaffResponse {
     private List<ServiceResponse> services;
 
     private Long userId;
+
+    private String roleCode;
+
+    private String roleName;
 }

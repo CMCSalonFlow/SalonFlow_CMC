@@ -149,10 +149,9 @@ public class SalonController {
     }
 
     /**
-     * Super Admin xem chi tiết salon
+     * Xem chi tiết salon
      */
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
     public SalonResponse getSalonById(
             @PathVariable Long id
     ) {

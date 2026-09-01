@@ -18,6 +18,8 @@ public class ServiceResponse {
 
     private String categoryName;
 
+    private Integer categoryDisplayOrder;
+
     private String name;
 
     private BigDecimal price;

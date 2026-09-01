@@ -34,7 +34,8 @@ public class SalonServiceImpl implements SalonService {
         private final SalonApprovalAuditRepository auditRepository;
         private final EmailService emailService;
         private final BranchRepository branchRepository;
-        private final AuditLogService auditLogService; // thêm
+        private final AuditLogService auditLogService;
+        private final ReviewRepository reviewRepository;
 
         @Override
         public SalonResponse create(CreateSalonRequest request) {
@@ -141,6 +142,9 @@ public class SalonServiceImpl implements SalonService {
                         }
                 }
 
+                Double avgRating = reviewRepository != null ? reviewRepository.calculateAverageRatingBySalonId(salon.getId()) : null;
+                Long revCount = reviewRepository != null ? reviewRepository.countBySalonId(salon.getId()) : 0L;
+
                 return SalonResponse.builder()
                                 .id(salon.getId())
                                 .name(salon.getName())
@@ -155,6 +159,8 @@ public class SalonServiceImpl implements SalonService {
                                 .approvedAt(salon.getApprovedAt())
                                 .canAppeal(canAppeal)
                                 .daysUntilAppeal(daysUntilAppeal)
+                                .rating(avgRating != null ? Math.round(avgRating * 10.0) / 10.0 : 5.0)
+                                .reviewCount(revCount != null ? revCount : 0L)
                                 .photos(photoResponses)
                                 .build();
         }
