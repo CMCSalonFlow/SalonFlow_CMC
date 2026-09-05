@@ -5,6 +5,7 @@ import com.example.salonflow.ai.service.NoShowPredictionService;
 import com.example.salonflow.entity.*;
 import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.notification.email.BookingEmailTemplateService;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.EmailService;
 import com.example.salonflow.services.service.GeocodingService;
@@ -43,6 +44,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     private final BranchRepository branchRepository;
     private final CustomerProfileRepository customerProfileRepository;
     private final GeocodingService geocodingService;
+    private final BookingEmailTemplateService bookingEmailTemplateService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -224,30 +226,19 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     private boolean sendReminderToCustomer(Booking booking, User customer) {
         boolean emailSent = false;
         if (customer != null && customer.getEmail() != null && !customer.getEmail().isBlank()) {
+            String recipientEmail = customer.getEmail().trim();
+            if (recipientEmail.isBlank() || recipientEmail.endsWith("@walkin.local") || recipientEmail.endsWith("@guest.local")) {
+                return false;
+            }
             try {
-                String subject = "🔔 [SalonFlow] Nhắc Nhở Lịch Hẹn Sắp Tới Tại Salon";
-                String customerName = customer.getFullName() != null ? customer.getFullName() : (customer.getUsername() != null ? customer.getUsername() : "Quý khách");
-                String branchName = booking.getBranch() != null ? booking.getBranch().getName() : "Salon";
-                String dateStr = booking.getBookingDate() != null ? booking.getBookingDate().toString() : "";
-                String startTimeStr = booking.getStartTime() != null ? booking.getStartTime().toString() : "";
-                String timeStr = (startTimeStr + " " + dateStr).trim();
+                String subject = "⚠️ [SalonFlow] Cảnh Báo Nguy Cơ Vắng Mặt & Nhắc Lịch Hẹn #BK-" + booking.getId();
+                String htmlBody = bookingEmailTemplateService.renderNoShowWarning(booking);
 
-                String body = String.format(
-                    "Xin chào %s,\n\n" +
-                    "SalonFlow xin gửi thông báo nhắc nhở về lịch hẹn sắp tới của quý khách:\n" +
-                    "- Mã Booking: #BK-%d\n" +
-                    "- Chi nhánh: %s\n" +
-                    "- Thời gian: %s\n\n" +
-                    "Nếu quý khách có thay đổi lịch trình, vui lòng truy cập ứng dụng SalonFlow hoặc liên hệ Salon để xác nhận/hủy lịch sớm.\n\n" +
-                    "Trân trọng,\nĐội ngũ SalonFlow",
-                    customerName, booking.getId(), branchName, timeStr
-                );
-
-                emailService.sendNotificationEmail(customer.getEmail(), subject, body);
+                emailService.sendNotificationEmail(recipientEmail, subject, htmlBody);
                 emailSent = true;
-                log.info("Đã gửi Email nhắc nhở thành công tới {}", customer.getEmail());
+                log.info("Đã gửi HTML Email cảnh báo No-Show thành công tới {}", recipientEmail);
             } catch (Exception e) {
-                log.error("Lỗi khi gửi Email nhắc nhở:", e);
+                log.error("Lỗi khi gửi HTML Email cảnh báo No-Show:", e);
             }
         }
 
@@ -287,8 +278,8 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
 
         double completedCountNorm = Math.min(1.0, (double) completedCount / 10.0);
 
-        // 2. Real Distance Calculation via Geocoding
-        double distanceKm = calculateDistanceKm(branch, customer);
+        // 2. Real Distance Calculation via Geocoding or GPS
+        double distanceKm = calculateDistanceKm(booking, branch, customer);
         double distanceNorm = Math.min(1.0, distanceKm / 30.0); // 30km scale max
 
         // 3. Lead Time Calculation
@@ -313,7 +304,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
                 .build();
     }
 
-    private double calculateDistanceKm(Branch branch, User customer) {
+    private double calculateDistanceKm(Booking booking, Branch branch, User customer) {
         if (branch == null) return 3.0;
 
         double branchLat;
@@ -334,31 +325,42 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
             return 3.0;
         }
 
-        // Retrieve real customer address from CustomerProfile
-        if (customer != null && customer.getId() != null) {
+        // Priority 1: Direct GPS coordinates on the Booking
+        if (booking != null && booking.getCustomerLatitude() != null && booking.getCustomerLongitude() != null) {
+            return haversineKm(booking.getCustomerLatitude(), booking.getCustomerLongitude(), branchLat, branchLng);
+        }
+
+        // Priority 2: Customer Address on Booking or CustomerProfile
+        String custAddress = null;
+        if (booking != null && booking.getCustomerAddress() != null && !booking.getCustomerAddress().isBlank()) {
+            custAddress = booking.getCustomerAddress();
+        } else if (customer != null && customer.getId() != null) {
             CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId()).orElse(null);
-            String custAddress = profile != null ? profile.getAddress() : null;
-
-            if (custAddress != null && !custAddress.isBlank()) {
-                double[] custCoords = geocodingService.getCoordinates(custAddress);
-                if (custCoords != null) {
-                    double custLat = custCoords[0];
-                    double custLng = custCoords[1];
-
-                    double dLat = Math.toRadians(branchLat - custLat);
-                    double dLng = Math.toRadians(branchLng - custLng);
-                    double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                            Math.cos(Math.toRadians(custLat)) * Math.cos(Math.toRadians(branchLat)) *
-                                    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-                    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                    double dist = 6371 * c; // Earth radius in km
-                    return Math.round(dist * 10.0) / 10.0;
-                }
+            if (profile != null) {
+                custAddress = profile.getAddress();
             }
         }
 
-        // Return neutral urban default distance when customer address is not configured
+        if (custAddress != null && !custAddress.isBlank()) {
+            double[] custCoords = geocodingService.getCoordinates(custAddress);
+            if (custCoords != null) {
+                return haversineKm(custCoords[0], custCoords[1], branchLat, branchLng);
+            }
+        }
+
+        // Return neutral urban default distance when location is unavailable
         return 3.0;
+    }
+
+    private double haversineKm(double lat1, double lng1, double lat2, double lng2) {
+        double dLat = Math.toRadians(lat2 - lat1);
+        double dLng = Math.toRadians(lng2 - lng1);
+        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        double dist = 6371 * c; // Earth radius in km
+        return Math.round(dist * 10.0) / 10.0;
     }
 
     private String buildExplanation(NoShowFeaturesDto f, double probPct, String riskLevel) {

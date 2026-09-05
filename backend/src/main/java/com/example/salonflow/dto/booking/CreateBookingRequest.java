@@ -52,4 +52,11 @@ public class CreateBookingRequest {
 
    // Email khách (không bắt buộc)
    private String customerEmail;
+
+   // Vị trí địa lý / tọa độ khách khi đặt lịch
+   private Double customerLatitude;
+
+   private Double customerLongitude;
+
+   private String customerAddress;
 }

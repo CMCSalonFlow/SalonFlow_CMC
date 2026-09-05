@@ -135,7 +135,10 @@ public class BookingServiceImpl implements BookingService {
                 request.getPreferredStaffId(),
                 request.getServiceIds(),
                 request.getBundleId(),
-                request.getNotes()
+                request.getNotes(),
+                request.getCustomerLatitude(),
+                request.getCustomerLongitude(),
+                request.getCustomerAddress()
         );
     }
 
@@ -151,7 +154,10 @@ public class BookingServiceImpl implements BookingService {
                 request.getPreferredStaffId(),
                 request.getServiceIds(),
                 request.getBundleId(),
-                request.getNotes()
+                request.getNotes(),
+                request.getCustomerLatitude(),
+                request.getCustomerLongitude(),
+                request.getCustomerAddress()
         );
     }
 
@@ -663,7 +669,10 @@ public class BookingServiceImpl implements BookingService {
             Long preferredStaffId,
             List<Long> serviceIds,
             Long bundleId,
-            String notes
+            String notes,
+            Double customerLatitude,
+            Double customerLongitude,
+            String customerAddress
     ) {
         Branch branch = branchRepository.findById(branchId)
                 .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy chi nhánh với id: " + branchId));
@@ -814,6 +823,9 @@ public class BookingServiceImpl implements BookingService {
                     .depositAmount(depositAmount)
                     .totalDurationMinutes(totalDuration)
                     .notes(notes)
+                    .customerLatitude(customerLatitude)
+                    .customerLongitude(customerLongitude)
+                    .customerAddress(customerAddress)
                     .build();
 
             booking = bookingRepository.save(booking);

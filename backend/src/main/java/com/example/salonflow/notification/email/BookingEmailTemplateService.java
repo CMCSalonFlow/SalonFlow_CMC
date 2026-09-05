@@ -62,6 +62,18 @@ public class BookingEmailTemplateService {
         );
     }
 
+    public String renderNoShowWarning(Booking booking) {
+        String qrCode = qrCodeService.generateDataUrl(booking);
+        return renderShell(
+                "⚠️ Cảnh báo nguy cơ vắng mặt & Nhắc lịch hẹn",
+                "Hệ thống ghi nhận lịch hẹn của bạn có nguy cơ bị bỏ quên hoặc hủy sát giờ. Vui lòng kiểm tra và xác nhận lịch hẹn.",
+                booking,
+                qrCode,
+                "Xác nhận / Đổi lịch hẹn ngay",
+                "⚠️ Nếu bạn có thay đổi lịch trình hoặc không thể đến đúng giờ, vui lòng truy cập ứng dụng SalonFlow để Hủy hoặc Đổi lịch sớm giúp Salon phục vụ tốt nhất."
+        );
+    }
+
     private String renderShell(
             String heading,
             String intro,

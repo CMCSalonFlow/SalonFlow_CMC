@@ -17,8 +17,20 @@ public class BookingCancellationController {
     public ResponseEntity<CancellationResult> cancelBooking(
             @PathVariable Long bookingId,
             @RequestBody(required = false) String reason) {
-        
-        CancellationResult result = bookingService.cancelBooking(bookingId, reason);
+
+        String decodedReason = reason;
+        if (reason != null && !reason.trim().isEmpty()) {
+            try {
+                decodedReason = java.net.URLDecoder.decode(reason.trim(), java.nio.charset.StandardCharsets.UTF_8);
+                if (decodedReason.endsWith("=")) {
+                    decodedReason = decodedReason.substring(0, decodedReason.length() - 1);
+                }
+            } catch (Exception e) {
+                decodedReason = reason;
+            }
+        }
+
+        CancellationResult result = bookingService.cancelBooking(bookingId, decodedReason);
         return ResponseEntity.ok(result);
     }
 }

@@ -110,4 +110,13 @@ public class Booking extends BaseEntity {
     @Column(name = "checked_in_at")
     private LocalDateTime checkedInAt;
 
+    @Column(name = "customer_latitude")
+    private Double customerLatitude;
+
+    @Column(name = "customer_longitude")
+    private Double customerLongitude;
+
+    @Column(name = "customer_address")
+    private String customerAddress;
+
 }

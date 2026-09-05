@@ -41,4 +41,10 @@ public class CreateGuestBookingRequest {
     private Long bundleId;
 
     private String notes;
+
+    private Double customerLatitude;
+
+    private Double customerLongitude;
+
+    private String customerAddress;
 }

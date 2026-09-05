@@ -391,13 +391,13 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                 List<Booking> dayList = currentByDate.getOrDefault(d, List.of());
                 BigDecimal currRev = dayList.stream()
                         .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
-                        .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                        .map(this::extractBookingRevenue)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 List<Booking> prevDayList = prevByDate.getOrDefault(d.minusYears(1), List.of());
                 BigDecimal prevRev = prevDayList.stream()
                         .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
-                        .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                        .map(this::extractBookingRevenue)
                         .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                 timeline.add(RevenueTimePointDto.builder()
@@ -416,13 +416,26 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         return timeline;
     }
 
+    private BigDecimal extractBookingRevenue(Booking b) {
+        if (b == null) return BigDecimal.ZERO;
+        if (b.getTotalPrice() != null && b.getTotalPrice().compareTo(BigDecimal.ZERO) > 0) {
+            return b.getTotalPrice();
+        }
+        if (b.getItems() != null && !b.getItems().isEmpty()) {
+            return b.getItems().stream()
+                    .map(item -> item.getPrice() != null ? item.getPrice() : BigDecimal.ZERO)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+        }
+        return BigDecimal.ZERO;
+    }
+
     private BigDecimal sumRevenueInRange(Map<LocalDate, List<Booking>> bookingsByDate, LocalDate start, LocalDate end) {
         BigDecimal sum = BigDecimal.ZERO;
         for (LocalDate d = start; !d.isAfter(end); d = d.plusDays(1)) {
             List<Booking> list = bookingsByDate.getOrDefault(d, List.of());
             BigDecimal dayRev = list.stream()
                     .filter(b -> b.getStatus() == BookingStatus.COMPLETED)
-                    .map(b -> b.getTotalPrice() != null ? b.getTotalPrice() : BigDecimal.ZERO)
+                    .map(this::extractBookingRevenue)
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
             sum = sum.add(dayRev);
         }
@@ -747,10 +760,19 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             long totalAvailableSlots = Math.max(bookedSlots, totalShifts * 16);
             double occupancyRate = Math.min(100.0, Math.round((bookedSlots * 100.0 / totalAvailableSlots) * 10.0) / 10.0);
 
+            String staffAvatar = staff.getAvatarUrl();
+            if ((staffAvatar == null || staffAvatar.trim().isEmpty() || "null".equalsIgnoreCase(staffAvatar.trim()))
+                    && staff.getUserBranch() != null && staff.getUserBranch().getUser() != null) {
+                staffAvatar = staff.getUserBranch().getUser().getAvatarUrl();
+            }
+            if (staffAvatar != null && ("null".equalsIgnoreCase(staffAvatar.trim()) || staffAvatar.trim().isEmpty())) {
+                staffAvatar = null;
+            }
+
             metricsList.add(StaffPerformanceMetricsDto.builder()
                     .staffId(staffId)
                     .staffName(staff.getName())
-                    .avatarUrl(staff.getAvatarUrl())
+                    .avatarUrl(staffAvatar)
                     .specialties(staff.getSpecialties())
                     .branchId(staff.getBranch() != null ? staff.getBranch().getId() : null)
                     .branchName(staff.getBranch() != null ? staff.getBranch().getName() : "")
@@ -817,10 +839,18 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                         .findFirst()
                         .ifPresent(st -> {
                             double roundedRating = Math.round(avgR * 100.0) / 100.0;
+                            String stAvatar = st.getAvatarUrl();
+                            if ((stAvatar == null || stAvatar.trim().isEmpty() || "null".equalsIgnoreCase(stAvatar.trim()))
+                                    && st.getUserBranch() != null && st.getUserBranch().getUser() != null) {
+                                stAvatar = st.getUserBranch().getUser().getAvatarUrl();
+                            }
+                            if (stAvatar != null && ("null".equalsIgnoreCase(stAvatar.trim()) || stAvatar.trim().isEmpty())) {
+                                stAvatar = null;
+                            }
                             warnings.add(StaffLowRatingWarningDto.builder()
                                     .staffId(st.getId())
                                     .staffName(st.getName())
-                                    .avatarUrl(st.getAvatarUrl())
+                                    .avatarUrl(stAvatar)
                                     .branchId(st.getBranch() != null ? st.getBranch().getId() : null)
                                     .branchName(st.getBranch() != null ? st.getBranch().getName() : "")
                                     .thirtyDaysAvgRating(roundedRating)
