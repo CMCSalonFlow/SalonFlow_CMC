@@ -11,6 +11,8 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class LoyaltySummaryResponse {
     private Integer totalPoints;
+    private Integer activePoints;
+    private Integer equivalentVoucherValue;
     private Integer expiringPoints;
     private String memberRank;
 }

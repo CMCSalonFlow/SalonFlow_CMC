@@ -22,13 +22,21 @@ public class LoyaltyPointController {
     private final LoyaltyPointService loyaltyPointService;
 
     @GetMapping("/summary")
-    public ResponseEntity<LoyaltySummaryResponse> getSummary(@AuthenticationPrincipal CustomUserPrincipal principal) {
-        return ResponseEntity.ok(loyaltyPointService.getUserLoyaltySummary(principal.getId()));
+    public ResponseEntity<LoyaltySummaryResponse> getSummary(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(value = "userId", required = false) Long userId
+    ) {
+        Long targetUserId = (userId != null) ? userId : (principal != null ? principal.getId() : null);
+        return ResponseEntity.ok(loyaltyPointService.getUserLoyaltySummary(targetUserId));
     }
 
     @GetMapping("/history")
-    public ResponseEntity<List<LoyaltyTransactionResponse>> getHistory(@AuthenticationPrincipal CustomUserPrincipal principal) {
-        return ResponseEntity.ok(loyaltyPointService.getUserTransactionHistory(principal.getId()));
+    public ResponseEntity<List<LoyaltyTransactionResponse>> getHistory(
+            @AuthenticationPrincipal CustomUserPrincipal principal,
+            @RequestParam(value = "userId", required = false) Long userId
+    ) {
+        Long targetUserId = (userId != null) ? userId : (principal != null ? principal.getId() : null);
+        return ResponseEntity.ok(loyaltyPointService.getUserTransactionHistory(targetUserId));
     }
 
     @PostMapping("/redeem")

@@ -7,6 +7,7 @@ import com.example.salonflow.entity.enums.BookingStatus;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.*;
 import com.example.salonflow.services.service.EmailService;
+import com.example.salonflow.services.service.GeocodingService;
 import com.example.salonflow.services.service.SubscriptionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +41,8 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     private final EmailService emailService;
     private final SubscriptionService subscriptionService;
     private final BranchRepository branchRepository;
+    private final CustomerProfileRepository customerProfileRepository;
+    private final GeocodingService geocodingService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -255,28 +258,36 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
 
     private NoShowFeaturesDto extractFeatures(Booking booking, User customer, Branch branch) {
         // 1. History Cancel Rate & Completed Count
-        List<Booking> pastBookings = bookingRepository.findByCustomerId(customer.getId());
-        long totalPast = 0;
+        String userEmail = customer != null && customer.getEmail() != null ? customer.getEmail() : "";
+        String userPhone = customer != null && customer.getPhone() != null ? customer.getPhone() : "";
+
+        List<Booking> pastBookings = (customer != null && customer.getId() != null)
+                ? bookingRepository.findBookingsForUserOrContact(customer.getId(), userEmail, userPhone)
+                : List.of();
+
         long totalCancelledNoShow = 0;
         long completedCount = 0;
 
-        for (Booking b : pastBookings) {
-            if (b.getId().equals(booking.getId())) continue; // Bỏ qua chính booking đang xét
-            totalPast++;
-            if (b.getStatus() == BookingStatus.CANCELLED || b.getStatus() == BookingStatus.NO_SHOW) {
-                totalCancelledNoShow++;
-            } else if (b.getStatus() == BookingStatus.COMPLETED) {
-                completedCount++;
+        if (pastBookings != null) {
+            for (Booking b : pastBookings) {
+                if (b.getId().equals(booking.getId())) continue; // Skip current booking
+                if (b.getStatus() == BookingStatus.CANCELLED || b.getStatus() == BookingStatus.NO_SHOW) {
+                    totalCancelledNoShow++;
+                } else if (b.getStatus() == BookingStatus.COMPLETED) {
+                    completedCount++;
+                }
             }
         }
 
-        double cancelRate = totalPast > 0
-                ? (double) totalCancelledNoShow / totalPast
-                : 0.15; // Mặc định baseline 15% cho khách mới
+        long totalFinished = totalCancelledNoShow + completedCount;
+
+        double cancelRate = totalFinished > 0
+                ? (double) totalCancelledNoShow / totalFinished
+                : 0.15; // Baseline 15% for new customer with no prior finished bookings
 
         double completedCountNorm = Math.min(1.0, (double) completedCount / 10.0);
 
-        // 2. Distance Calculation
+        // 2. Real Distance Calculation via Geocoding
         double distanceKm = calculateDistanceKm(branch, customer);
         double distanceNorm = Math.min(1.0, distanceKm / 30.0); // 30km scale max
 
@@ -287,11 +298,11 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
 
         long leadMinutes = Math.max(0, Duration.between(createdDateTime, bookingDateTime).toMinutes());
         double leadTimeHours = (double) leadMinutes / 60.0;
-        double leadTimeNorm = Math.min(1.0, leadTimeHours / 168.0); // 7 ngày = 168h scale max
+        double leadTimeNorm = Math.min(1.0, leadTimeHours / 168.0); // 7 days = 168h scale max
 
         return NoShowFeaturesDto.builder()
                 .cancelRate(Math.round(cancelRate * 100.0) / 100.0)
-                .totalPastBookings(totalPast)
+                .totalPastBookings(totalFinished)
                 .totalCancelledOrNoShowBookings(totalCancelledNoShow)
                 .distanceKm(Math.round(distanceKm * 10.0) / 10.0)
                 .distanceNorm(Math.round(distanceNorm * 100.0) / 100.0)
@@ -303,20 +314,51 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
     }
 
     private double calculateDistanceKm(Branch branch, User customer) {
-        if (branch.getLatitude() == null || branch.getLongitude() == null) {
-            return 5.0; // Mặc định 5km nếu chưa có tọa độ branch
-        }
-        // Giả lập hoặc lấy tọa độ khách hàng (nếu chưa có lat/lng trên user profile thì mặc định khoảng cách an toàn ~ 5km)
-        double custLat = branch.getLatitude() + 0.04;
-        double custLng = branch.getLongitude() + 0.04;
+        if (branch == null) return 3.0;
 
-        double dLat = Math.toRadians(branch.getLatitude() - custLat);
-        double dLng = Math.toRadians(branch.getLongitude() - custLng);
-        double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(Math.toRadians(custLat)) * Math.cos(Math.toRadians(branch.getLatitude())) *
-                        Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        return 6371 * c;
+        double branchLat;
+        double branchLng;
+
+        if (branch.getLatitude() != null && branch.getLongitude() != null) {
+            branchLat = branch.getLatitude();
+            branchLng = branch.getLongitude();
+        } else if (branch.getAddress() != null && !branch.getAddress().isBlank()) {
+            double[] coords = geocodingService.getCoordinates(branch.getAddress());
+            if (coords != null) {
+                branchLat = coords[0];
+                branchLng = coords[1];
+            } else {
+                return 3.0;
+            }
+        } else {
+            return 3.0;
+        }
+
+        // Retrieve real customer address from CustomerProfile
+        if (customer != null && customer.getId() != null) {
+            CustomerProfile profile = customerProfileRepository.findByUser_Id(customer.getId()).orElse(null);
+            String custAddress = profile != null ? profile.getAddress() : null;
+
+            if (custAddress != null && !custAddress.isBlank()) {
+                double[] custCoords = geocodingService.getCoordinates(custAddress);
+                if (custCoords != null) {
+                    double custLat = custCoords[0];
+                    double custLng = custCoords[1];
+
+                    double dLat = Math.toRadians(branchLat - custLat);
+                    double dLng = Math.toRadians(branchLng - custLng);
+                    double a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                            Math.cos(Math.toRadians(custLat)) * Math.cos(Math.toRadians(branchLat)) *
+                                    Math.sin(dLng / 2) * Math.sin(dLng / 2);
+                    double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    double dist = 6371 * c; // Earth radius in km
+                    return Math.round(dist * 10.0) / 10.0;
+                }
+            }
+        }
+
+        // Return neutral urban default distance when customer address is not configured
+        return 3.0;
     }
 
     private String buildExplanation(NoShowFeaturesDto f, double probPct, String riskLevel) {

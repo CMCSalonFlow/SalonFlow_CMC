@@ -86,6 +86,13 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     @EntityGraph(attributePaths = {"customer", "assignedStaff", "branch", "items", "items.service", "items.bundle"})
     List<Booking> findByCustomerId(Long customerId);
 
+    @Query("SELECT b FROM Booking b LEFT JOIN b.customer c WHERE (c.id IS NOT NULL AND c.id = :userId) OR (c.email IS NOT NULL AND c.email = :email AND :email <> '') OR (c.phone IS NOT NULL AND c.phone = :phone AND :phone <> '')")
+    List<Booking> findBookingsForUserOrContact(
+            @Param("userId") Long userId,
+            @Param("email") String email,
+            @Param("phone") String phone
+    );
+
     List<Booking> findByAssignedStaffIdAndBookingDate(Long staffId, LocalDate date);
 
     List<Booking> findByBranchIdAndBookingDate(Long branchId, LocalDate date);

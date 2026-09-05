@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.example.salonflow.entity.enums.SubscriptionStatus;
+
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +20,8 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     List<Subscription> findActiveSubscriptions(@Param("salonId") Long salonId, @Param("now") LocalDateTime now);
 
     List<Subscription> findBySalonIdOrderByCreatedAtDesc(Long salonId);
+
+    Optional<Subscription> findFirstBySalonIdAndStatusOrderByCreatedAtDesc(Long salonId, SubscriptionStatus status);
 
     @Query("SELECT s FROM Subscription s WHERE s.status = 'ACTIVE' AND s.endDate IS NOT NULL AND s.endDate <= :now")
     List<Subscription> findExpiredSubscriptions(@Param("now") LocalDateTime now);

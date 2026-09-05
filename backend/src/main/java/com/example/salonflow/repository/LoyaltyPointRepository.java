@@ -14,6 +14,8 @@ public interface LoyaltyPointRepository extends JpaRepository<LoyaltyPoint, Long
 
     List<LoyaltyPoint> findByUserIdOrderByCreatedAtDesc(Long userId);
 
+    boolean existsByUserIdAndReferenceId(Long userId, String referenceId);
+
     @Query("SELECT COALESCE(SUM(lp.points), 0) FROM LoyaltyPoint lp WHERE lp.userId = :userId AND (lp.expiresAt IS NULL OR lp.expiresAt > :now)")
     Integer findTotalPointsByUserId(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 

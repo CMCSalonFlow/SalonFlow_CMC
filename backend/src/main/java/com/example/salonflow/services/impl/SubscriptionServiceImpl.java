@@ -89,8 +89,16 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
         List<Subscription> history = subscriptionRepository.findBySalonIdOrderByCreatedAtDesc(salonId);
         List<SubscriptionResponse> responses = new ArrayList<>();
+        boolean foundLatestPastDue = false;
         for (Subscription sub : history) {
-            responses.add(mapToResponse(sub));
+            if (sub.getStatus() == SubscriptionStatus.PAST_DUE) {
+                if (!foundLatestPastDue) {
+                    foundLatestPastDue = true;
+                    responses.add(mapToResponse(sub));
+                }
+            } else {
+                responses.add(mapToResponse(sub));
+            }
         }
         return responses;
     }
@@ -107,17 +115,20 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
         BigDecimal price = calculatePriceForPlan(request.getPlan(), request.getBillingCycle());
 
-        // 2. Create pending subscription record (PAST_DUE means pending payment)
-        Subscription subscription = Subscription.builder()
-                .salon(salon)
-                .plan(request.getPlan())
-                .features(getFeaturesForPlan(request.getPlan()))
-                .billingCycle(request.getBillingCycle())
-                .price(price)
-                .status(SubscriptionStatus.PAST_DUE)
-                .startDate(LocalDateTime.now())
-                .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
-                .build();
+        // 2. Create or reuse pending subscription record (PAST_DUE means pending payment)
+        Subscription subscription = subscriptionRepository
+                .findFirstBySalonIdAndStatusOrderByCreatedAtDesc(salonId, SubscriptionStatus.PAST_DUE)
+                .orElseGet(() -> Subscription.builder()
+                        .salon(salon)
+                        .status(SubscriptionStatus.PAST_DUE)
+                        .build());
+
+        subscription.setPlan(request.getPlan());
+        subscription.setFeatures(getFeaturesForPlan(request.getPlan()));
+        subscription.setBillingCycle(request.getBillingCycle());
+        subscription.setPrice(price);
+        subscription.setStartDate(LocalDateTime.now());
+        subscription.setEndDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()));
 
         subscription = subscriptionRepository.save(subscription);
 
@@ -625,16 +636,19 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
         BigDecimal price = calculatePriceForPlan(request.getPlan(), request.getBillingCycle());
 
-        Subscription subscription = Subscription.builder()
-                .salon(salon)
-                .plan(request.getPlan())
-                .features(getFeaturesForPlan(request.getPlan()))
-                .billingCycle(request.getBillingCycle())
-                .price(price)
-                .status(SubscriptionStatus.PAST_DUE)
-                .startDate(LocalDateTime.now())
-                .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
-                .build();
+        Subscription subscription = subscriptionRepository
+                .findFirstBySalonIdAndStatusOrderByCreatedAtDesc(salonId, SubscriptionStatus.PAST_DUE)
+                .orElseGet(() -> Subscription.builder()
+                        .salon(salon)
+                        .status(SubscriptionStatus.PAST_DUE)
+                        .build());
+
+        subscription.setPlan(request.getPlan());
+        subscription.setFeatures(getFeaturesForPlan(request.getPlan()));
+        subscription.setBillingCycle(request.getBillingCycle());
+        subscription.setPrice(price);
+        subscription.setStartDate(LocalDateTime.now());
+        subscription.setEndDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()));
 
         subscription = subscriptionRepository.save(subscription);
         log.info("Created VietQR subscription request ID: {} for Salon ID: {}", subscription.getId(), salonId);
