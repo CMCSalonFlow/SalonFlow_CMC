@@ -89,14 +89,8 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
         List<Subscription> history = subscriptionRepository.findBySalonIdOrderByCreatedAtDesc(salonId);
         List<SubscriptionResponse> responses = new ArrayList<>();
-        boolean foundLatestPastDue = false;
         for (Subscription sub : history) {
-            if (sub.getStatus() == SubscriptionStatus.PAST_DUE) {
-                if (!foundLatestPastDue) {
-                    foundLatestPastDue = true;
-                    responses.add(mapToResponse(sub));
-                }
-            } else {
+            if (sub.getStatus() != SubscriptionStatus.PAST_DUE) {
                 responses.add(mapToResponse(sub));
             }
         }
@@ -626,7 +620,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public SubscriptionResponse createVietQrSubscriptionSession(Long salonId, StripeCheckoutRequest request) {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + salonId));
@@ -636,38 +630,48 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
         BigDecimal price = calculatePriceForPlan(request.getPlan(), request.getBillingCycle());
 
-        Subscription subscription = subscriptionRepository
-                .findFirstBySalonIdAndStatusOrderByCreatedAtDesc(salonId, SubscriptionStatus.PAST_DUE)
-                .orElseGet(() -> Subscription.builder()
-                        .salon(salon)
-                        .status(SubscriptionStatus.PAST_DUE)
-                        .build());
+        Subscription subscription = Subscription.builder()
+                .id(salonId)
+                .salon(salon)
+                .plan(request.getPlan())
+                .features(getFeaturesForPlan(request.getPlan()))
+                .billingCycle(request.getBillingCycle())
+                .price(price)
+                .status(SubscriptionStatus.PAST_DUE)
+                .startDate(LocalDateTime.now())
+                .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
+                .build();
 
-        subscription.setPlan(request.getPlan());
-        subscription.setFeatures(getFeaturesForPlan(request.getPlan()));
-        subscription.setBillingCycle(request.getBillingCycle());
-        subscription.setPrice(price);
-        subscription.setStartDate(LocalDateTime.now());
-        subscription.setEndDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()));
-
-        subscription = subscriptionRepository.save(subscription);
-        log.info("Created VietQR subscription request ID: {} for Salon ID: {}", subscription.getId(), salonId);
+        log.info("Generated in-memory VietQR subscription request for Salon ID: {}", salonId);
         return mapToResponse(subscription);
     }
 
     @Override
     @Transactional
     public SubscriptionResponse activateSubscriptionViaBankTransfer(Long subscriptionId) {
-        Subscription subscription = subscriptionRepository.findById(subscriptionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Subscription not found with ID: " + subscriptionId));
+        Optional<Subscription> existingOpt = subscriptionRepository.findById(subscriptionId);
+        Subscription subscription;
+        if (existingOpt.isPresent()) {
+            subscription = existingOpt.get();
+        } else {
+            Salon salon = salonRepository.findById(subscriptionId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + subscriptionId));
+            subscription = Subscription.builder()
+                    .salon(salon)
+                    .plan(SubscriptionPlan.ENTERPRISE)
+                    .features(getFeaturesForPlan(SubscriptionPlan.ENTERPRISE))
+                    .billingCycle(BillingCycle.MONTHLY)
+                    .price(calculatePriceForPlan(SubscriptionPlan.ENTERPRISE, BillingCycle.MONTHLY))
+                    .build();
+        }
 
         if (subscription.getStatus() != SubscriptionStatus.ACTIVE) {
             expireActiveSubscriptions(subscription.getSalon().getId());
             subscription.setStatus(SubscriptionStatus.ACTIVE);
             subscription.setStartDate(LocalDateTime.now());
-            subscription.setEndDate(calculateEndDate(LocalDateTime.now(), subscription.getBillingCycle()));
+            subscription.setEndDate(calculateEndDate(LocalDateTime.now(), subscription.getBillingCycle() != null ? subscription.getBillingCycle() : BillingCycle.MONTHLY));
             subscription = subscriptionRepository.save(subscription);
-            log.info("Subscription ID {} activated successfully via Bank Transfer / VietQR.", subscriptionId);
+            log.info("Subscription ID {} activated successfully via Bank Transfer / VietQR.", subscription.getId());
         }
 
         return mapToResponse(subscription);

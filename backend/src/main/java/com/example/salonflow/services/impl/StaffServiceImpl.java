@@ -279,11 +279,15 @@ public class StaffServiceImpl implements StaffService {
         String email = null;
         String phone = null;
         String roleCode = "STAFF";
+        String avatarUrl = staff.getAvatarUrl();
         if (staff.getUserId() != null) {
             User user = userRepository.findById(staff.getUserId()).orElse(null);
             if (user != null) {
                 email = user.getEmail();
                 phone = user.getPhone();
+                if ((avatarUrl == null || avatarUrl.trim().isEmpty()) && user.getAvatarUrl() != null && !user.getAvatarUrl().trim().isEmpty()) {
+                    avatarUrl = user.getAvatarUrl();
+                }
                 if (user.getUserRoles() != null && !user.getUserRoles().isEmpty()) {
                     boolean isManager = user.getUserRoles().stream()
                             .anyMatch(ur -> ur.getRole() != null && "MANAGER".equalsIgnoreCase(ur.getRole().getCode()));
@@ -298,7 +302,7 @@ public class StaffServiceImpl implements StaffService {
                 .id(staff.getId())
                 .branchId(staff.getBranch().getId())
                 .name(staff.getName())
-                .avatarUrl(staff.getAvatarUrl())
+                .avatarUrl(avatarUrl)
                 .bio(staff.getBio())
                 .specialties(staff.getSpecialties())
                 .services(serviceResponses)
@@ -327,11 +331,19 @@ public class StaffServiceImpl implements StaffService {
             }
         }
 
+        String pubAvatarUrl = staff.getAvatarUrl();
+        if ((pubAvatarUrl == null || pubAvatarUrl.trim().isEmpty()) && staff.getUserId() != null) {
+            User user = userRepository.findById(staff.getUserId()).orElse(null);
+            if (user != null && user.getAvatarUrl() != null && !user.getAvatarUrl().trim().isEmpty()) {
+                pubAvatarUrl = user.getAvatarUrl();
+            }
+        }
+
         PublicStaffResponse response = new PublicStaffResponse();
         response.setId(staff.getId());
         response.setBranchId(staff.getBranch().getId());
         response.setName(staff.getName());
-        response.setAvatarUrl(staff.getAvatarUrl());
+        response.setAvatarUrl(pubAvatarUrl);
         response.setBio(staff.getBio());
         response.setSpecialties(staff.getSpecialties());
         response.setServices(serviceResponses);
