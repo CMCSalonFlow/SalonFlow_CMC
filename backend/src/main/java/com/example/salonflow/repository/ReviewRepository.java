@@ -120,6 +120,9 @@ public interface ReviewRepository extends JpaRepository<Review, Long>, JpaSpecif
     List<Review> findCompletedReviewsForKeywordExtraction(@Param("from") Instant from, @Param("to") Instant to);
 
     // ---------- Staff Performance Stats ----------
+    @Query("SELECT AVG(r.rating) FROM Review r WHERE r.staff.id = :staffId AND (r.isHidden IS FALSE OR r.isHidden IS NULL)")
+    Double findAverageRatingByStaffId(@Param("staffId") Long staffId);
+
     @Query("SELECT r.staff.id, AVG(r.rating), COUNT(r) FROM Review r WHERE r.staff.id IS NOT NULL AND (r.isHidden IS FALSE OR r.isHidden IS NULL) AND r.createdAt >= :from AND r.createdAt <= :to GROUP BY r.staff.id")
     List<Object[]> findStaffRatingStatsBetween(@Param("from") Instant from, @Param("to") Instant to);
 

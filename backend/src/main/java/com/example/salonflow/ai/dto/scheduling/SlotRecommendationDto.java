@@ -30,6 +30,10 @@ public class SlotRecommendationDto {
     private Double workloadBalanceScore;
     private Double travelGapScore;
     private Double serviceFitScore;
+    private Double occupancyScore;
+
+    // Danh sách các lý do đề xuất ngắn gọn chuẩn nghiệp vụ
+    private java.util.List<String> reasonList;
 
     // Giải thích tự nhiên bằng Tiếng Việt lý do gợi ý slot này
     private String explanation;

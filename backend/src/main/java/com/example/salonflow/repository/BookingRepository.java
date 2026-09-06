@@ -178,5 +178,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             @Param("today") LocalDate today,
             @Param("nowTime") LocalTime nowTime
     );
+
+    long countByAssignedStaffIdAndStatus(Long staffId, BookingStatus status);
+
+    long countByAssignedStaffId(Long staffId);
 }
 
