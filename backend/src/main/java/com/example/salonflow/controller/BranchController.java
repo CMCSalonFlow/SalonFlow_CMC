@@ -5,12 +5,14 @@ import com.example.salonflow.search.dto.BranchSearchRequest;
 import com.example.salonflow.search.dto.BranchSearchResponse;
 import com.example.salonflow.search.service.BranchSearchQueryService;
 import com.example.salonflow.services.service.BranchService;
+import com.example.salonflow.services.service.GeocodingService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/branches")
@@ -20,6 +22,8 @@ public class BranchController {
     private final BranchService branchService;
 
     private final BranchSearchQueryService branchSearchQueryService;
+
+    private final GeocodingService geocodingService;
 
     @GetMapping("/my-branches")
     public ResponseEntity<List<BranchSummaryResponse>>
@@ -166,5 +170,18 @@ public class BranchController {
         request.setSize(size);
 
         return ResponseEntity.ok(branchSearchQueryService.search(request));
+    }
+
+    @GetMapping("/geocode")
+    public ResponseEntity<Map<String, Object>> geocode(@RequestParam String address) {
+        double[] coords = geocodingService.getCoordinates(address);
+        if (coords != null) {
+            return ResponseEntity.ok(Map.of(
+                    "found", true,
+                    "latitude", coords[0],
+                    "longitude", coords[1]
+            ));
+        }
+        return ResponseEntity.ok(Map.of("found", false));
     }
 }

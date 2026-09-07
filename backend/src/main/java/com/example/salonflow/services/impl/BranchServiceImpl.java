@@ -276,6 +276,8 @@ public class BranchServiceImpl implements BranchService {
                 saved.getHours().clear();
                 saveHours(saved, request.getHours());
 
+                branchSearchService.indexBranch(saved.getId());
+
                 return mapToResponse(saved);
         }
 
