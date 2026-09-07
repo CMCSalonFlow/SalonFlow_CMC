@@ -13,5 +13,6 @@ public class LockSlotResponse {
 
     private String slotKey;
     private Long ttlSeconds;
+    private Long assignedStaffId;
     private String message;
 }
