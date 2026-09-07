@@ -116,6 +116,20 @@ public class BookingController {
         return ResponseEntity.ok( bookingService.createWalkInBooking(branchId, request));
    }
 
+    private String resolveHolderId(String guestClientId) {
+        try {
+            Long userId = SecurityUtils.getCurrentUserId();
+            if (userId != null) {
+                return "user:" + userId;
+            }
+        } catch (Exception ignored) {
+        }
+        if (guestClientId != null && !guestClientId.isBlank()) {
+            return "guest:" + guestClientId.trim();
+        }
+        return "guest:anonymous";
+    }
+
     /**
      * Lock slot khi user chọn khung giờ.
      */
@@ -123,8 +137,8 @@ public class BookingController {
     public ResponseEntity<LockSlotResponse> lockSlot(
             @Valid @RequestBody LockSlotRequest request
     ) {
-        Long customerId = SecurityUtils.getCurrentUserId();
-        LockSlotResponse response = slotLockService.lockSlot(customerId, request);
+        String holderId = resolveHolderId(request.getClientId());
+        LockSlotResponse response = slotLockService.lockSlot(holderId, request);
         return ResponseEntity.ok(response);
     }
 
@@ -133,10 +147,11 @@ public class BookingController {
      */
     @DeleteMapping("/api/v1/bookings/lock")
     public ResponseEntity<Void> unlockSlot(
-            @RequestParam String slotKey
+            @RequestParam String slotKey,
+            @RequestParam(required = false) String clientId
     ) {
-        Long customerId = SecurityUtils.getCurrentUserId();
-        slotLockService.unlockSlot(customerId, slotKey);
+        String holderId = resolveHolderId(clientId);
+        slotLockService.unlockSlot(holderId, slotKey);
         return ResponseEntity.noContent().build();
     }
 

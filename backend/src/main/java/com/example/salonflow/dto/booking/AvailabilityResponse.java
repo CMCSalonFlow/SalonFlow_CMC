@@ -18,6 +18,9 @@ public class AvailabilityResponse {
     // Danh sách các mốc thời gian (giờ bắt đầu) khả dụng trong ngày
     private List<LocalTime> availableStartTimes;
 
+    // Danh sách các mốc thời gian đang có người giữ chỗ (hiển thị màu vàng trên giao diện)
+    private List<LocalTime> holdingStartTimes;
+
     // Giờ mở cửa của chi nhánh trong ngày được chọn
     private LocalTime openTime;
 

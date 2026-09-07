@@ -42,7 +42,23 @@ public class BookingWebSocketHandler extends TextWebSocketHandler {
                 staffId != null ? staffId.toString() : "null",
                 date
         );
-        log.info("Broadcasting booking update: {}", payload);
+        broadcast(payload);
+    }
+
+    public void broadcastSlotUpdate(Long branchId, Long staffId, String date, String type, String slotTime) {
+        String payload = String.format(
+                "{\"type\":\"%s\",\"branchId\":%d,\"staffId\":%s,\"date\":\"%s\",\"slotTime\":\"%s\"}",
+                type,
+                branchId,
+                staffId != null ? staffId.toString() : "null",
+                date,
+                slotTime != null ? slotTime : ""
+        );
+        broadcast(payload);
+    }
+
+    private void broadcast(String payload) {
+        log.info("Broadcasting websocket message: {}", payload);
         TextMessage textMessage = new TextMessage(payload);
 
         for (WebSocketSession session : sessions) {

@@ -95,6 +95,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/branches/*/guest-bookings").permitAll()
                         .requestMatchers("/api/v1/payments/sepay-webhook", "/api/v1/payments/auto-confirm/**").permitAll()
                         .requestMatchers("/api/v1/vouchers/validate").permitAll()
+                        .requestMatchers("/api/v1/bookings/lock", "/api/v1/bookings/lock/**").permitAll()
                         .requestMatchers("/api/v1/system-off-days/check-branch", "/api/v1/system-off-days/branch-range").permitAll()
                         .requestMatchers("/api/v1/subscriptions/webhook").permitAll()
                         .requestMatchers("/api/v1/subscription-plans/public").permitAll()

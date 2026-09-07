@@ -6,7 +6,10 @@ import com.example.salonflow.entity.User;
 import com.example.salonflow.entity.SalonService;
 import com.example.salonflow.exception.ResourceNotFoundException;
 import com.example.salonflow.repository.ServiceRepository;
+import com.example.salonflow.repository.StaffRepository;
+import com.example.salonflow.repository.BookingRepository;
 import com.example.salonflow.repository.UserRepository;
+import com.example.salonflow.websocket.BookingWebSocketHandler;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,10 +46,13 @@ class SlotLockServiceTest {
     private ValueOperations<String, String> valueOps;
 
     @Mock
-    private UserRepository userRepository;
+    private StaffRepository staffRepository;
 
     @Mock
-    private ServiceRepository serviceRepository;
+    private BookingRepository bookingRepository;
+
+    @Mock
+    private BookingWebSocketHandler bookingWebSocketHandler;
 
     private SlotLockServiceImpl slotLockService;
 
@@ -69,27 +75,19 @@ class SlotLockServiceTest {
     void setUp() {
         slotLockService = new SlotLockServiceImpl(
                 redisTemplate,
-                userRepository,
-                serviceRepository
+                staffRepository,
+                bookingRepository,
+                bookingWebSocketHandler
         );
-        // Không stub opsForValue() chung ở đây — chỉ test nào thật sự
-        // gọi valueOps (lockSlot success/conflict, unlockSlot) mới cần
-        // stub riêng, tránh UnnecessaryStubbingException ở strict mode.
     }
 
     // ── lockSlot ────────────────────────────────────────────────
 
     @Test
-    @DisplayName("✅ Lock slot thành công → trả về slotKey và ttl 600s")
+    @DisplayName("✅ Lock slot thành công → trả về slotKey và ttl 300s")
     void lockSlot_success() {
         // Arrange
-        when(userRepository.findById(CUSTOMER_ID))
-                .thenReturn(Optional.of(new User()));
-        when(serviceRepository.findById(SERVICE_ID))
-                .thenReturn(Optional.of(new SalonService()));
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class)))
-                .thenReturn(true); // SETNX thành công
 
         // Act
         LockSlotResponse response = slotLockService.lockSlot(
@@ -98,30 +96,26 @@ class SlotLockServiceTest {
         // Assert
         assertThat(response.getSlotKey()).isEqualTo(
                 "slot:1:5:2026-06-30:09:00");
-        assertThat(response.getTtlSeconds()).isEqualTo(600L);
-        assertThat(response.getMessage()).contains("10 phút");
+        assertThat(response.getTtlSeconds()).isEqualTo(300L);
+        assertThat(response.getMessage()).contains("5 phút");
 
-        // Verify Redis SETNX được gọi đúng
-        verify(valueOps).setIfAbsent(
+        // Verify Redis set được gọi để lock slot
+        verify(valueOps).set(
                 eq("slot:1:5:2026-06-30:09:00"),
-                eq(String.valueOf(CUSTOMER_ID)),
-                eq(Duration.ofSeconds(600))
+                eq("user:" + CUSTOMER_ID),
+                eq(Duration.ofSeconds(300))
         );
     }
 
     @Test
-    @DisplayName("🚫 Lock slot đã bị lock → 409 Conflict")
+    @DisplayName("🚫 Lock slot đã bị lock bởi người khác → 409 Conflict")
     void lockSlot_alreadyLocked_returns409() {
         // Arrange
-        when(userRepository.findById(CUSTOMER_ID))
-                .thenReturn(Optional.of(new User()));
-        when(serviceRepository.findById(SERVICE_ID))
-                .thenReturn(Optional.of(new SalonService()));
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.setIfAbsent(anyString(), anyString(), any(Duration.class)))
-                .thenReturn(false); // SETNX thất bại — slot đã bị lock
+        when(valueOps.get(anyString()))
+                .thenReturn("user:999"); // người khác đang giữ
         when(redisTemplate.getExpire(anyString()))
-                .thenReturn(540L);
+                .thenReturn(240L);
 
         // Act & Assert
         assertThatThrownBy(() ->
@@ -130,37 +124,8 @@ class SlotLockServiceTest {
                 .satisfies(ex -> {
                     ResponseStatusException rse = (ResponseStatusException) ex;
                     assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
-                    assertThat(rse.getReason()).contains("Slot này đang được giữ");
+                    assertThat(rse.getReason()).contains("người chọn");
                 });
-    }
-
-    @Test
-    @DisplayName("🚫 Customer không tồn tại → ResourceNotFoundException")
-    void lockSlot_customerNotFound_throwsException() {
-        when(userRepository.findById(CUSTOMER_ID))
-                .thenReturn(Optional.empty());
-
-        assertThatThrownBy(() ->
-                slotLockService.lockSlot(CUSTOMER_ID, buildRequest()))
-                .isInstanceOf(ResourceNotFoundException.class);
-
-        // Redis không được gọi
-        verifyNoInteractions(valueOps);
-    }
-
-    @Test
-    @DisplayName("🚫 Service không tồn tại → ResourceNotFoundException")
-    void lockSlot_serviceNotFound_throwsException() {
-        when(userRepository.findById(CUSTOMER_ID))
-                .thenReturn(Optional.of(new User()));
-        when(serviceRepository.findById(SERVICE_ID))
-                .thenReturn(Optional.empty());
-
-        assertThatThrownBy(() ->
-                slotLockService.lockSlot(CUSTOMER_ID, buildRequest()))
-                .isInstanceOf(ResourceNotFoundException.class);
-
-        verifyNoInteractions(valueOps);
     }
 
     // ── unlockSlot ──────────────────────────────────────────────
@@ -171,12 +136,11 @@ class SlotLockServiceTest {
         String slotKey = "slot:1:5:2026-06-30:09:00";
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(valueOps.get(slotKey))
-                .thenReturn(String.valueOf(CUSTOMER_ID));
+        when(valueOps.get("holder:active:user:" + CUSTOMER_ID)).thenReturn(slotKey);
 
         slotLockService.unlockSlot(CUSTOMER_ID, slotKey);
 
-        verify(redisTemplate).delete(slotKey);
+        verify(redisTemplate, atLeastOnce()).delete(slotKey);
     }
 
     @Test
@@ -185,33 +149,29 @@ class SlotLockServiceTest {
         String slotKey = "slot:1:5:2026-06-30:09:00";
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("holder:active:user:" + CUSTOMER_ID)).thenReturn(null);
         when(valueOps.get(slotKey)).thenReturn(null); // Key không tồn tại
 
         slotLockService.unlockSlot(CUSTOMER_ID, slotKey);
 
-        verify(redisTemplate, never()).delete(anyString());
+        verify(redisTemplate, never()).delete(slotKey);
     }
 
     @Test
-    @DisplayName("🚫 Unlock slot của người khác → 403 Forbidden")
-    void unlockSlot_notOwner_returns403() {
+    @DisplayName("🚫 Unlock slot của người khác → Bị từ chối, không delete")
+    void unlockSlot_notOwner_doesNotDelete() {
         String slotKey = "slot:1:5:2026-06-30:09:00";
         Long otherCustomerId = 999L;
 
         // Slot đang bị lock bởi otherCustomerId
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
+        when(valueOps.get("holder:active:user:" + CUSTOMER_ID)).thenReturn(null);
         when(valueOps.get(slotKey))
-                .thenReturn(String.valueOf(otherCustomerId));
+                .thenReturn("user:" + otherCustomerId);
 
-        assertThatThrownBy(() ->
-                slotLockService.unlockSlot(CUSTOMER_ID, slotKey))
-                .isInstanceOf(ResponseStatusException.class)
-                .satisfies(ex -> {
-                    ResponseStatusException rse = (ResponseStatusException) ex;
-                    assertThat(rse.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-                });
+        slotLockService.unlockSlot(CUSTOMER_ID, slotKey);
 
-        verify(redisTemplate, never()).delete(anyString());
+        verify(redisTemplate, never()).delete(slotKey);
     }
 
     // ── isSlotLocked & getSlotTtl ───────────────────────────────
