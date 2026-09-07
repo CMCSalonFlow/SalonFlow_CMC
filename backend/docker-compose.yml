@@ -90,7 +90,7 @@ services:
       - REDIS_HOST=redis
       - ELASTICSEARCH_URI=http://elasticsearch:9200
       - MINIO_ENDPOINT=http://minio:9000
-      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL}
+      - MINIO_PUBLIC_URL=${MINIO_PUBLIC_URL:-https://salonflow.site}
     networks:
       - salon-network
 

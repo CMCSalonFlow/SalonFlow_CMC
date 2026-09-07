@@ -82,10 +82,7 @@ public class MediaServiceImpl implements MediaService {
             );
 
             // 5. URL
-            String url =
-                    properties.getEndpoint() + "/" +
-                    properties.getBucketName() + "/" +
-                    objectName;
+            String url = buildPublicUrl(objectName);
 
             // 6. Save DB
             MediaFile media = MediaFile.builder()
@@ -202,6 +199,26 @@ public class MediaServiceImpl implements MediaService {
 
     @Override
     public String getInvoiceUrl(String objectName) {
-    return generatePresignedUrl(objectName);
-}
+        return generatePresignedUrl(objectName);
+    }
+
+    private String buildPublicUrl(String objectName) {
+        String baseUrl = properties.getPublicUrl();
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = properties.getEndpoint();
+        }
+        if (baseUrl != null && baseUrl.endsWith("/")) {
+            baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+        }
+
+        String bucket = properties.getBucketName();
+        if (bucket != null && !bucket.isBlank()) {
+            if (baseUrl != null && baseUrl.endsWith("/" + bucket)) {
+                return baseUrl + "/" + objectName;
+            }
+            return baseUrl + "/" + bucket + "/" + objectName;
+        }
+
+        return (baseUrl != null ? baseUrl : "") + "/" + objectName;
+    }
 }

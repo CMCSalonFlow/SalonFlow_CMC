@@ -264,16 +264,22 @@ public class HairStyleSeedImportRunner implements CommandLineRunner {
 
     private String buildPublicUrl(String objectName) {
         String baseUrl = minioProperties.getPublicUrl();
-
-        if (baseUrl.endsWith("/")) {
+        if (baseUrl == null || baseUrl.isBlank()) {
+            baseUrl = minioProperties.getEndpoint();
+        }
+        if (baseUrl != null && baseUrl.endsWith("/")) {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
 
-        return baseUrl
-                + "/"
-                + minioProperties.getBucketName()
-                + "/"
-                + objectName;
+        String bucket = minioProperties.getBucketName();
+        if (bucket != null && !bucket.isBlank()) {
+            if (baseUrl != null && baseUrl.endsWith("/" + bucket)) {
+                return baseUrl + "/" + objectName;
+            }
+            return baseUrl + "/" + bucket + "/" + objectName;
+        }
+
+        return (baseUrl != null ? baseUrl : "") + "/" + objectName;
     }
 
     private boolean isSupportedImage(String fileName) {
