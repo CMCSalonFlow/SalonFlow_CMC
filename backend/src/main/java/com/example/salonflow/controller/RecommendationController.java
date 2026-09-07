@@ -32,11 +32,7 @@ public class RecommendationController {
 
         // Nếu không truyền user_id param, cố gắng lấy từ Token hiện tại nếu đã đăng nhập
         if (targetUserId == null) {
-            try {
-                targetUserId = SecurityUtils.getCurrentUserId();
-            } catch (Exception ignored) {
-                targetUserId = 0L;
-            }
+            targetUserId = SecurityUtils.getCurrentUserIdOptional().orElse(0L);
         }
 
         Long targetBranchId = branchIdParam != null ? branchIdParam : branchIdAlias;

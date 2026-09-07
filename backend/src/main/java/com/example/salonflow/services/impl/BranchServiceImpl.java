@@ -20,6 +20,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -49,10 +50,26 @@ public class BranchServiceImpl implements BranchService {
         @Transactional(readOnly = true)
         public List<BranchSummaryResponse> getMyBranches() {
 
-                Long userId = SecurityUtils.getCurrentUserId();
+                Optional<Long> currentUserIdOpt = SecurityUtils.getCurrentUserIdOptional();
+                if (currentUserIdOpt.isEmpty()) {
+                        return branchRepository.findAll()
+                                        .stream()
+                                        .filter(Branch::getIsActive)
+                                        .map(branch -> BranchSummaryResponse.builder()
+                                                        .id(branch.getId())
+                                                        .name(branch.getName())
+                                                        .address(branch.getAddress())
+                                                        .latitude(branch.getLatitude())
+                                                        .longitude(branch.getLongitude())
+                                                        .isActive(branch.getIsActive())
+                                                        .build())
+                                        .toList();
+                }
+
+                Long userId = currentUserIdOpt.get();
 
                 // 1. Nếu user là Owner của Salon, trả về toàn bộ chi nhánh của Salon đó
-                java.util.Optional<com.example.salonflow.entity.Salon> salonOpt = salonRepository
+                Optional<Salon> salonOpt = salonRepository
                                 .findFirstByOwnerId(userId);
                 if (salonOpt.isPresent()) {
                         return branchRepository.findBySalonId(salonOpt.get().getId())
@@ -289,17 +306,50 @@ public class BranchServiceImpl implements BranchService {
         @Transactional(readOnly = true)
         public List<BranchResponse> getAll() {
 
-                Long ownerId = SecurityUtils.getCurrentUserId();
+                Optional<Long> currentUserIdOpt = SecurityUtils.getCurrentUserIdOptional();
 
-                Salon salon = salonRepository
-                                .findFirstByOwnerId(ownerId)
-                                .orElseThrow(() -> new ResourceNotFoundException(
-                                                "Salon not found"));
+                if (currentUserIdOpt.isPresent()) {
+                        Long userId = currentUserIdOpt.get();
 
-                return branchRepository
-                                .findBySalonId(
-                                                salon.getId())
+                        // 1. Nếu user là Owner của Salon, trả về toàn bộ chi nhánh của Salon đó
+                        Optional<Salon> salonOpt = salonRepository.findFirstByOwnerId(userId);
+                        if (salonOpt.isPresent()) {
+                                return branchRepository.findBySalonId(salonOpt.get().getId())
+                                                .stream()
+                                                .map(this::mapToResponse)
+                                                .toList();
+                        }
+
+                        // 2. Nếu là Staff/Manager được gán vào chi nhánh
+                        List<Branch> assignedBranches = userBranchRepository.findByUser_Id(userId)
+                                        .stream()
+                                        .map(UserBranch::getBranch)
+                                        .toList();
+                        if (!assignedBranches.isEmpty()) {
+                                return assignedBranches.stream()
+                                                .map(this::mapToResponse)
+                                                .toList();
+                        }
+
+                        // 3. Nếu là SUPER_ADMIN
+                        boolean isSuperAdmin = org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                        .getAuthentication()
+                                        .getAuthorities()
+                                        .stream()
+                                        .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                                        .anyMatch(authority -> authority.equals("ROLE_SUPER_ADMIN"));
+                        if (isSuperAdmin) {
+                                return branchRepository.findAll()
+                                                .stream()
+                                                .map(this::mapToResponse)
+                                                .toList();
+                        }
+                }
+
+                // 4. Nếu chưa đăng nhập hoặc là Khách hàng (Customer): Trả về tất cả chi nhánh đang hoạt động
+                return branchRepository.findAll()
                                 .stream()
+                                .filter(Branch::getIsActive)
                                 .map(this::mapToResponse)
                                 .toList();
         }
@@ -309,9 +359,10 @@ public class BranchServiceImpl implements BranchService {
         public BranchResponse getById(
                         Long branchId) {
 
-                Branch branch = branchOwnershipValidator
-                                .validateOwnerBranch(
-                                                branchId);
+                Branch branch = branchRepository
+                                .findById(branchId)
+                                .orElseThrow(() -> new ResourceNotFoundException(
+                                                "Branch not found"));
 
                 return mapToResponse(branch);
         }

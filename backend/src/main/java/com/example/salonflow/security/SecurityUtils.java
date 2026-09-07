@@ -1,40 +1,52 @@
 package com.example.salonflow.security;
 
+import com.example.salonflow.exception.InvalidTokenException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+
+import java.util.Optional;
 
 public final class SecurityUtils {
 
     private SecurityUtils() {
     }
 
-    public static Long getCurrentUserId() {
-
+    public static Optional<CustomUserPrincipal> getCurrentUserPrincipal() {
         Authentication authentication =
                 SecurityContextHolder
                         .getContext()
                         .getAuthentication();
 
-        CustomUserPrincipal principal =
-                (CustomUserPrincipal)
-                        authentication.getPrincipal();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return Optional.empty();
+        }
 
-        return principal.getId();
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof CustomUserPrincipal customUserPrincipal) {
+            return Optional.of(customUserPrincipal);
+        }
+
+        return Optional.empty();
+    }
+
+    public static Optional<Long> getCurrentUserIdOptional() {
+        return getCurrentUserPrincipal().map(CustomUserPrincipal::getId);
+    }
+
+    public static Optional<String> getCurrentUserEmailOptional() {
+        return getCurrentUserPrincipal().map(CustomUserPrincipal::getEmail);
+    }
+
+    public static Long getCurrentUserId() {
+        return getCurrentUserIdOptional()
+                .orElseThrow(() -> new InvalidTokenException("User is not authenticated"));
     }
 
     public static String getCurrentUserEmail() {
-
-        Authentication authentication =
-                SecurityContextHolder
-                        .getContext()
-                        .getAuthentication();
-
-        CustomUserPrincipal principal =
-                (CustomUserPrincipal)
-                        authentication.getPrincipal();
-
-        return principal.getEmail();
+        return getCurrentUserEmailOptional()
+                .orElseThrow(() -> new InvalidTokenException("User is not authenticated"));
     }
+
     public static Long getCurrentBranchId() {
 
         Long branchId =
@@ -49,5 +61,5 @@ public final class SecurityUtils {
         }
 
         return branchId;
-        }
+    }
 }
