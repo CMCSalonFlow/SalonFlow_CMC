@@ -49,6 +49,8 @@ public class SlotLockServiceImpl implements SlotLockService {
 
     private static final long LOCK_TTL_SECONDS = 300L; // 5 phút
     private static final String SLOT_KEY_PREFIX = "slot:";
+    private static final String AVAILABILITY_CACHE_PREFIX = "availability:branch:";
+
 
     private int resolveDurationMinutes(LockSlotRequest request) {
         if (request.getDurationMinutes() != null && request.getDurationMinutes() > 0) {
@@ -99,6 +101,23 @@ public class SlotLockServiceImpl implements SlotLockService {
             cur = cur.plusMinutes(15);
         }
         return slots;
+    }
+
+    /**
+     * Xóa toàn bộ cache availability liên quan đến branchId + date ngay lập tức.
+     * Được gọi sau mọi lock / unlock để đảm bảo getAvailability không trả về dữ liệu cũ.
+     */
+    private void invalidateAvailabilityCache(Long branchId, String date) {
+        try {
+            String pattern = AVAILABILITY_CACHE_PREFIX + branchId + ":*:date:" + date + ":*";
+            java.util.Set<String> keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.info("[SlotLock] Invalidated {} availability cache keys for branch={} date={}", keys.size(), branchId, date);
+            }
+        } catch (Exception ex) {
+            log.warn("[SlotLock] Không thể invalidate availability cache: {}", ex.getMessage());
+        }
     }
 
     private void releaseHolderPreviousLocks(String holderId, String previousSlotKey) {
@@ -232,6 +251,9 @@ public class SlotLockServiceImpl implements SlotLockService {
         String activeKey = "holder:active:" + holderId;
         redisTemplate.opsForValue().set(activeKey, String.join(",", lockedKeys), Duration.ofSeconds(LOCK_TTL_SECONDS));
 
+        // ✅ Invalidate availability cache ngay sau khi lock để UI các client khác thấy trạng thái mới nhất
+        invalidateAvailabilityCache(request.getBranchId(), request.getBookingDate().toString());
+
         String primarySlotKey = buildSlotKey(
                 request.getBranchId(),
                 effectiveStaffId,
@@ -251,18 +273,57 @@ public class SlotLockServiceImpl implements SlotLockService {
 
     @Override
     public void unlockSlot(String holderId, String slotKey) {
+        // Parse branchId và date từ slotKey trước khi delete để invalidate cache
+        // Format: "slot:{branchId}:{staffId}:{date}:{startTime}" (date = yyyy-MM-dd, index 2 sau khi bỏ prefix)
+        Long branchIdForCache = null;
+        String dateForCache = null;
+        if (slotKey != null && !slotKey.isBlank()) {
+            try {
+                // Bỏ prefix "slot:" rồi split: [branchId, staffId, yyyy-MM-dd, HH, mm, ss?]
+                String withoutPrefix = slotKey.startsWith(SLOT_KEY_PREFIX)
+                        ? slotKey.substring(SLOT_KEY_PREFIX.length())
+                        : slotKey;
+                String[] parts = withoutPrefix.split(":");
+                if (parts.length >= 3) {
+                    branchIdForCache = Long.parseLong(parts[0]);
+                    // date là yyyy-MM-dd nằm ở index 2
+                    dateForCache = parts[2];
+                }
+            } catch (Exception ignored) {}
+        }
         releaseHolderPreviousLocks(holderId, slotKey);
+        // ✅ Invalidate cache sau unlock
+        if (branchIdForCache != null && dateForCache != null) {
+            invalidateAvailabilityCache(branchIdForCache, dateForCache);
+        }
     }
 
     @Override
     public void forceUnlock(String slotKey) {
         if (slotKey == null || slotKey.isBlank()) return;
+        // Parse branchId và date để invalidate cache
+        Long branchIdForCache = null;
+        String dateForCache = null;
+        try {
+            String withoutPrefix = slotKey.startsWith(SLOT_KEY_PREFIX)
+                    ? slotKey.substring(SLOT_KEY_PREFIX.length()) : slotKey;
+            String[] parts = withoutPrefix.split(":");
+            if (parts.length >= 3) {
+                branchIdForCache = Long.parseLong(parts[0]);
+                dateForCache = parts[2];
+            }
+        } catch (Exception ignored) {}
+
         String currentHolder = redisTemplate.opsForValue().get(slotKey);
         if (currentHolder != null) {
             releaseHolderPreviousLocks(currentHolder, slotKey);
         } else {
             redisTemplate.delete(slotKey);
             broadcastUnlock(slotKey);
+        }
+        // ✅ Invalidate cache sau force unlock
+        if (branchIdForCache != null && dateForCache != null) {
+            invalidateAvailabilityCache(branchIdForCache, dateForCache);
         }
     }
 
