@@ -285,7 +285,7 @@ public class NoShowPredictionServiceImpl implements NoShowPredictionService {
         // 3. Lead Time Calculation
         LocalDateTime bookingDateTime = booking.getBookingDate().atTime(booking.getStartTime());
         Instant createdInstant = booking.getCreatedAt() != null ? booking.getCreatedAt() : Instant.now();
-        LocalDateTime createdDateTime = LocalDateTime.ofInstant(createdInstant, ZoneId.systemDefault());
+        LocalDateTime createdDateTime = LocalDateTime.ofInstant(createdInstant, ZoneId.of("Asia/Ho_Chi_Minh"));
 
         long leadMinutes = Math.max(0, Duration.between(createdDateTime, bookingDateTime).toMinutes());
         double leadTimeHours = (double) leadMinutes / 60.0;
