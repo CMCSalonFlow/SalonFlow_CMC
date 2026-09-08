@@ -620,7 +620,7 @@ public class SubscriptionServiceImpl implements SubscriptionService {
     }
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public SubscriptionResponse createVietQrSubscriptionSession(Long salonId, StripeCheckoutRequest request) {
         Salon salon = salonRepository.findById(salonId)
                 .orElseThrow(() -> new ResourceNotFoundException("Salon not found with ID: " + salonId));
@@ -630,19 +630,34 @@ public class SubscriptionServiceImpl implements SubscriptionService {
         }
         BigDecimal price = calculatePriceForPlan(request.getPlan(), request.getBillingCycle());
 
-        Subscription subscription = Subscription.builder()
-                .id(salonId)
-                .salon(salon)
-                .plan(request.getPlan())
-                .features(getFeaturesForPlan(request.getPlan()))
-                .billingCycle(request.getBillingCycle())
-                .price(price)
-                .status(SubscriptionStatus.PAST_DUE)
-                .startDate(LocalDateTime.now())
-                .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
-                .build();
+        // Kiểm tra nếu đã có subscription PAST_DUE gần nhất thì tái sử dụng để tránh tạo trùng
+        Optional<Subscription> existingPastDue = subscriptionRepository
+                .findFirstBySalonIdAndStatusOrderByCreatedAtDesc(salonId, SubscriptionStatus.PAST_DUE);
 
-        log.info("Generated in-memory VietQR subscription request for Salon ID: {}", salonId);
+        Subscription subscription;
+        if (existingPastDue.isPresent()) {
+            subscription = existingPastDue.get();
+            subscription.setPlan(request.getPlan());
+            subscription.setFeatures(getFeaturesForPlan(request.getPlan()));
+            subscription.setBillingCycle(request.getBillingCycle());
+            subscription.setPrice(price);
+            subscription.setStartDate(LocalDateTime.now());
+            subscription.setEndDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()));
+        } else {
+            subscription = Subscription.builder()
+                    .salon(salon)
+                    .plan(request.getPlan())
+                    .features(getFeaturesForPlan(request.getPlan()))
+                    .billingCycle(request.getBillingCycle())
+                    .price(price)
+                    .status(SubscriptionStatus.PAST_DUE)
+                    .startDate(LocalDateTime.now())
+                    .endDate(calculateEndDate(LocalDateTime.now(), request.getBillingCycle()))
+                    .build();
+        }
+
+        subscription = subscriptionRepository.save(subscription);
+        log.info("Tạo/cập nhật Subscription ID {} (PAST_DUE) cho Salon ID: {} - chờ thanh toán VietQR", subscription.getId(), salonId);
         return mapToResponse(subscription);
     }
 
