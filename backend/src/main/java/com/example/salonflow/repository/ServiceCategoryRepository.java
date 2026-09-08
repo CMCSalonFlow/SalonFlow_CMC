@@ -12,10 +12,19 @@ public interface ServiceCategoryRepository extends JpaRepository<ServiceCategory
 
     List<ServiceCategory> findAllByOrderByDisplayOrderAsc();
 
+    List<ServiceCategory> findBySalonIdOrderByDisplayOrderAsc(Long salonId);
+
     @Query("SELECT MAX(s.displayOrder) FROM ServiceCategory s")
     Integer findMaxDisplayOrder();
+
+    @Query("SELECT MAX(s.displayOrder) FROM ServiceCategory s WHERE s.salonId = :salonId")
+    Integer findMaxDisplayOrderBySalonId(Long salonId);
 
     boolean existsByNameIgnoreCase(String name);
 
     boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+
+    boolean existsByNameIgnoreCaseAndSalonId(String name, Long salonId);
+
+    boolean existsByNameIgnoreCaseAndSalonIdAndIdNot(String name, Long salonId, Long id);
 }

@@ -62,6 +62,7 @@ public class BranchServiceImpl implements BranchService {
                                                         .latitude(branch.getLatitude())
                                                         .longitude(branch.getLongitude())
                                                         .isActive(branch.getIsActive())
+                                                        .salonId(branch.getSalon() != null ? branch.getSalon().getId() : null)
                                                         .build())
                                         .toList();
                 }
@@ -81,6 +82,7 @@ public class BranchServiceImpl implements BranchService {
                                                         .latitude(branch.getLatitude())
                                                         .longitude(branch.getLongitude())
                                                         .isActive(branch.getIsActive())
+                                                        .salonId(branch.getSalon() != null ? branch.getSalon().getId() : null)
                                                         .build())
                                         .toList();
                 }
@@ -102,6 +104,7 @@ public class BranchServiceImpl implements BranchService {
                                                         .latitude(branch.getLatitude())
                                                         .longitude(branch.getLongitude())
                                                         .isActive(branch.getIsActive())
+                                                        .salonId(branch.getSalon() != null ? branch.getSalon().getId() : null)
                                                         .build();
                                 })
                                 .toList();
@@ -120,7 +123,8 @@ public class BranchServiceImpl implements BranchService {
                                 .stream()
                                 .map(org.springframework.security.core.GrantedAuthority::getAuthority)
                                 .anyMatch(authority -> authority.equals("ROLE_SALON_OWNER")
-                                                || authority.equals("ROLE_STAFF"));
+                                                || authority.equals("ROLE_STAFF")
+                                                || authority.equals("ROLE_MANAGER"));
 
                 if (isOwnerOrStaff) {
                         return List.of();
@@ -136,6 +140,7 @@ public class BranchServiceImpl implements BranchService {
                                                 .latitude(branch.getLatitude())
                                                 .longitude(branch.getLongitude())
                                                 .isActive(branch.getIsActive())
+                                                .salonId(branch.getSalon() != null ? branch.getSalon().getId() : null)
                                                 .build())
                                 .toList();
         }
@@ -346,9 +351,23 @@ public class BranchServiceImpl implements BranchService {
                                                 .map(this::mapToResponse)
                                                 .toList();
                         }
+
+                        // 4. Bảo mật đa salon: Nếu user là Salon Owner, Staff hoặc Manager nhưng không có salon hoặc chưa được gán chi nhánh,
+                        // tuyệt đối không được trả về chi nhánh của Salon khác!
+                        boolean isOwnerOrStaff = org.springframework.security.core.context.SecurityContextHolder.getContext()
+                                        .getAuthentication()
+                                        .getAuthorities()
+                                        .stream()
+                                        .map(org.springframework.security.core.GrantedAuthority::getAuthority)
+                                        .anyMatch(authority -> authority.equals("ROLE_SALON_OWNER")
+                                                        || authority.equals("ROLE_STAFF")
+                                                        || authority.equals("ROLE_MANAGER"));
+                        if (isOwnerOrStaff) {
+                                return List.of();
+                        }
                 }
 
-                // 4. Nếu chưa đăng nhập hoặc là Khách hàng (Customer): Trả về tất cả chi nhánh đang hoạt động
+                // 5. Nếu chưa đăng nhập hoặc là Khách hàng (Customer): Trả về tất cả chi nhánh đang hoạt động
                 return branchRepository.findAll()
                                 .stream()
                                 .filter(Branch::getIsActive)

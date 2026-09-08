@@ -30,4 +30,7 @@ public class CreateVoucherBatchRequest {
 
     @NotNull(message = "Ngày hết hạn không được để trống")
     private LocalDateTime expiresAt;
+
+    // ✅ ID Salon sở hữu batch voucher này
+    private Long salonId;
 }

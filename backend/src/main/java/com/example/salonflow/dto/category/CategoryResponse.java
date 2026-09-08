@@ -13,4 +13,5 @@ public class CategoryResponse {
     private String color;
     private String description;
     private Integer displayOrder;
+    private Long salonId;
 }

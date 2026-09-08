@@ -34,7 +34,7 @@ public class SystemOffDayServiceImpl implements SystemOffDayService {
         Long salonId = salon != null ? salon.getId() : null;
 
         if (salonId == null) {
-            return systemOffDayRepository.findAll().stream().map(this::toResponse).toList();
+            return List.of();
         }
         return systemOffDayRepository.findBySalonIdOrderByDateFromDesc(salonId)
                 .stream()

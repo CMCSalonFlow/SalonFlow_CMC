@@ -26,13 +26,13 @@ public class ServiceCategoryController {
     }
 
     @GetMapping
-    public ResponseEntity<List<CategoryResponse>> getAll() {
-        return ResponseEntity.ok(service.getAll());
+    public ResponseEntity<List<CategoryResponse>> getAll(@RequestParam(required = false) Long salonId) {
+        return ResponseEntity.ok(service.getAll(salonId));
     }
 
     @GetMapping("/public")
-    public ResponseEntity<List<CategoryResponse>> getPublicCategories() {
-        return ResponseEntity.ok(service.getAll());
+    public ResponseEntity<List<CategoryResponse>> getPublicCategories(@RequestParam(required = false) Long salonId) {
+        return ResponseEntity.ok(service.getAll(salonId));
     }
 
     @GetMapping("/{id}")

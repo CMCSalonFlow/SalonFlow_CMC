@@ -11,4 +11,7 @@ import java.util.Optional;
 public interface VoucherRepository extends JpaRepository<Voucher, Long> {
     Optional<Voucher> findByCode(String code);
     List<Voucher> findByUserIdAndIsActiveTrue(Long userId);
+
+    // ✅ Filter voucher theo salonId
+    List<Voucher> findBySalonId(Long salonId);
 }

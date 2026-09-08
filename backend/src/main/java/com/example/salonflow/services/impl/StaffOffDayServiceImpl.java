@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -107,8 +108,11 @@ public class StaffOffDayServiceImpl implements StaffOffDayService {
         boolean isOwner = isOwnerUser(userId);
 
         if (isOwner) {
-            Salon salon = salonRepository.findFirstByOwnerId(userId)
-                    .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy Salon của bạn"));
+            Optional<Salon> salonOpt = salonRepository.findFirstByOwnerId(userId);
+            if (salonOpt.isEmpty()) {
+                return List.of();
+            }
+            Salon salon = salonOpt.get();
             List<StaffOffDay> list = offDayRepository.findOffDaysForOwner(salon.getId(), branchId, status);
             return list.stream().map(offDay -> convertToLeaveResponse(offDay)).toList();
         }

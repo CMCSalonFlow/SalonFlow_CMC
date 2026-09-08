@@ -7,4 +7,6 @@ import lombok.Data;
 public class ValidateVoucherRequest {
     @NotBlank(message = "Mã voucher không được để trống")
     private String code;
+
+    private Long salonId;
 }

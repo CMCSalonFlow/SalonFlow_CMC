@@ -18,8 +18,13 @@ public class VoucherController {
     private final VoucherService voucherService;
 
     @GetMapping
-    public ResponseEntity<List<VoucherResponse>> getAllVouchers() {
-        return ResponseEntity.ok(voucherService.getAllVouchers());
+    public ResponseEntity<List<VoucherResponse>> getAllVouchers(@RequestParam(required = false) Long salonId) {
+        return ResponseEntity.ok(voucherService.getVouchers(salonId));
+    }
+
+    @GetMapping("/salon/{salonId}")
+    public ResponseEntity<List<VoucherResponse>> getVouchersBySalonId(@PathVariable Long salonId) {
+        return ResponseEntity.ok(voucherService.getVouchersBySalonId(salonId));
     }
 
     @PostMapping
@@ -43,6 +48,6 @@ public class VoucherController {
             @Valid @RequestBody ValidateVoucherRequest request,
             @RequestParam(required = false) BigDecimal orderTotal
     ) {
-        return ResponseEntity.ok(voucherService.validateVoucher(request.getCode(), orderTotal));
+        return ResponseEntity.ok(voucherService.validateVoucher(request.getCode(), orderTotal, request.getSalonId()));
     }
 }

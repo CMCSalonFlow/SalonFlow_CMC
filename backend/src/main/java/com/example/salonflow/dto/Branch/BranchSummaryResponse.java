@@ -18,4 +18,6 @@ public class BranchSummaryResponse {
     private Double longitude;
 
     private Boolean isActive;
+
+    private Long salonId;
 }

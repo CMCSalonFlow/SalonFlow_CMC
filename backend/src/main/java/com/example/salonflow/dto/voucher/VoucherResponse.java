@@ -24,4 +24,5 @@ public class VoucherResponse {
     private Boolean isActive;
     private BigDecimal minOrderAmount;
     private BigDecimal maxDiscountAmount;
+    private Long salonId;
 }

@@ -53,6 +53,10 @@ public class Voucher {
     @Column(name = "user_id")
     private Long userId;
 
+    // ✅ Mỗi voucher thuộc về một salon cụ thể (nullable cho backward compatibility)
+    @Column(name = "salon_id")
+    private Long salonId;
+
     @Column(name = "created_at", insertable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -32,4 +32,7 @@ public class ServiceCategory extends BaseEntity {
     @Builder.Default
     @Column(name = "display_order", nullable = false)
     private Integer displayOrder = 0;
+
+    @Column(name = "salon_id")
+    private Long salonId;
 }

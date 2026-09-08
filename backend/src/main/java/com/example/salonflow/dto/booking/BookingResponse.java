@@ -28,6 +28,7 @@ public class BookingResponse {
     // Chi nhánh
     private Long branchId;
     private String branchName;
+    private Long salonId;
 
     // Thời gian đặt hẹn
     private LocalDate bookingDate;

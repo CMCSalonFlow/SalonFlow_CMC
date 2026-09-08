@@ -12,6 +12,8 @@ public interface ServiceCategoryService {
 
     List<CategoryResponse> getAll();
 
+    List<CategoryResponse> getAll(Long salonId);
+
     CategoryResponse getById(Long id);
 
     CategoryResponse update(Long id, UpdateCategoryRequest request);

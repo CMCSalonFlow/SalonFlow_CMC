@@ -27,4 +27,7 @@ public class CreateVoucherRequest {
 
     @NotNull(message = "Ngày hết hạn không được để trống")
     private LocalDateTime expiresAt;
+
+    // ✅ ID Salon sở hữu voucher này
+    private Long salonId;
 }

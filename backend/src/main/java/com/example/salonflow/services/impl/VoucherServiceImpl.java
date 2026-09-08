@@ -1,12 +1,17 @@
 package com.example.salonflow.services.impl;
 
 import com.example.salonflow.dto.voucher.*;
+import com.example.salonflow.entity.Salon;
 import com.example.salonflow.entity.Voucher;
 import com.example.salonflow.entity.enums.DiscountType;
 import com.example.salonflow.exception.ResourceNotFoundException;
+import com.example.salonflow.repository.SalonRepository;
 import com.example.salonflow.repository.VoucherRepository;
+import com.example.salonflow.security.SecurityUtils;
 import com.example.salonflow.services.service.VoucherService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,6 +20,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 
 @Service
@@ -22,13 +28,95 @@ import java.util.Random;
 public class VoucherServiceImpl implements VoucherService {
 
     private final VoucherRepository voucherRepository;
+    private final SalonRepository salonRepository;
+
+    private boolean isAdmin() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null) {
+            return false;
+        }
+        return authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")
+                        || a.getAuthority().equals("ROLE_SUPER_ADMIN"));
+    }
 
     @Override
     public List<VoucherResponse> getAllVouchers() {
-        return voucherRepository.findAll()
+        if (isAdmin()) {
+            return voucherRepository.findAll()
+                    .stream()
+                    .map(this::toResponse)
+                    .toList();
+        }
+
+        // Tự động kiểm tra nếu user đăng nhập là Owner của Salon thì chỉ trả về voucher của salon đó
+        Optional<Long> currentUserIdOpt = SecurityUtils.getCurrentUserIdOptional();
+        if (currentUserIdOpt.isPresent()) {
+            Optional<Salon> salonOpt = salonRepository.findFirstByOwnerId(currentUserIdOpt.get());
+            if (salonOpt.isPresent()) {
+                return getVouchersBySalonId(salonOpt.get().getId());
+            }
+            // User có tài khoản / role salon owner nhưng CHƯA TẠO SALON -> danh sách rỗng, tuyệt đối không trả về tất cả
+            return List.of();
+        }
+
+        return List.of();
+    }
+
+    @Override
+    public List<VoucherResponse> getVouchersBySalonId(Long salonId) {
+        if (salonId == null) {
+            return getAllVouchers();
+        }
+        return voucherRepository.findBySalonId(salonId)
                 .stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    @Override
+    public List<VoucherResponse> getVouchers(Long salonId) {
+        if (isAdmin()) {
+            if (salonId != null) {
+                return getVouchersBySalonId(salonId);
+            }
+            return voucherRepository.findAll().stream().map(this::toResponse).toList();
+        }
+
+        Optional<Long> currentUserIdOpt = SecurityUtils.getCurrentUserIdOptional();
+        if (currentUserIdOpt.isPresent()) {
+            Optional<Salon> salonOpt = salonRepository.findFirstByOwnerId(currentUserIdOpt.get());
+            if (salonOpt.isPresent()) {
+                Long ownedSalonId = salonOpt.get().getId();
+                if (salonId != null && !salonId.equals(ownedSalonId)) {
+                    return List.of(); // Không cho phép xem voucher của salon khác
+                }
+                return getVouchersBySalonId(ownedSalonId);
+            }
+            // Chưa tạo salon
+            return List.of();
+        }
+
+        if (salonId != null) {
+            return getVouchersBySalonId(salonId);
+        }
+
+        return List.of();
+    }
+
+    private Long resolveSalonId(Long requestedSalonId) {
+        if (isAdmin() && requestedSalonId != null) {
+            return requestedSalonId;
+        }
+        Optional<Long> currentUserIdOpt = SecurityUtils.getCurrentUserIdOptional();
+        if (currentUserIdOpt.isPresent()) {
+            Optional<Salon> salonOpt = salonRepository.findFirstByOwnerId(currentUserIdOpt.get());
+            if (salonOpt.isPresent()) {
+                return salonOpt.get().getId();
+            }
+            throw new IllegalArgumentException("Bạn chưa tạo salon! Vui lòng tạo thông tin salon trước khi tạo voucher.");
+        }
+        return requestedSalonId;
     }
 
     @Override
@@ -38,6 +126,8 @@ public class VoucherServiceImpl implements VoucherService {
         if (voucherRepository.findByCode(code).isPresent()) {
             throw new IllegalArgumentException("Mã voucher '" + code + "' đã tồn tại!");
         }
+
+        Long salonId = resolveSalonId(request.getSalonId());
 
         Voucher voucher = Voucher.builder()
                 .code(code)
@@ -50,6 +140,7 @@ public class VoucherServiceImpl implements VoucherService {
                 .isActive(true)
                 .minOrderAmount(request.getMinOrderAmount())
                 .maxDiscountAmount(request.getMaxDiscountAmount())
+                .salonId(salonId) // ✅ Gắn salon owner
                 .build();
 
         return toResponse(voucherRepository.save(voucher));
@@ -62,6 +153,8 @@ public class VoucherServiceImpl implements VoucherService {
         int quantity = request.getQuantity();
         List<Voucher> vouchersToSave = new ArrayList<>();
         Random random = new Random();
+
+        Long salonId = resolveSalonId(request.getSalonId());
 
         for (int i = 0; i < quantity; i++) {
             String randomCode;
@@ -81,6 +174,7 @@ public class VoucherServiceImpl implements VoucherService {
                     .startDate(LocalDateTime.now())
                     .endDate(request.getExpiresAt())
                     .isActive(true)
+                    .salonId(salonId) // ✅ Gắn salon owner
                     .build();
 
             vouchersToSave.add(voucher);
@@ -101,6 +195,11 @@ public class VoucherServiceImpl implements VoucherService {
 
     @Override
     public ValidateVoucherResponse validateVoucher(String code, BigDecimal orderTotal) {
+        return validateVoucher(code, orderTotal, null);
+    }
+
+    @Override
+    public ValidateVoucherResponse validateVoucher(String code, BigDecimal orderTotal, Long salonId) {
         if (code == null || code.isBlank()) {
             return ValidateVoucherResponse.builder()
                     .valid(false)
@@ -116,6 +215,16 @@ public class VoucherServiceImpl implements VoucherService {
                     .valid(false)
                     .message("Mã voucher không tồn tại hoặc đã bị tắt")
                     .build();
+        }
+
+        // Kiểm tra xem voucher có thuộc về đúng salon không
+        if (voucher.getSalonId() != null) {
+            if (salonId == null || !voucher.getSalonId().equals(salonId)) {
+                return ValidateVoucherResponse.builder()
+                        .valid(false)
+                        .message("Mã voucher này không áp dụng cho salon đã chọn")
+                        .build();
+            }
         }
 
         if (voucher.getEndDate() != null && LocalDateTime.now().isAfter(voucher.getEndDate())) {
@@ -178,6 +287,7 @@ public class VoucherServiceImpl implements VoucherService {
                 .isActive(v.getIsActive())
                 .minOrderAmount(v.getMinOrderAmount())
                 .maxDiscountAmount(v.getMaxDiscountAmount())
+                .salonId(v.getSalonId()) // ✅ Include salonId in response
                 .build();
     }
 }
