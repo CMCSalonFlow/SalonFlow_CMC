@@ -23,8 +23,6 @@ public class ServiceCategory extends BaseEntity {
     @JoinColumn(name = "icon_media_id")
     private MediaFile icon;
 
-    @Column(nullable = false, length = 7)
-    private String color;
 
     @Column(columnDefinition = "TEXT")
     private String description;

@@ -10,7 +10,6 @@ public class CreateCategoryRequest {
     private String name;
 
     private Long iconMediaId;
-    private String color;
     private String description;
     private Long salonId;
 }

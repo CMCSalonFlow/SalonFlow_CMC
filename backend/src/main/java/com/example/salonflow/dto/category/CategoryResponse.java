@@ -10,7 +10,6 @@ public class CategoryResponse {
     private Long id;
     private String name;
     private String iconUrl; 
-    private String color;
     private String description;
     private Integer displayOrder;
     private Long salonId;

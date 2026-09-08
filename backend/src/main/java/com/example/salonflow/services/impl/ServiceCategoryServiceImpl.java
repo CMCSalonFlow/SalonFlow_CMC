@@ -88,7 +88,6 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
         ServiceCategory category = ServiceCategory.builder()
                 .name(request.getName().trim())
                 .icon(icon)
-                .color(request.getColor())
                 .description(request.getDescription())
                 .displayOrder(newOrder)
                 .salonId(salonId)
@@ -180,7 +179,6 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
 
         category.setName(request.getName().trim());
         category.setIcon(icon);
-        category.setColor(request.getColor());
         category.setDescription(request.getDescription());
 
         category = repository.save(category);
@@ -233,7 +231,6 @@ public class ServiceCategoryServiceImpl implements ServiceCategoryService {
                 .iconUrl(category.getIcon() != null
                         ? category.getIcon().getUrl()
                         : null)
-                .color(category.getColor())
                 .description(category.getDescription())
                 .displayOrder(category.getDisplayOrder())
                 .salonId(category.getSalonId())
