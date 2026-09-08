@@ -40,6 +40,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -347,9 +348,22 @@ public class BookingServiceImpl implements BookingService {
         }
         
         List<SalonService> finalServices = services;
+        final List<SalonService> requiredServicesForSkill = (bundleId != null && !services.isEmpty())
+                ? List.of(getPrimaryService(services))
+                : services;
         List<Staff> qualifiedStaff = branchStaff.stream()
-                .filter(s -> isStaffQualified(s, finalServices))
+                .filter(s -> isStaffQualified(s, requiredServicesForSkill))
                 .toList();
+
+        // Nếu đặt nhiều dịch vụ lẻ mà không có thợ nào làm được tất cả -> Áp dụng cơ chế Thợ chính theo dịch vụ chính
+        if (qualifiedStaff.isEmpty() && !services.isEmpty()) {
+            SalonService primary = getPrimaryService(services);
+            if (primary != null) {
+                qualifiedStaff = branchStaff.stream()
+                        .filter(s -> isStaffQualified(s, List.of(primary)))
+                        .toList();
+            }
+        }
 
         if (qualifiedStaff.isEmpty()) {
             return AvailabilityResponse.builder().availableStartTimes(new ArrayList<>()).build();
@@ -508,6 +522,15 @@ public class BookingServiceImpl implements BookingService {
             }
         }
         return true;
+    }
+
+    // Xác định dịch vụ chính trong combo (giá cao nhất hoặc thời lượng lâu nhất)
+    private SalonService getPrimaryService(List<SalonService> services) {
+        if (services == null || services.isEmpty()) return null;
+        return services.stream()
+                .max(Comparator.comparing((SalonService s) -> s.getPrice() != null ? s.getPrice() : BigDecimal.ZERO)
+                        .thenComparingInt(s -> s.getDurationMinutes() != null ? s.getDurationMinutes() : 0))
+                .orElse(services.get(0));
     }
 
     // Lấy thông tin người dùng hiện tại đang đăng nhập
@@ -762,8 +785,27 @@ public class BookingServiceImpl implements BookingService {
                 throw new BusinessException("Nhân viên " + preferredStaff.getName() + " đã xin nghỉ phép vào ngày " + bookingDate.format(java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy")) + ". Vui lòng chọn nhân viên khác hoặc ngày khác!");
             }
 
-            if (!isStaffQualified(preferredStaff, services)) {
-                throw new BusinessException("Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện một số dịch vụ đã chọn");
+            final List<SalonService> finalServices = services;
+            if (bundle != null && !services.isEmpty()) {
+                SalonService primaryService = getPrimaryService(services);
+                if (primaryService != null && !isStaffQualified(preferredStaff, List.of(primaryService))) {
+                    throw new BusinessException("Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện dịch vụ chính (" + primaryService.getName() + ") của combo");
+                }
+            } else if (!isStaffQualified(preferredStaff, services)) {
+                // Kiểm tra xem chi nhánh có ai làm được toàn bộ dịch vụ không
+                List<Staff> allBranchStaff = staffRepository.findByBranchId(branchId);
+                boolean anyCanDoAll = allBranchStaff.stream().anyMatch(s -> isStaffQualified(s, finalServices));
+                SalonService primaryService = getPrimaryService(services);
+
+                if (!anyCanDoAll && primaryService != null && isStaffQualified(preferredStaff, List.of(primaryService))) {
+                    // Chấp nhận vì nhân viên này làm được dịch vụ chính
+                    log.info("Preferred staff {} accepted for primary service {}", preferredStaff.getName(), primaryService.getName());
+                } else {
+                    String detailMsg = (primaryService != null)
+                            ? "Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện dịch vụ chính (" + primaryService.getName() + ")"
+                            : "Nhân viên " + preferredStaff.getName() + " không có kỹ năng thực hiện một số dịch vụ đã chọn";
+                    throw new BusinessException(detailMsg);
+                }
             }
 
             List<Booking> overlapping = bookingRepository.findOverlappingBookings(
@@ -773,14 +815,33 @@ public class BookingServiceImpl implements BookingService {
             }
             assignedStaff = preferredStaff;
         } else {
-            final List<SalonService> finalServices = services;
+            final List<SalonService> requiredServicesForSkill = (bundle != null && !services.isEmpty())
+                    ? List.of(getPrimaryService(services))
+                    : services;
             List<Staff> branchStaff = staffRepository.findByBranchId(branchId);
             List<Staff> qualifiedStaff = branchStaff.stream()
-                    .filter(s -> isStaffQualified(s, finalServices))
+                    .filter(s -> isStaffQualified(s, requiredServicesForSkill))
                     .toList();
 
+            SalonService primaryService = null;
+            // Nếu đặt nhiều dịch vụ lẻ mà không có ai làm được tất cả -> Fallback thợ chính theo dịch vụ cốt lõi
+            if (qualifiedStaff.isEmpty() && !services.isEmpty()) {
+                primaryService = getPrimaryService(services);
+                if (primaryService != null) {
+                    final SalonService finalPrimary = primaryService;
+                    qualifiedStaff = branchStaff.stream()
+                            .filter(s -> isStaffQualified(s, List.of(finalPrimary)))
+                            .toList();
+                }
+            }
+
             if (qualifiedStaff.isEmpty()) {
-                throw new BusinessException("Không có nhân viên nào tại chi nhánh có khả năng thực hiện toàn bộ dịch vụ đã chọn");
+                String errorMsg = (bundle != null && !services.isEmpty())
+                        ? "Không có nhân viên nào tại chi nhánh có khả năng thực hiện dịch vụ chính (" + getPrimaryService(services).getName() + ") của combo"
+                        : (primaryService != null
+                            ? "Không có nhân viên nào tại chi nhánh có khả năng thực hiện dịch vụ chính (" + primaryService.getName() + ")"
+                            : "Không có nhân viên nào tại chi nhánh có khả năng thực hiện toàn bộ dịch vụ đã chọn");
+                throw new BusinessException(errorMsg);
             }
 
             List<Staff> availableStaff = new ArrayList<>();

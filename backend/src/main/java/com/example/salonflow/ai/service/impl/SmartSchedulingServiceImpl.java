@@ -33,6 +33,7 @@ public class SmartSchedulingServiceImpl implements SmartSchedulingService {
     private final ReviewRepository reviewRepository;
     private final UserRepository userRepository;
     private final ObjectMapper objectMapper;
+    private final ServiceBundleRepository serviceBundleRepository;
 
     // Config weights default: 0.4 workload, 0.3 travel/gap, 0.3 service fit
     private BigDecimal workloadWeight = new BigDecimal("0.4");
@@ -65,10 +66,44 @@ public class SmartSchedulingServiceImpl implements SmartSchedulingService {
 
         // 2. Calculate service duration
         int totalDuration = 30;
+        List<SalonService> reqServices = new ArrayList<>();
         if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
-            List<SalonService> services = serviceRepository.findAllById(request.getServiceIds());
-            int sum = services.stream().mapToInt(SalonService::getDurationMinutes).sum();
+            reqServices = serviceRepository.findAllById(request.getServiceIds());
+            int sum = reqServices.stream().mapToInt(SalonService::getDurationMinutes).sum();
             if (sum > 0) totalDuration = sum;
+
+            if (reqServices.size() > 1) {
+                List<Staff> branchTechnicians = staffRepository.findByBranchId(request.getBranchId());
+                Set<Long> reqServiceIds = reqServices.stream().map(SalonService::getId).collect(Collectors.toSet());
+                boolean anyHasAll = branchTechnicians.stream().anyMatch(st ->
+                        st.getServices() == null || st.getServices().isEmpty() ||
+                                st.getServices().stream().map(SalonService::getId).collect(Collectors.toSet()).containsAll(reqServiceIds)
+                );
+                if (!anyHasAll) {
+                    SalonService primary = getPrimaryService(reqServices);
+                    if (primary != null) {
+                        reqServices = List.of(primary);
+                    }
+                }
+            }
+        } else if (request.getBundleId() != null && serviceBundleRepository != null) {
+            Optional<ServiceBundle> bundleOpt = serviceBundleRepository.findById(request.getBundleId());
+            if (bundleOpt.isPresent()) {
+                ServiceBundle bundle = bundleOpt.get();
+                if (bundle.getTotalDurationMinutes() != null && bundle.getTotalDurationMinutes() > 0) {
+                    totalDuration = bundle.getTotalDurationMinutes();
+                }
+                if (bundle.getItems() != null) {
+                    List<SalonService> bundleServices = bundle.getItems().stream()
+                            .map(ServiceBundleItem::getService)
+                            .filter(Objects::nonNull)
+                            .toList();
+                    SalonService primary = getPrimaryService(bundleServices);
+                    if (primary != null) {
+                        reqServices = List.of(primary);
+                    }
+                }
+            }
         }
 
         // 3. Filter staff list (Exclude Managers / Branch Managers / Owners and Inactive users)
@@ -133,20 +168,17 @@ public class SmartSchedulingServiceImpl implements SmartSchedulingService {
         // Fetch selected service names & extract key skill tokens
         List<String> selectedServiceNames = new ArrayList<>();
         List<String> requiredSkillKeywords = new ArrayList<>();
-        if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
-            List<SalonService> reqServices = serviceRepository.findAllById(request.getServiceIds());
-            for (SalonService s : reqServices) {
-                if (s.getName() != null) {
-                    selectedServiceNames.add(s.getName());
-                    String nameLower = s.getName().toLowerCase();
-                    if (nameLower.contains("cắt")) requiredSkillKeywords.add("cắt");
-                    if (nameLower.contains("uốn")) requiredSkillKeywords.add("uốn");
-                    if (nameLower.contains("nhuộm")) requiredSkillKeywords.add("nhuộm");
-                    if (nameLower.contains("gội")) requiredSkillKeywords.add("gội");
-                    if (nameLower.contains("râu") || nameLower.contains("da mặt")) requiredSkillKeywords.add("râu");
-                    if (nameLower.contains("massage")) requiredSkillKeywords.add("massage");
-                    if (nameLower.contains("tạo kiểu") || nameLower.contains("barber")) requiredSkillKeywords.add("tạo kiểu");
-                }
+        for (SalonService s : reqServices) {
+            if (s.getName() != null) {
+                selectedServiceNames.add(s.getName());
+                String nameLower = s.getName().toLowerCase();
+                if (nameLower.contains("cắt")) requiredSkillKeywords.add("cắt");
+                if (nameLower.contains("uốn")) requiredSkillKeywords.add("uốn");
+                if (nameLower.contains("nhuộm")) requiredSkillKeywords.add("nhuộm");
+                if (nameLower.contains("gội")) requiredSkillKeywords.add("gội");
+                if (nameLower.contains("râu") || nameLower.contains("da mặt")) requiredSkillKeywords.add("râu");
+                if (nameLower.contains("massage")) requiredSkillKeywords.add("massage");
+                if (nameLower.contains("tạo kiểu") || nameLower.contains("barber")) requiredSkillKeywords.add("tạo kiểu");
             }
         }
 
@@ -158,8 +190,8 @@ public class SmartSchedulingServiceImpl implements SmartSchedulingService {
             // 2. Secondary: Fall back to specialty keyword matching
             boolean isQualified = true;
 
-            if (request.getServiceIds() != null && !request.getServiceIds().isEmpty()) {
-                Set<Long> reqServiceIds = new HashSet<>(request.getServiceIds());
+            if (!reqServices.isEmpty()) {
+                Set<Long> reqServiceIds = reqServices.stream().map(SalonService::getId).collect(Collectors.toSet());
 
                 if (staff.getServices() != null && !staff.getServices().isEmpty()) {
                     Set<Long> staffServiceIds = staff.getServices().stream()
@@ -456,5 +488,13 @@ public class SmartSchedulingServiceImpl implements SmartSchedulingService {
             return smartSchedulingLogRepository.findByBranchIdOrderByCreatedAtDesc(branchId);
         }
         return smartSchedulingLogRepository.findAllByOrderByCreatedAtDesc();
+    }
+
+    private SalonService getPrimaryService(List<SalonService> services) {
+        if (services == null || services.isEmpty()) return null;
+        return services.stream()
+                .max(Comparator.comparing((SalonService s) -> s.getPrice() != null ? s.getPrice() : BigDecimal.ZERO)
+                        .thenComparingInt(s -> s.getDurationMinutes() != null ? s.getDurationMinutes() : 0))
+                .orElse(services.get(0));
     }
 }
