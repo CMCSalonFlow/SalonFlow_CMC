@@ -182,27 +182,55 @@ public class MediaServiceImpl implements MediaService {
         }
     }
 
- private String generatePresignedUrl(String objectName) {
-    try {
-        return minioClient.getPresignedObjectUrl(
-                GetPresignedObjectUrlArgs.builder()
-                        .bucket(properties.getBucketName())
-                        .object(objectName)
-                        .method(Method.GET)
-                        .expiry(7, TimeUnit.DAYS)
-                        .build()
-        );
-    } catch (Exception e) {
-        throw new BadRequestException("Cannot create presigned url: " + e.getMessage());
+    private String sanitizeObjectName(String objectName) {
+        if (objectName == null || objectName.isBlank()) {
+            return "";
+        }
+        String cleaned = objectName.trim();
+        int queryIdx = cleaned.indexOf('?');
+        if (queryIdx >= 0) {
+            cleaned = cleaned.substring(0, queryIdx);
+        }
+        String bucket = properties.getBucketName();
+        if (bucket != null && !bucket.isBlank()) {
+            int bucketIdx = cleaned.indexOf("/" + bucket + "/");
+            if (bucketIdx >= 0) {
+                cleaned = cleaned.substring(bucketIdx + bucket.length() + 2);
+            }
+        }
+        while (cleaned.startsWith("/")) {
+            cleaned = cleaned.substring(1);
+        }
+        return cleaned;
     }
- }
+
+    private String generatePresignedUrl(String objectName) {
+        try {
+            String cleanName = sanitizeObjectName(objectName);
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .bucket(properties.getBucketName())
+                            .object(cleanName)
+                            .method(Method.GET)
+                            .expiry(7, TimeUnit.DAYS)
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new BadRequestException("Cannot create presigned url: " + e.getMessage());
+        }
+    }
 
     @Override
     public String getInvoiceUrl(String objectName) {
-        return generatePresignedUrl(objectName);
+        if (objectName == null || objectName.isBlank()) {
+            return "";
+        }
+        return buildPublicUrl(objectName);
     }
 
     private String buildPublicUrl(String objectName) {
+        String cleaned = sanitizeObjectName(objectName);
+
         String baseUrl = properties.getPublicUrl();
         if (baseUrl == null || baseUrl.isBlank()) {
             baseUrl = properties.getEndpoint();
@@ -211,14 +239,21 @@ public class MediaServiceImpl implements MediaService {
             baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
         }
 
+        // If baseUrl points to internal docker container hostname 'minio', replace with localhost
+        if (baseUrl != null && baseUrl.contains("://minio:9000")) {
+            baseUrl = baseUrl.replace("://minio:9000", "://localhost:9000");
+        } else if (baseUrl != null && baseUrl.contains("://minio")) {
+            baseUrl = baseUrl.replace("://minio", "://localhost");
+        }
+
         String bucket = properties.getBucketName();
         if (bucket != null && !bucket.isBlank()) {
             if (baseUrl != null && baseUrl.endsWith("/" + bucket)) {
-                return baseUrl + "/" + objectName;
+                return baseUrl + "/" + cleaned;
             }
-            return baseUrl + "/" + bucket + "/" + objectName;
+            return baseUrl + "/" + bucket + "/" + cleaned;
         }
 
-        return (baseUrl != null ? baseUrl : "") + "/" + objectName;
+        return (baseUrl != null ? baseUrl : "") + "/" + cleaned;
     }
 }

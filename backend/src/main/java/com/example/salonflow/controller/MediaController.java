@@ -31,6 +31,15 @@ public class MediaController {
 
     @GetMapping("/invoice")
     public String getInvoiceUrl(@RequestParam String objectName) {
-    return mediaService.getInvoiceUrl(objectName);
-}
+        return mediaService.getInvoiceUrl(objectName);
+    }
+
+    @GetMapping("/invoice/view")
+    public void viewInvoice(
+            @RequestParam String objectName,
+            jakarta.servlet.http.HttpServletResponse response
+    ) throws java.io.IOException {
+        String url = mediaService.getInvoiceUrl(objectName);
+        response.sendRedirect(url);
+    }
 }
