@@ -855,7 +855,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                                     .branchName(st.getBranch() != null ? st.getBranch().getName() : "")
                                     .thirtyDaysAvgRating(roundedRating)
                                     .thirtyDaysReviewCount(cntR)
-                                    .warningMessage(String.format("⚠️ Nhân viên %s có điểm đánh giá 30 ngày qua thấp (%s/5.0 với %d lượt đánh giá). Cần kiểm tra chất lượng phục vụ.",
+                                    .warningMessage(String.format("Nhân viên %s có điểm đánh giá 30 ngày qua thấp (%s/5.0 với %d lượt đánh giá). Cần kiểm tra chất lượng phục vụ.",
                                             st.getName(), roundedRating, cntR))
                                     .build());
                         });

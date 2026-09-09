@@ -200,7 +200,17 @@ public class SmartSchedulingServiceImpl implements SmartSchedulingService {
 
                     boolean canPerformServices = staffServiceIds.containsAll(reqServiceIds);
                     if (!canPerformServices) {
-                        isQualified = false;
+                        // Fallback: nếu không match ID chính xác,
+                        // thử keyword matching từ specialties trước khi loại hẳn
+                        if (!requiredSkillKeywords.isEmpty() && !staffSpecialtiesStr.isEmpty()) {
+                            boolean keywordMatch = requiredSkillKeywords.stream()
+                                    .anyMatch(staffSpecialtiesStr::contains);
+                            if (!keywordMatch) {
+                                isQualified = false;
+                            }
+                        } else {
+                            isQualified = false;
+                        }
                     }
                 } else if (!requiredSkillKeywords.isEmpty()) {
                     if (staffSpecialtiesStr.isEmpty()) {
