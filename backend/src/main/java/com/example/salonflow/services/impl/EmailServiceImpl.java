@@ -113,7 +113,9 @@ public class EmailServiceImpl implements EmailService {
             return;
         }
 
-        String branchName = booking.getBranch() != null ? booking.getBranch().getName() : "SalonFlow";
+        String salonName = (booking.getBranch() != null && booking.getBranch().getSalon() != null)
+                ? booking.getBranch().getSalon().getName() : "SalonFlow";
+        String branchName = booking.getBranch() != null ? booking.getBranch().getName() : "Chi nhánh";
         String dateStr = booking.getBookingDate() != null ? booking.getBookingDate().toString() : "";
         String timeStr = booking.getStartTime() != null ? booking.getStartTime().toString() : "";
 
@@ -121,16 +123,21 @@ public class EmailServiceImpl implements EmailService {
         String body = """
                 <div style="font-family:Arial,Helvetica,sans-serif;padding:24px;color:#2c221d;">
                   <h2 style="color:#1677ff;margin-top:0;">Xác nhận đặt lịch hẹn thành công</h2>
-                  <p>Cảm ơn bạn đã sử dụng dịch vụ tại <b>%s</b>.</p>
+                  <p>Cảm ơn bạn đã sử dụng dịch vụ tại <b>%s</b> (%s).</p>
                   <p><b>Mã lịch hẹn:</b> #%d</p>
+                  <p><b>Salon:</b> %s</p>
+                  <p><b>Chi nhánh:</b> %s</p>
                   <p><b>Ngày hẹn:</b> %s</p>
                   <p><b>Giờ hẹn:</b> %s</p>
                   <p><b>Tổng giá trị đơn:</b> %s VND</p>
                   <p style="margin-top:20px;color:#595959;">Lịch hẹn của bạn đã được tiếp nhận. Hóa đơn thanh toán chính thức sẽ được gửi sau khi bạn hoàn tất dịch vụ tại Salon.</p>
                 </div>
                 """.formatted(
+                salonName,
                 branchName,
                 booking.getId(),
+                salonName,
+                branchName,
                 dateStr,
                 timeStr,
                 booking.getTotalPrice() != null ? String.format("%,.0f", booking.getTotalPrice()) : "0"

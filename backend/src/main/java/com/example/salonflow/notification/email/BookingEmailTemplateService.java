@@ -21,6 +21,7 @@ public class BookingEmailTemplateService {
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm");
 
     private final BookingQrCodeService qrCodeService;
+    private final com.example.salonflow.repository.BranchRepository branchRepository;
 
     @Value("${frontend.url:}")
     private String frontendUrl;
@@ -86,7 +87,8 @@ public class BookingEmailTemplateService {
         String bookingCode = booking != null ? "#BK" + booking.getId() : "#BK";
         String dateText = booking != null && booking.getBookingDate() != null ? booking.getBookingDate().format(DATE_FORMAT) : "-";
         String timeText = booking != null && booking.getStartTime() != null ? booking.getStartTime().format(TIME_FORMAT) : "-";
-        String branchName = booking != null && booking.getBranch() != null ? booking.getBranch().getName() : "-";
+        String salonName = resolveSalonName(booking);
+        String branchName = resolveBranchName(booking);
         String staffName = booking != null && booking.getAssignedStaff() != null ? booking.getAssignedStaff().getName() : "Chưa phân công";
         String customerName = booking != null && booking.getCustomer() != null ? booking.getCustomer().getFullName() : "-";
         String totalPrice = formatMoney(booking != null ? booking.getTotalPrice() : null);
@@ -122,6 +124,7 @@ public class BookingEmailTemplateService {
                                     <div style="font-size:28px;font-weight:700;margin:10px 0 18px;color:#2c221d;">%s</div>
                                     <table role="presentation" width="100%%" cellspacing="0" cellpadding="0" border="0" style="font-size:14px;line-height:1.8;">
                                       <tr><td style="color:#7c6a61;width:160px;">Khách hàng</td><td style="font-weight:700;">%s</td></tr>
+                                      <tr><td style="color:#7c6a61;">Salon</td><td style="font-weight:700;color:#8b5e3c;">%s</td></tr>
                                       <tr><td style="color:#7c6a61;">Chi nhánh</td><td style="font-weight:700;">%s</td></tr>
                                       <tr><td style="color:#7c6a61;">Nhân viên</td><td style="font-weight:700;">%s</td></tr>
                                       <tr><td style="color:#7c6a61;">Ngày</td><td style="font-weight:700;">%s</td></tr>
@@ -168,6 +171,7 @@ public class BookingEmailTemplateService {
                 intro,
                 bookingCode,
                 customerName,
+                salonName,
                 branchName,
                 staffName,
                 dateText,
@@ -179,6 +183,51 @@ public class BookingEmailTemplateService {
                 bookingLink,
                 ctaLabel
         );
+    }
+
+    private String resolveSalonName(Booking booking) {
+        if (booking == null) return "-";
+        try {
+            if (booking.getBranch() != null && booking.getBranch().getSalon() != null) {
+                String name = booking.getBranch().getSalon().getName();
+                if (name != null && !name.isBlank()) {
+                    return name;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (booking.getBranch() != null && booking.getBranch().getId() != null && branchRepository != null) {
+            try {
+                return branchRepository.findById(booking.getBranch().getId())
+                        .map(b -> b.getSalon() != null ? b.getSalon().getName() : null)
+                        .filter(n -> n != null && !n.isBlank())
+                        .orElse("-");
+            } catch (Exception ignored) {
+            }
+        }
+        return "-";
+    }
+
+    private String resolveBranchName(Booking booking) {
+        if (booking == null) return "-";
+        try {
+            if (booking.getBranch() != null && booking.getBranch().getName() != null) {
+                return booking.getBranch().getName();
+            }
+        } catch (Exception ignored) {
+        }
+
+        if (booking.getBranch() != null && booking.getBranch().getId() != null && branchRepository != null) {
+            try {
+                return branchRepository.findById(booking.getBranch().getId())
+                        .map(com.example.salonflow.entity.Branch::getName)
+                        .filter(n -> n != null && !n.isBlank())
+                        .orElse("-");
+            } catch (Exception ignored) {
+            }
+        }
+        return "-";
     }
 
     private String buildBookingLink(Booking booking) {
